@@ -7,7 +7,7 @@
   "workspaces": ["server"],
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test shared/test server/test",
+    "test": "node --test \"shared/test/*.test.js\" \"server/test/*.test.js\"",
     "lint-tracks": "node tools/tracklint.js",
     "balance": "node tools/balance.js",
     "netsim": "node tools/netsim.js",
