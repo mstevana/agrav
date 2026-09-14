@@ -1,0 +1,18 @@
+{
+  "name": "agrav-games",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multiplayer browser games platform: authoritative Node server, shared simulation, three.js PWA clients. First game: AGRAV.",
+  "type": "module",
+  "workspaces": ["server"],
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test shared/test server/test",
+    "lint-tracks": "node tools/tracklint.js",
+    "balance": "node tools/balance.js",
+    "netsim": "node tools/netsim.js",
+    "racetest": "node tools/racetest.js"
+  },
+  "engines": { "node": ">=22" },
+  "license": "MIT"
+}
