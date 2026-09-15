@@ -73,6 +73,7 @@ export class Session {
       case MSG.READY: return this.room?.setReady(this, !!m.ready);
       case MSG.SET_OPTS: return this.room?.setOpts(this, m.opts || {}, m.public);
       case MSG.START: return this.room?.requestStart(this);
+      case MSG.LOADED: return this.room?.loaded(this);
       case MSG.ADD_BOT: return this.room?.addBot(this);
       case MSG.KICK: return this.room?.kick(this, m.id | 0);
       case MSG.CHAT: return this.room?.chat(this, String(m.text || '').slice(0, 200));

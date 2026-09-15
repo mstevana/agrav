@@ -12,7 +12,7 @@ import { vehicleStats } from '../vehicles.js';
 import { getTrack, TRACK_IDS } from '../tracks/index.js';
 import { makeVehicleState, stepVehicle, environmentDamage } from './vehicle.js';
 import { rollItem, useItem, stepProjectiles, stepMinigun, resetProjectileIds } from './weapons.js';
-import { ITEMS, PAD, GRID, PHASE, CONTACT, HIT_SLOW, COUNTDOWN_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
+import { ITEMS, PAD, GRID, PHASE, CONTACT, HIT_SLOW, COUNTDOWN_SEC, GRID_HOLD_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
          TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS } from '../constants.js';
 
 const ribbonCache = new Map();
@@ -98,6 +98,18 @@ function placeOnGrid(race) {
   });
 }
 
+/** keep the grid frozen (the countdown is pushed out to the hold ceiling) until armRace pulls it in */
+export function holdRace(race, tick) {
+  race.held = true;
+  race.startTick = tick + (GRID_HOLD_SEC + COUNTDOWN_SEC) * race.tickRate;
+}
+/** everyone is loaded (or the hold ran out): the countdown starts now */
+export function armRace(race, tick) {
+  if (!race.held) return;
+  race.held = false;
+  race.startTick = tick + COUNTDOWN_SEC * race.tickRate;
+}
+
 export function startRace(race, tick) {
   race.phase = PHASE.COUNTDOWN;
   race.tick = tick;
@@ -148,6 +160,7 @@ export function stepRace(race, tick, events) {
   const ribbon = race.ribbon;
   const L = ribbon.length;
 
+  if (race.held && tick >= race.startTick - COUNTDOWN_SEC * race.tickRate) race.held = false;   // the ceiling counts down like any other start
   if (race.phase === PHASE.COUNTDOWN && tick >= race.startTick) {
     race.phase = PHASE.RACING;
     events.push({ t: 'go' });

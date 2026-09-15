@@ -130,6 +130,7 @@ export class Client {
   setOpts(opts) { this._send(MSG.SET_OPTS, { opts }); }
   setPublic(isPublic) { this._send(MSG.SET_OPTS, { public: !!isPublic }); }
   start() { this._send(MSG.START, {}); }
+  loaded() { this._send(MSG.LOADED, {}); }
   addBot() { this._send(MSG.ADD_BOT, {}); }
   kick(id) { this._send(MSG.KICK, { id }); }
   chat(text) { this._send(MSG.CHAT, { text }); }

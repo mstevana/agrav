@@ -9,7 +9,8 @@ export const SNAPSHOT_RATE = 30;
 export const GRAVITY = 30;              // m/s², arcade-heavy so jumps land fast
 export const ASSIST = 1.6;              // 1/s: with no steering input the heading relaxes toward the track (pilot assist)
 export const HOVER_HEIGHT = 1.4;        // visual ride height (rendering only)
-export const COUNTDOWN_SEC = 3;
+export const COUNTDOWN_SEC = 4;       // 3, 2, 1, 0 — one second each
+export const GRID_HOLD_SEC = 8;       // the longest the grid waits for slow clients to load before counting down anyway
 export const FINISH_GRACE_SEC = 45;     // race ends this long after the first finisher
 export const RESULTS_HOLD_SEC = 12;     // results shown before the room returns to the lobby
 

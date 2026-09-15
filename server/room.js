@@ -146,6 +146,7 @@ export class Room {
     }
     p.disconnectedAt = Date.now();
     this.game.onDisconnect(this.state, p.id, this.tick);
+    this._maybeArm();   // a client that dropped during the hold must not keep the grid waiting
     p.abandonTimer = setTimeout(() => {
       p.abandonTimer = null;
       if (p.session || this.destroyed) return;
@@ -233,9 +234,31 @@ export class Room {
     this.results = null;
     for (const p of this.players.values()) { p.inputs = new RingBuffer(INPUT_HISTORY); p.lastInput = null; p.lastSeq = 0; p.abandoned = false; }
     this.game.start(this.state, this.tick);
+    // the grid waits for every human client to report its scene built, then the countdown runs; a slow or
+    // silent client is given a bounded grace before the race counts down without it
+    if (this.game.hold) {
+      for (const p of this.players.values()) p.loaded = p.bot || !p.session;
+      this.game.hold(this.state, this.tick);
+      this.armed = false;
+    } else this.armed = true;
     this.broadcastRoomState();
     this._startLoop();
     log.info('room', 'started', { code: this.code, players: this.players.size });
+  }
+
+  /** a client has built the race scene */
+  loaded(session) {
+    const p = this.players.get(session.playerId);
+    if (!p || this.phase !== 'running') return;
+    p.loaded = true;
+    this._maybeArm();
+  }
+  _maybeArm() {
+    if (this.armed) return;
+    for (const p of this.players.values()) if (!p.loaded && p.session) return;
+    this.armed = true;
+    this.game.arm?.(this.state, this.tick);
+    log.info('room', 'armed', { code: this.code });
   }
 
   chat(session, text) {
@@ -326,6 +349,7 @@ export class Room {
 
   _finish() {
     if (this.phase !== 'running') return;
+    this.armed = true;
     this.phase = 'results';
     this.raced = true;
     this.results = this.game.results(this.state);

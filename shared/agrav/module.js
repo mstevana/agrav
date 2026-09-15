@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { TICK_RATE, SNAPSHOT_RATE, PHASE } from './constants.js';
-import { createRace, addRacer, removeRacer, setRacerProfile, startRace, applyRacerInput, stepRace,
+import { createRace, addRacer, removeRacer, setRacerProfile, startRace, holdRace, armRace, applyRacerInput, stepRace,
          raceIsOver, raceResults, publicRaceState, validateOpts } from './sim/race.js';
 import { encodeRaceSnapshot, decodeRaceSnapshot } from './sim/snapshot.js';
 import { makeBot, botInput } from './bot.js';
@@ -33,6 +33,9 @@ export default {
   publicState: publicRaceState,
 
   start: startRace,
+  // the room holds the grid until every human client has built its scene (or GRID_HOLD_SEC passes), then arms the countdown
+  hold: holdRace,
+  arm: armRace,
   phase(state) { return state.phase; },
   applyInput(state, id, input) { applyRacerInput(state, id, input); },
   botInput(state, id, tick) {

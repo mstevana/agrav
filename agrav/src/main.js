@@ -135,6 +135,8 @@ function craftFor(id, vehicleId) {
 
 // ------------------------------------------------------------------ state ----
 const client = new Client();
+audio.onTrack = (title) => { if (ui.screen === 'race') hud.say(`♪ ${title}`, 'good'); };
+window.addEventListener('keydown', (e) => { if (e.code === 'KeyN' && ui.screen === 'race') audio.nextTrack(); });
 const input = new Input(renderer.domElement);
 const hud = new Hud();
 let ui = { screen: 'menu', ready: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
@@ -286,6 +288,7 @@ function enterRace(room) {
   buildScene(room.opts.track, client.ribbon);
   for (const c of scene.crafts.values()) removeCraft(c);
   scene.crafts.clear();
+  client.loaded();   // the grid waits for this before it counts down
   hud.status('');
   audio.setMusicMode('race');
 }
@@ -502,7 +505,7 @@ function renderRace(dt) {
     }
     if (myPose?.scraping) audio.play('scrape');
     // countdown beeps
-    if (phase === PHASE.COUNTDOWN) { const n = Math.ceil(-client.raceTickNow() / TICK_RATE); if (n !== ui.lastCount && n > 0 && n <= 3) { audio.play('count'); ui.lastCount = n; } }
+    if (phase === PHASE.COUNTDOWN) { const n = Math.floor(-client.raceTickNow() / TICK_RATE); if (n !== ui.lastCount && n >= 0 && n <= 3) { audio.play('count'); ui.lastCount = n; } }
   }
 
   // HUD

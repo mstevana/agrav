@@ -77,6 +77,17 @@ minigun round about 1 %. Craft-to-craft contact is mass-weighted (armour is mass
 hull gives way less, side swipes scrub sliding speed and twist both hulls, nose-to-tail shoves the
 slower craft on, and every bump costs a little energy (`CONTACT` in `shared/agrav/constants.js`).
 
+## Start procedure and soundtrack
+
+When the host starts, every client builds the track scene and reports in; the grid holds
+("GET READY") until everyone is in, or for eight seconds at most, then counts 3, 2, 1, 0 with a beep
+per number and a GO. Six synthesized techno tracks (`src/music.js`) rotate race by race, sequenced
+at sixteenth-note resolution from pattern data and played through Web Audio oscillators and
+noise, each with an intro, a build, a lead section and a breakdown: Canyon Carver (150), Meridian
+Overdrive (160), Vanta Tide (145), Anti-Grav League Anthem (172), Umbrella Protocol (140) and
+Hypercell (165 bpm). N skips to the next track during a race. `node tools/musicpreview.js` renders
+each one to a WAV so you can audition them without racing.
+
 ## Items
 
 Pads on the track hand out one item; drive over one while holding nothing. Trailing racers

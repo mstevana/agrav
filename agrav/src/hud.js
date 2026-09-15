@@ -82,10 +82,13 @@ export class Hud {
       e.root.classList.toggle('boosting', me.boostT > 0);
     }
     if (phase === 1) {
-      const left = Math.ceil(-raceTick / tickRate);
-      e.countdown.textContent = left > 0 ? left : 'GO';
+      // the grid holds until every client is in ("GET READY"), then counts 3, 2, 1, 0, one second each
+      const n = Math.floor(-raceTick / tickRate);
+      e.countdown.textContent = n > 3 ? 'GET READY' : n >= 0 ? String(n) : 'GO';
+      e.countdown.classList.toggle('small', n > 3);
       e.countdown.hidden = false;
     } else if (phase === 2 && raceTick < tickRate * 1.2) {
+      e.countdown.classList.remove('small');
       e.countdown.textContent = 'GO'; e.countdown.hidden = false;
     } else e.countdown.hidden = true;
     e.time.textContent = fmtTime(Math.max(0, elapsed));

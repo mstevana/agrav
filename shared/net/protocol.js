@@ -33,6 +33,7 @@ export const MSG = Object.freeze({
   EVENTS: 15,      // s->c {tick, events:[...]}   game events, reliable
   RESULTS: 16,     // s->c {results}
   LIST_ROOMS: 17,  // c->s {} -> s->c {rooms:[...]}
+  LOADED: 18,      // c->s {}   the client has built the race scene; the grid holds until everyone has (or a timeout)
   // hot path (binary)
   PING: 20,        // c->s  u32 clientTimeMs
   PONG: 21,        // s->c  u32 clientTimeMs, u32 serverTick, u16 tickMs*100

@@ -7,8 +7,11 @@
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
+import { TRACKS, TrackPlayer } from './music.js';
+
 class Audio {
   constructor() {
+    this.trackIdx = -1; this.onTrack = null; this.player = null;
     this.ctx = null; this.muted = false; this.musicOn = true;
     this.engines = new Map();
     this.listener = { x: 0, y: 0, z: 0, rx: 1, rz: 0 };
@@ -137,6 +140,7 @@ class Audio {
     if (this.music && this.music.mode === mode) return;
     this.stopMusic();
     if (!mode) return;
+    if (mode === 'race') return this._startTrack();
     const c = this.ctx;
     const bus = c.createGain(); bus.gain.value = 0; bus.connect(this.musicBus);
     bus.gain.setTargetAtTime(1, c.currentTime, 1.5);
@@ -169,9 +173,27 @@ class Audio {
     schedule();
     this.music = m;
   }
+  /** the race soundtrack: the six tracks rotate race by race; `pick` forces one */
+  _startTrack(pick = null) {
+    const c = this.ctx;
+    this.trackIdx = pick != null ? pick : (this.trackIdx + 1) % TRACKS.length;
+    const track = TRACKS[this.trackIdx];
+    const bus = c.createGain(); bus.gain.value = 0; bus.connect(this.musicBus);
+    bus.gain.setTargetAtTime(1, c.currentTime, 0.8);
+    const player = new TrackPlayer(c, track, bus, { origin: c.currentTime + 0.1 });
+    const m = { mode: 'race', bus, alive: true, timer: 0, player, title: track.title };
+    const pump = () => { if (!m.alive) return; player.tick(); m.timer = setTimeout(pump, 80); };
+    pump();
+    this.music = m;
+    this.onTrack?.(track.title, this.trackIdx);
+  }
+  nextTrack() { if (this.music?.mode === 'race') { this.stopMusic(); this._startTrack(); } }
+  get trackTitle() { return this.music?.title || null; }
+  get tracks() { return TRACKS.map(t => t.title); }
   stopMusic() {
     if (!this.music) return;
     const m = this.music; m.alive = false; clearTimeout(m.timer);
+    if (m.player) m.player.stop(0.6);
     m.bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.6);
     setTimeout(() => m.bus.disconnect(), 2500);
     this.music = null;

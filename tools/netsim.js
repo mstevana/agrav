@@ -75,7 +75,7 @@ for (let r = 0; r < ROOMS; r++) {
     c.onEvents = ({ events }) => { if (events.some(e => e.t === 'go')) c.stats.corrections = 0; };
     room.push(c);
     clients.push(c);
-    const roomMsg = new Promise(res => { c.onRoom = (m) => { if (m) res(m); }; });
+    const roomMsg = new Promise(res => { c.onRoom = (m) => { if (m) res(m); if (m?.phase === 'running' && !c._loadedSent) { c._loadedSent = true; c.loaded(); } }; });   // a real client reports its scene built; so do we
     if (i === 0) c.createRoom({ track: TRACK, laps: LAPS }, false); else c.joinRoom(room[0].room.code);
     await roomMsg;
     c.setProfile({ vehicle: VEHICLE_IDS[i % VEHICLE_IDS.length], name: `sim${i}` });

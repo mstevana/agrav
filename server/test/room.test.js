@@ -115,6 +115,27 @@ test('after a race the lobby works again: options apply, the phase returns to lo
   L.close();
 });
 
+test('the grid holds until every client reports loaded, then counts down', async () => {
+  const L = lobby();
+  const host = new TestClient(L), guest = new TestClient(L);
+  await host.hello('Host'); await guest.hello('Guest');
+  host.send(MSG.CREATE_ROOM, { game: 'agrav', opts: { track: 'meridian', laps: 1 }, public: false });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  guest.send(MSG.JOIN_ROOM, { code: room.code }); await guest.waitFor(m => m.type === MSG.ROOM);
+  host.send(MSG.READY, { ready: true }); guest.send(MSG.READY, { ready: true }); await settle();
+  host.send(MSG.START, {}); await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  const r = L.rooms.get(room.code);
+  assert.equal(r.state.held, true);
+  const tick0 = r.tick;
+  assert.ok(r.state.startTick - tick0 > 4 * 60, 'the start is pushed out while the grid holds');
+  host.send(MSG.LOADED, {}); await settle();
+  assert.equal(r.state.held, true, 'one client loaded is not enough');
+  guest.send(MSG.LOADED, {}); await settle();
+  assert.equal(r.state.held, false);
+  assert.equal(r.state.startTick - r.tick, 4 * 60, 'four seconds of 3-2-1-0 from the moment everyone is in');
+  L.close();
+});
+
 test('a missing input tick is filled from the newest earlier input', async () => {
   const L = lobby();
   const c = new TestClient(L);
