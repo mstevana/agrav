@@ -398,8 +398,8 @@ function renderShowcase(dt) {
   }
   showcaseT += dt;
   const single = SHOWCASE !== 'all';
-  const cw = single ? toWorld(scene.ribbon, 60 + 9, 6.5, 3.2) : toWorld(scene.ribbon, 92, 14, 9);
-  const lw = single ? toWorld(scene.ribbon, 60, 0, 0.9) : toWorld(scene.ribbon, 58, 0, 1);
+  const cw = single ? toWorld(scene.ribbon, 60 + 6.2, 4.6, 2.4) : toWorld(scene.ribbon, 88, 12, 8);
+  const lw = single ? toWorld(scene.ribbon, 59.6, -0.2, 0.9) : toWorld(scene.ribbon, 58, 0, 1);
   camera.position.set(cw.x, cw.y, cw.z);
   camera.lookAt(lw.x, lw.y, lw.z);
   if (Math.abs(camera.fov - 50) > 0.1) { camera.fov = 50; camera.updateProjectionMatrix(); }

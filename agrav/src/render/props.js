@@ -63,6 +63,68 @@ export function worldUv(geo, sx = 8, sy = sx) {
   return geo;
 }
 
+/**
+ * Loft a superellipse cross-section through stations along an axis. Each
+ * station: { p, a0 = 0, b0 = 0, w, h, k = 2.4, flat = 0 } — position along
+ * the axis, centre offsets across (a) and up (b), half-extents, squareness
+ * (2 = ellipse, 4 = rounded box) and how much the negative-b side is
+ * flattened. axis 'z': a→x, b→y (fuselages, nacelles); 'x': a→z, b→y
+ * (wings, chord along z); 'y': a→z, b→x (fins). UVs are coherent: u goes
+ * round the section (0 at -b, 0.5 at +b), v along the stations, both mapped
+ * into the atlas rect `uv = [u0, v0, u1, v1]`. Ends are capped.
+ */
+export function loft(stations, { axis = 'z', segments = 24, uv = [0, 0, 1, 1], cap = true } = {}) {
+  const S = stations.length, N = segments;
+  const pos = [], uvs = [], idx = [];
+  const map = axis === 'z' ? (a, b, p) => [a, b, p] : axis === 'x' ? (a, b, p) => [p, b, a] : (a, b, p) => [b, p, a];
+  let len = 0; const cum = [0];
+  for (let i = 1; i < S; i++) { len += Math.abs(stations[i].p - stations[i - 1].p) + 1e-6; cum.push(len); }
+  const U = (u) => uv[0] + u * (uv[2] - uv[0]), V = (v) => uv[1] + v * (uv[3] - uv[1]);
+  for (let i = 0; i < S; i++) {
+    const st = stations[i], k = st.k ?? 2.4, flat = st.flat ?? 0, v = cum[i] / (len || 1);
+    for (let j = 0; j <= N; j++) {
+      const u = j / N, ang = -Math.PI / 2 + u * Math.PI * 2;
+      const c = Math.cos(ang), sn = Math.sin(ang);
+      let a = st.w * Math.sign(c) * Math.pow(Math.abs(c), 2 / k), b = st.h * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / k);
+      if (b < 0) b *= (1 - flat);
+      const [x, y, z] = map(a + (st.a0 ?? 0), b + (st.b0 ?? 0), st.p);
+      pos.push(x, y, z); uvs.push(U(u), V(v));
+    }
+  }
+  const row = N + 1;
+  for (let i = 0; i < S - 1; i++) for (let j = 0; j < N; j++) {
+    const a = i * row + j, b = a + row;
+    idx.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  if (cap) {
+    for (const [i, front] of [[0, true], [S - 1, false]]) {
+      const st = stations[i];
+      const [x, y, z] = map(st.a0 ?? 0, st.b0 ?? 0, st.p);
+      const ci = pos.length / 3; pos.push(x, y, z); uvs.push(U(0.5), V(i === 0 ? 0 : 1));
+      for (let j = 0; j < N; j++) { const a = i * row + j; if (front) idx.push(ci, a + 1, a); else idx.push(ci, a, a + 1); }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** push every vertex along its normal by fn(x, y, z, u, v) metres; normals recomputed */
+export function displaceAlongNormal(geo, fn) {
+  const p = geo.attributes.position, n = geo.attributes.normal, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const d = fn(p.getX(i), p.getY(i), p.getZ(i), uv ? uv.getX(i) : 0, uv ? uv.getY(i) : 0);
+    p.setXYZ(i, p.getX(i) + n.getX(i) * d, p.getY(i) + n.getY(i) * d, p.getZ(i) + n.getZ(i) * d);
+  }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 // --------------------------------------------------------------- rocks ----
 
 /** a boulder: smoothed icosphere pushed by 3D fbm, flattened underneath. Unit radius. */

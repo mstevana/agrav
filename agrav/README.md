@@ -36,6 +36,23 @@ away faster than gravity launches you.
 
 `tools/balance.js` keeps every craft's solo lap time within 3 % of the others on every track.
 
+The hulls are lofted on the client (`src/render/vehicle.js`): superellipse sections swept along
+each ship, wings and fins lofted the same way, panel seams pressed into the mesh along the lines
+the livery paints. Each ship wears a painted 1024² atlas (`src/render/livery.js`) with albedo,
+normal, bump, roughness and emissive maps: team paint and pattern, a race number, panel lines and
+rivets, the team wordmark and four sponsor decals. Sponsors are invented: Umbrella Corporation,
+Zenith Fuel, Neo-Kyo Dynamics, Axiom Avionics, Pulse, Vanta Optics, Orbital Logistics, Hypercell,
+Synth Audio, Nova Coolant.
+
+| Craft | Shape | Livery |
+|---|---|---|
+| **Kestrel** | slim centre body, forward-swept pontoons, joining wing, twin small nozzles | cyan, stripes, #7, Zenith title |
+| **Talon** | blunt nose, wide delta deck, one broad engine, intakes beside the canopy | orange, chevrons, #21, Pulse title |
+| **Vantage** | catamaran hulls, bridge deck, pylon nacelles, forward planes | lime, split colour, #3, Vanta Optics title |
+| **Bulwark** | armoured slab, ram nose, four stubby nozzles, thick low fin | grey, checker band, #44, Umbrella Corporation title |
+| **Reaper** | knife nose, forward-canted side fins, tall tail, nacelles under the wings | red, flames, #13, Umbrella Corporation title |
+| **Corsair** | teardrop fuselage, swept wing, tall fin, root-mounted nacelles | violet, pinstripe, #1, Orbital title |
+
 ## Tracks
 
 - **Neon Meridian** — night city: a canyon between towers, a climb onto an elevated ramp

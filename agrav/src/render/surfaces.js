@@ -37,7 +37,7 @@ export function surfaceSet(key, size, spec) {
   return memo('set:' + key, () => {
     const n = size * size;
     const height = new Float32Array(n);
-    const alb = new Uint8Array(n * 4), nrm = new Uint8Array(n * 4), rgh = new Uint8Array(n * 4), bmp = new Uint8Array(n * 4);
+    const alb = new Uint8Array(n * 4), rgh = new Uint8Array(n * 4);
     const emi = spec.emissive ? new Uint8Array(n * 4) : null;
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const i = y * size + x, u = x / size, v = y / size;
@@ -47,11 +47,19 @@ export function surfaceSet(key, size, spec) {
       alb[i * 4] = c[0] * 255; alb[i * 4 + 1] = c[1] * 255; alb[i * 4 + 2] = c[2] * 255; alb[i * 4 + 3] = 255;
       const r = spec.roughness ? clamp01(spec.roughness(u, v, h)) : 0.9;
       rgh[i * 4] = rgh[i * 4 + 1] = rgh[i * 4 + 2] = r * 255; rgh[i * 4 + 3] = 255;
-      bmp[i * 4] = bmp[i * 4 + 1] = bmp[i * 4 + 2] = h * 255; bmp[i * 4 + 3] = 255;
       if (emi) { const e = spec.emissive(u, v, h) || [0, 0, 0]; emi[i * 4] = e[0] * 255; emi[i * 4 + 1] = e[1] * 255; emi[i * 4 + 2] = e[2] * 255; emi[i * 4 + 3] = 255; }
     }
-    // Sobel normal, tiling
-    const k = (spec.normalStrength ?? 3) * size / 128;
+    return buildSet(height, alb, rgh, emi, size, spec.normalStrength ?? 3);
+  });
+}
+
+/** pack height + colour arrays into the textures of a set (Sobel normal map, tiling) */
+function buildSet(height, alb, rgh, emi, size, normalStrength) {
+  const n = size * size;
+  const nrm = new Uint8Array(n * 4), bmp = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) { bmp[i * 4] = bmp[i * 4 + 1] = bmp[i * 4 + 2] = height[i] * 255; bmp[i * 4 + 3] = 255; }
+  {
+    const k = normalStrength * size / 128;
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const H = (xx, yy) => height[((yy + size) % size) * size + ((xx + size) % size)];
       const dx = (H(x + 1, y - 1) + 2 * H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2 * H(x - 1, y) + H(x - 1, y + 1));
@@ -61,10 +69,26 @@ export function surfaceSet(key, size, spec) {
       const i = (y * size + x) * 4;
       nrm[i] = (nx * 0.5 + 0.5) * 255; nrm[i + 1] = (ny * 0.5 + 0.5) * 255; nrm[i + 2] = (nz * 0.5 + 0.5) * 255; nrm[i + 3] = 255;
     }
-    return {
-      map: dataTex(alb, size, { srgb: true }), normalMap: dataTex(nrm, size), roughnessMap: dataTex(rgh, size), bumpMap: dataTex(bmp, size),
-      emissiveMap: emi ? dataTex(emi, size, { srgb: true }) : null, height, size
-    };
+  }
+  return {
+    map: dataTex(alb, size, { srgb: true }), normalMap: dataTex(nrm, size), roughnessMap: dataTex(rgh, size), bumpMap: dataTex(bmp, size),
+    emissiveMap: emi ? dataTex(emi, size, { srgb: true }) : null, height, size
+  };
+}
+
+/**
+ * A set painted on canvases (all `size` square): albedo, height (grey = 0.5),
+ * roughness (grey) and optionally emissive. For liveries and other art that
+ * is easier to draw than to compute per texel.
+ */
+export function setFromCanvases(key, size, { albedo, height, rough, emissive = null, normalStrength = 2.5 }) {
+  return memo('set:' + key, () => {
+    const px = (c) => c.getContext('2d').getImageData(0, 0, size, size).data;
+    const alb = new Uint8Array(px(albedo)), hgt = px(height), rgh = new Uint8Array(px(rough));
+    const emi = emissive ? new Uint8Array(px(emissive)) : null;
+    const n = size * size, h = new Float32Array(n);
+    for (let i = 0; i < n; i++) { h[i] = hgt[i * 4] / 255; alb[i * 4 + 3] = 255; rgh[i * 4 + 3] = 255; if (emi) emi[i * 4 + 3] = 255; }
+    return buildSet(h, alb, rgh, emi, size, normalStrength);
   });
 }
 

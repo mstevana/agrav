@@ -87,7 +87,7 @@ void 0;
 for (const id of [...VEHICLE_IDS, 'all'].filter(v => !ONLY || ONLY.includes('craft'))) {
   const page = await ctx.newPage();
   page.on('pageerror', e => console.error(id, 'pageerror', e.message));
-  await page.goto(`${base}?showcase=${id}`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}?showcase=${id}&track=vanta`, { waitUntil: 'networkidle' });   // daylight shows the hulls best
   await page.waitForFunction(() => window.__agrav?.showcaseReady, null, { timeout: 30000 });
   await page.waitForTimeout(1200);
   const file = `${OUT}/craft-${id}.png`;
