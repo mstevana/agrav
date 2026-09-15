@@ -302,7 +302,9 @@ export class Room {
     const p = this.players.get(session.playerId);
     if (!p || this.phase !== 'running') return;
     for (const r of records) {
-      if (r.tick > this.tick + MAX_FUTURE_TICKS || r.tick <= this.tick - INPUT_HISTORY) continue;
+      if (r.tick > this.tick + MAX_FUTURE_TICKS) continue;
+      // too old to simulate, but the client must still learn how late it is or it can never catch up
+      if (r.tick <= this.tick - INPUT_HISTORY) { p.margin = r.tick - this.tick; continue; }
       if (!seqNewer(r.seq, p.lastSeq) && p.lastSeq !== 0) continue;   // already have it (bundled resend)
       if (r.steer !== r.steer) continue;                                // NaN
       p.inputs.set(r.tick, { bits: r.bits & 0xff, steer: Math.max(-1, Math.min(1, r.steer)), seq: r.seq });

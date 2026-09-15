@@ -239,8 +239,15 @@ export class Client {
   _onMargin(margin) {
     this.marginEma = this.marginEma == null ? margin : this.marginEma * 0.8 + margin * 0.2;
     const now = this.clock.now();
-    if (now - this.marginAt < 250) return;
     const target = 2;
+    // hopelessly late (a stall: scene build, tab switch, GC): jump straight to the right stamp, then
+    // wait a round trip before trusting the margin again — snapshots keep reporting the stale one until
+    // the re-stamped inputs have arrived
+    if (margin < -20) {
+      if (now - this.marginAt > this.clock.rtt + 200) { this.nextInputTick += Math.min(70, Math.ceil(target - margin)); this.marginEma = null; this.marginAt = now; }
+      return;
+    }
+    if (now - this.marginAt < 250) return;
     if (this.marginEma < target - 1) { this.nextInputTick += Math.min(4, Math.ceil(target - this.marginEma)); this.marginEma = null; this.marginAt = now; }
     else if (this.marginEma > target + 3) { this.holdTicks = Math.min(4, Math.floor(this.marginEma - target - 1)); this.marginEma = null; this.marginAt = now; }
     this.clock.leadTicks = Math.round(this.nextInputTick - this.serverTickNow());   // for display only
