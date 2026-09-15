@@ -15,7 +15,7 @@ import { config } from './config.js';
 import { log } from './log.js';
 
 const INPUT_HISTORY = 128;       // ticks of buffered inputs per player
-const MAX_FUTURE_TICKS = 40;     // inputs stamped further ahead are dropped
+const MAX_FUTURE_TICKS = 90;     // inputs stamped further ahead are dropped (1.5 s: a clock that far off resyncs from the margin)
 const MAX_CATCHUP = 5;           // ticks stepped in one timer callback when behind
 
 export class Room {
@@ -140,6 +140,7 @@ export class Room {
     p.session = null;
     if (this.phase !== 'running') {
       this._removePlayer(p.id);
+      this.lobby.detach(session);     // a later reconnect starts from the menu, not a dead seat
       this._afterPlayerChange();
       return;
     }
@@ -190,8 +191,9 @@ export class Room {
     this.broadcastRoomState();
   }
 
-  setOpts(session, opts) {
+  setOpts(session, opts, isPublic) {
     if (!this._isHost(session) || this.phase === 'running') return;
+    if (typeof isPublic === 'boolean') { this.isPublic = isPublic; if (!Object.keys(opts).length) return this.broadcastRoomState(); }
     this.opts = this.game.validateOpts({ ...this.opts, ...opts });
     this.state = this.game.createMatch(this.opts, this.seed);
     for (const p of this.players.values()) {
@@ -305,8 +307,8 @@ export class Room {
       if (r.steer !== r.steer) continue;                                // NaN
       p.inputs.set(r.tick, { bits: r.bits & 0xff, steer: Math.max(-1, Math.min(1, r.steer)), seq: r.seq });
       p.lastSeq = r.seq;
-      // how early did the newest input arrive, in ticks (>0 early, <0 already late)
-      p.margin = Math.round(p.margin * 0.8 + (r.tick - this.tick) * 0.2);
+      // how early the newest input arrived, in ticks (>0 early, <0 already late); the client smooths it
+      p.margin = r.tick - this.tick;
     }
   }
 

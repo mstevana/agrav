@@ -7,6 +7,7 @@ export const DT = 1 / TICK_RATE;
 export const SNAPSHOT_RATE = 30;
 
 export const GRAVITY = 30;              // m/s², arcade-heavy so jumps land fast
+export const ASSIST = 1.6;              // 1/s: with no steering input the heading relaxes toward the track (pilot assist)
 export const HOVER_HEIGHT = 1.4;        // visual ride height (rendering only)
 export const COUNTDOWN_SEC = 3;
 export const FINISH_GRACE_SEC = 45;     // race ends this long after the first finisher

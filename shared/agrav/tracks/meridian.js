@@ -6,13 +6,13 @@
 // radians (positive raises the right side, so left-hand corners bank +).
 // ============================================================================
 
-import { mirrorX } from './util.js';
+import { mirrorX, startAt } from './util.js';
 
 const W = 26;
 export default {
   id: 'meridian', name: 'NEON MERIDIAN', theme: 'city', width: W, laps: 3,
   lengthHint: 2900,
-  points: mirrorX([
+  points: mirrorX(startAt([
     { x: 0,    y: 0,   z: 0,    width: W + 4 },      // start straight
     { x: 0,    y: 0,   z: 110,  width: W + 4 },
     { x: 0,    y: 0,   z: 220,  width: W + 4 },
@@ -43,9 +43,9 @@ export default {
     { x: -30,  y: 0,   z: -268, width: W + 2, bank: -0.2 },
     { x: -110, y: 0,   z: -215, width: W + 2, bank: -0.2 },
     { x: -105, y: 0,   z: -140, width: W + 2, bank: -0.12 },
-    { x: -70,  y: 0,   z: -100, width: W + 4 },
-    { x: -20,  y: 0,   z: -50,  width: W + 4 }
-  ]),
+    { x: -50,  y: 0,   z: -95,  width: W + 4, bank: -0.06 },
+    { x: 0,    y: 0,   z: -55,  width: W + 4 }
+  ], 1)),
   pads: [
     { s: 150,  lanes: [-7, 0, 7] },
     { s: 480,  lanes: [-6, 6] },

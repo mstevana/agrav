@@ -3,13 +3,13 @@
 // through the headland, a jump across a cove, late-afternoon light and spray.
 // ============================================================================
 
-import { mirrorX } from './util.js';
+import { mirrorX, startAt } from './util.js';
 
 const W = 26;
 export default {
   id: 'vanta', name: 'CAPE VANTA', theme: 'coast', width: W, laps: 3,
   lengthHint: 2700,
-  points: mirrorX([
+  points: mirrorX(startAt([
     { x: 0,    y: 30, z: 0,    width: W + 4 },            // start along the cliff top
     { x: 0,    y: 30, z: 100,  width: W + 4 },
     { x: 0,    y: 30, z: 200,  width: W + 2 },
@@ -37,9 +37,9 @@ export default {
     { x: -60,  y: 25, z: -300, width: W, bank: -0.2 },
     { x: -140, y: 27, z: -250, width: W, bank: -0.2 },
     { x: -140, y: 29, z: -160, width: W + 2 },
-    { x: -95,  y: 30, z: -95,  width: W + 2, bank: -0.12 }, // right onto the cliff top
-    { x: -45,  y: 30, z: -40,  width: W + 4 }
-  ]),
+    { x: -60,  y: 30, z: -120, width: W + 2, bank: -0.12 }, // right onto the cliff top
+    { x: 0,    y: 30, z: -70,  width: W + 4 }
+  ], 1)),
   pads: [
     { s: 160,  lanes: [-7, 0, 7] },
     { s: 470,  lanes: [-6, 6] },

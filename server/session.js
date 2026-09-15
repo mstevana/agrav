@@ -71,7 +71,7 @@ export class Session {
       case MSG.LEAVE_ROOM: return this.room?.leave(this);
       case MSG.SET_PROFILE: return this.room?.setProfile(this, m);
       case MSG.READY: return this.room?.setReady(this, !!m.ready);
-      case MSG.SET_OPTS: return this.room?.setOpts(this, m.opts || {});
+      case MSG.SET_OPTS: return this.room?.setOpts(this, m.opts || {}, m.public);
       case MSG.START: return this.room?.requestStart(this);
       case MSG.ADD_BOT: return this.room?.addBot(this);
       case MSG.KICK: return this.room?.kick(this, m.id | 0);

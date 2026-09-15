@@ -41,6 +41,7 @@ export function createServer(lobby = new Lobby()) {
     if (pathname !== '/ws') { socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.on('error', () => {});
+      wss.emit('connection', ws, req);   // noServer mode does not emit this itself
       Session.fromSocket(ws, lobby);
     });
   });

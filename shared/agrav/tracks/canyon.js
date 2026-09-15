@@ -3,13 +3,13 @@
 // river floor, a hairpin climb back up through the strata, sand haze.
 // ============================================================================
 
-import { mirrorX } from './util.js';
+import { mirrorX, startAt } from './util.js';
 
 const W = 28;
 export default {
   id: 'canyon', name: 'SUNFALL CANYON', theme: 'canyon', width: W, laps: 3,
   lengthHint: 3200,
-  points: mirrorX([
+  points: mirrorX(startAt([
     { x: 0,    y: 60,  z: 0,    width: W + 4 },          // start on the rim
     { x: 0,    y: 60,  z: 120,  width: W + 4 },
     { x: 0,    y: 60,  z: 240,  width: W + 2 },
@@ -32,8 +32,9 @@ export default {
     { x: 10,   y: 34,  z: -270, width: W - 2 },
     { x: -50,  y: 42,  z: -190, width: W, bank: -0.18 },     // right, still climbing
     { x: -30,  y: 50,  z: -120, width: W, bank: -0.16 },     // right onto the mesa
-    { x: -8,   y: 56,  z: -60,  width: W + 4 }                // onto the start straight
-  ]),
+    { x: -12,  y: 56,  z: -80,  width: W + 4 },               // onto the start straight
+    { x: 0,    y: 59,  z: -35,  width: W + 4 }
+  ], 1)),
   pads: [
     { s: 180,  lanes: [-7, 0, 7] },
     { s: 520,  lanes: [-6, 6] },

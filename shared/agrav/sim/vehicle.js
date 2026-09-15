@@ -12,7 +12,7 @@
 import { frameAt, wrapS } from '../../sim/spline.js';
 import { wrapAngle } from '../../sim/vec.js';
 import { IN } from '../../net/protocol.js';
-import { GRAVITY, WALL, LANDING, WEAPON } from '../constants.js';
+import { GRAVITY, ASSIST, WALL, LANDING, WEAPON } from '../constants.js';
 
 export function makeVehicleState(stats) {
   return {
@@ -61,6 +61,8 @@ export function stepVehicle(ribbon, v, input, dt, frozen = false) {
   const airMult = airbrake ? st.airbrakeTurn : 1;
   const airborneMult = v.grounded ? 1 : 0.35;
   v.yaw = wrapAngle(v.yaw + steerEff * st.turnRate * turnScale * airMult * airborneMult * dt);
+  // pilot assist: hands off the stick, the craft settles back along the track (it never steers a bend for you)
+  if (steerEff === 0 && v.grounded) v.yaw -= v.yaw * Math.min(1, ASSIST * dt);
 
   // --- thrust / drag / brake along the heading
   let velAngle = speed > 0.01 ? Math.atan2(v.vt, v.vs) : v.yaw;

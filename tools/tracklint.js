@@ -18,7 +18,7 @@ import module from '../shared/agrav/module.js';
 import { makeBot, botInput } from '../shared/agrav/bot.js';
 
 const MIN_WIDTH = 16;
-const MAX_CURVATURE = 1 / 32;      // radius 32 m
+const MAX_CURVATURE = 1 / 28;      // radius 28 m: an airbraked craft makes it at speed; tighter is a wall
 const CORNER_CURVATURE = 0.0055;   // radius ~180 m counts as a corner
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(TRACKS);
 let failed = false;

@@ -150,16 +150,17 @@ export function stepRace(race, tick, events) {
     events.push({ t: 'go' });
   }
   race.raceTick = tick - race.startTick;
-  const frozen = race.phase !== PHASE.RACING;
+  const frozen = race.phase === PHASE.COUNTDOWN;   // only the grid holds craft still; after the flag everyone coasts
   const applyDamage = makeDamage(race, tick);
 
   // --- vehicles
   for (const r of race.racers) {
-    if (r.dead || r.finished) { r.v.bits = 0; continue; }
+    if (r.dead) { r.v.bits = 0; continue; }
+    // a finished racer keeps driving a cool-down lap: no laps, no damage, no items, no contact
     const input = r.disconnected ? { bits: 0, steer: 0 } : r.input;
     const before = r.v.s;
     stepVehicle(ribbon, r.v, input, dt, frozen);
-    if (frozen) continue;
+    if (frozen || r.finished) continue;
     const ds = deltaS(ribbon, before, r.v.s);
     r.progress += ds;
     const dmg = environmentDamage(r.v, dt);
