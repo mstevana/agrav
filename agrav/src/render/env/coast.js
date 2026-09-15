@@ -3,9 +3,9 @@
 // shader with foam and sun glitter, sea stacks, a displaced rock tunnel
 // through the headland, a lighthouse with a sweeping beam, grass and spray.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock, billboards } from './common.js';
+import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
-import { cliffSet, sandSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
+import { cliffSet, sandSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
 import { rock, cliffSlab, seaStack, grassGeo, sweep, frameRuns } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
 import { fbm2, fbm3, ridged2, smoothstep } from '../noise.js';
@@ -101,21 +101,21 @@ export function buildCoast(scene, ribbon, track) {
   sea.rotation.x = -Math.PI / 2; sea.position.y = SEA_LEVEL;
   group.add(sea);
 
-  const cliff = standard(cliffSet(env.cliff), { repeat: [2, 2], bumpScale: 0.35, normalScale: 1.2 });
+  const cliff = standard(cliffSet(env.cliff), { repeat: [1.4, 1.4], bumpScale: 0.35, normalScale: 1.2 });
   const slabs = [cliffSlab(5), cliffSlab(6), cliffSlab(7), cliffSlab(8)];
   const landSide = (it) => landward(it.f) === it.sd;
   const nearCliff = placeAlong(ribbon, { every: 12, gap: 1, spread: 5, seed: 40, halfExtent: (rng) => 6 + rng() * 5, y: heightAt }).filter(landSide);
   const farCliff = placeAlong(ribbon, { every: 16, gap: 16, spread: 22, seed: 42, halfExtent: (rng) => 8 + rng() * 7, y: heightAt }).filter(landSide);
   for (const [items, extra] of [[nearCliff, 0], [farCliff, 14]]) {
-    group.add(instancedVariants(slabs, cliff, items, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 5, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(it.r * 2, 12 + extra + it.rng() * 16, it.r * 1.6); }));
+    group.add(instancedVariants(slabs, cliff, items, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 5, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(it.r * 2, 12 + extra + it.rng() * 16, it.r * 1.6); }, rockTint));
   }
   // beach boulders and sea stacks on the sea side
   const rocks = [rock(31), rock(32), rock(33)];
   const beachRocks = placeAlong(ribbon, { every: 16, gap: 2, spread: 24, seed: 41, halfExtent: 2, y: heightAt }).filter(it => !landSide(it) && it.p.y > -1);
-  group.add(instancedVariants(rocks, cliff, beachRocks, (it, pos, q, sc) => { const r = 1 + it.rng() * 2.5; pos.set(it.p.x, it.p.y + r * 0.2, it.p.z); q.setFromEuler(new THREE.Euler(0, it.rng() * 6.28, 0)); sc.set(r, r * 0.8, r); }));
+  group.add(instancedVariants(rocks, cliff, beachRocks, (it, pos, q, sc) => { const r = 1 + it.rng() * 2.5; pos.set(it.p.x, it.p.y + r * 0.2, it.p.z); q.setFromEuler(new THREE.Euler(0, it.rng() * 6.28, 0)); sc.set(r, r * 0.8, r); }, rockTint));
   const stacks = [seaStack(35), seaStack(36), seaStack(37)];
   const stackItems = placeAlong(ribbon, { every: 36, gap: 55, spread: 170, seed: 43, halfExtent: (rng) => 5 + rng() * 8, y: heightAt }).filter(it => !landSide(it) && it.p.y < -4);
-  group.add(instancedVariants(stacks, cliff, stackItems, (it, pos, q, sc) => { pos.set(it.p.x, -6, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); const h = 8 + it.rng() * 20; sc.set(it.r, h / 1.8 + 6, it.r); }));
+  group.add(instancedVariants(stacks, cliff, stackItems, (it, pos, q, sc) => { pos.set(it.p.x, -6, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); const h = 8 + it.rng() * 20; sc.set(it.r, h / 1.8 + 6, it.r); }, rockTint));
 
   // headland tunnel: a noisy rock tube around the narrow section, portal rocks at each mouth
   const portalRocks = [];
@@ -142,14 +142,17 @@ export function buildCoast(scene, ribbon, track) {
 
   // lighthouse on the far headland with a sweeping beam
   const lhx = -320, lhz = -180, lhy = Math.max(6, heightAt(lhx, lhz)) - 1;
-  const lhMat = new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.7 });
-  const tower = new THREE.CylinderGeometry(3, 4.2, 30, 14); tower.translate(0, 15, 0);
+  // plaster with formwork seams and streaks so the tower shades and weathers instead of reading as flat white
+  const lhMat = standard(concreteSet(0xcfc9bb), { repeat: [3, 5], bumpScale: 0.12, roughness: 0.85 });
+  const tower = new THREE.CylinderGeometry(3, 4.2, 30, 24); tower.translate(0, 15, 0);
   const band = new THREE.CylinderGeometry(3.1, 3.1, 3, 14); band.translate(0, 12, 0);
   const gallery = new THREE.CylinderGeometry(4.2, 3.6, 1.2, 14); gallery.translate(0, 30.4, 0);
   const roof = new THREE.ConeGeometry(3.4, 3, 14); roof.translate(0, 35.5, 0);
   const lh = new THREE.Group();
   lh.add(new THREE.Mesh(tower, lhMat), new THREE.Mesh(gallery, lhMat), new THREE.Mesh(roof, new THREE.MeshStandardMaterial({ color: 0x8a2a2a, roughness: 0.6 })));
-  lh.add(new THREE.Mesh(band, new THREE.MeshStandardMaterial({ color: 0xc03a3a, roughness: 0.7 })));
+  lh.add(new THREE.Mesh(band, standard(concreteSet(0xa83030), { repeat: [3, 1], bumpScale: 0.08, roughness: 0.8 })));
+  const base = new THREE.CylinderGeometry(5.2, 6, 3, 24); base.translate(0, 1.5, 0); lh.add(new THREE.Mesh(base, cliff));
+  const rail = new THREE.TorusGeometry(4.3, 0.12, 6, 28); rail.rotateX(Math.PI / 2); rail.translate(0, 31.8, 0); lh.add(new THREE.Mesh(rail, new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.5, metalness: 0.6 })));
   const lampHouse = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 3.2, 14), new THREE.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffe0a0, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.4 }));
   lampHouse.position.y = 32.6; lh.add(lampHouse);
   const beam = new THREE.Mesh(new THREE.ConeGeometry(28, 420, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));

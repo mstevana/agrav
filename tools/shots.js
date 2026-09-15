@@ -50,7 +50,8 @@ for (const track of TRACK_IDS.filter(t => !ONLY || ONLY.includes(t))) {
   await page.waitForFunction(() => !document.getElementById('btn-start').disabled);
   await page.click('#btn-start');
   await page.waitForSelector('#hud:not([hidden])');
-  await page.evaluate(() => { window.__agrav.scene().fx.pickupFlash = () => {}; });   // the shield absorbs bot fire with a flash ring every hit: not scenery
+  // the client's own autopilot keeps the throttle animation (plume, trail) alive; the server ignores its inputs below
+  await page.evaluate(() => { window.__agrav.ui.autopilot = true; window.__agrav.scene().fx.pickupFlash = () => {}; });
   await page.waitForFunction(() => window.__agrav.client.phase === 2, null, { timeout: 15000 });
   // the pilot is here to be photographed, not shot: a permanent shield absorbs everything, and the
   // server drives the craft with the shared bot, because a software-GL client at 4 fps cannot get its

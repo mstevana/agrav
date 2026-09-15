@@ -153,6 +153,10 @@ vec3 wN_ = normalize(vWorldNormal); vec3 bw_ = triWeights(wN_); vec3 p_ = vWorld
 vec3 sgn_ = sign(wN_);
 vec2 uvX_ = vec2(p_.z * sgn_.x, p_.y), uvY_ = vec2(p_.x * sgn_.y, p_.z), uvZ_ = vec2(p_.x * -sgn_.z, p_.y);
 vec4 triDiffuse = tri2(map, map2, uvX_) * bw_.x + tri2(map, map2, uvY_) * bw_.y + tri2(map, map2, uvZ_) * bw_.z;
+// a slow, large-scale sample of the same map breaks the tile rhythm on big faces
+vec4 macro_ = texture2D(map, uvY_ * 0.083 + uvX_ * 0.061) * bw_.x + texture2D(map, uvX_ * 0.071 + uvZ_ * 0.053) * bw_.y + texture2D(map, uvZ_ * 0.067 + uvY_ * 0.049) * bw_.z;
+float ml_ = dot(macro_.rgb, vec3(0.33));
+triDiffuse.rgb *= mix(0.72, 1.28, ml_);
 diffuseColor *= triDiffuse;`)
       .replace('#include <normal_fragment_maps>', `
 {
@@ -241,20 +245,21 @@ export function strataSet(colours) {
 /** coastal rock: vertical striations, fracture planes, salt-bleached tops */
 export function cliffSet(base = 0x8a7b68) {
   const B = rgb(base);
-  return surfaceSet('cliff' + base, 256, {
-    normalStrength: 3.5,
+  return surfaceSet('cliff' + base, 512, {
+    normalStrength: 3.0,
     height(u, v) {
       const stri = fbm2(u * 14, v * 1.6, { octaves: 4, seed: 5 }) * 0.35;
-      const cr = voronoi2(u * 4, v * 3, 11);
+      const cr = voronoi2(u * 4 + fbm2(u * 2, v * 2, { octaves: 2, seed: 23 }) * 0.6, v * 3 + fbm2(u * 2 + 5, v * 2, { octaves: 2, seed: 24 }) * 0.6, 11);
       const plate = smoothstep(0.02, 0.09, cr.f2 - cr.f1);
       const plateH = cr.id * 0.25;
       const grain = fbm2(u * 60, v * 60, { octaves: 3, seed: 7 }) * 0.1;
       return 0.4 + stri + plate * plateH - (1 - plate) * 0.2 + grain;
     },
     albedo(u, v, h) {
-      const cr = voronoi2(u * 4, v * 3, 11);
+      const cr = voronoi2(u * 4 + fbm2(u * 2, v * 2, { octaves: 2, seed: 23 }) * 0.6, v * 3 + fbm2(u * 2 + 5, v * 2, { octaves: 2, seed: 24 }) * 0.6, 11);
       const tint = 0.9 + cr.id * 0.3;
-      let c = mul(B, tint * (0.85 + h * 0.4));
+      const stain = fbm2(u * 1.5 + 9, v * 1.5, { octaves: 3, seed: 29 });     // broad wet and dry patches
+      let c = mul(B, tint * (0.85 + h * 0.4) * (1 + stain * 0.35));
       const moss = smoothstep(0.55, 0.8, fbm2(u * 6, v * 6, { octaves: 3, seed: 19 }));
       c = mix(c, [0.4, 0.48, 0.3], moss * 0.3);
       c = mul(c, 0.72 + 0.28 * smoothstep(0.015, 0.06, cr.f2 - cr.f1));

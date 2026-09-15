@@ -3,7 +3,7 @@
 // strata on every rock, eroded mesas on the horizon, boulders, scrub, a
 // hazy sun and drifting dust.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock, billboards } from './common.js';
+import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
 import { strataSet, sandSet, cliffSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
 import { rock, mesa, cliffSlab, cactusGeo, deadTreeGeo, pylonGeo, archGeo } from '../props.js';
@@ -67,7 +67,7 @@ export function buildCanyon(scene, ribbon, track) {
     pos.set(it.p.x, it.p.y - 3 - it.rng() * 3, it.p.z);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28);
     sc.set(it.r * 2, 14 + it.rng() * 26, it.r * (1.2 + it.rng() * 0.8));
-  }));
+  }, rockTint));
   // far mesas and buttes
   const mesas = [mesa(11), mesa(12), mesa(13)];
   const far = placeAlong(ribbon, { every: 55, gap: 150, spread: 520, seed: 32, halfExtent: (rng) => 40 + rng() * 80, y: heightAt });

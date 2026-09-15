@@ -16,6 +16,7 @@ import { metalPlateSet, standard } from './surfaces.js';
 import { liverySet, ATLAS } from './livery.js';
 import { fbm3 } from './noise.js';
 import { makePlume, animatePlume } from './exhaust.js';
+import { EngineTrail } from './trails.js';
 
 const protos = new Map();
 const L = BASE.length, W = BASE.width;
@@ -166,13 +167,26 @@ export function buildCraft(vehicleId) {
   const light = new THREE.PointLight(def.colour, 0, 14, 2);
   light.position.set(0, -0.5, 0);
   group.add(light);
-  return { group, exhaust, flames, flapL, flapR, light, colour: def.colour, def };
+  // world-space engine trails, one per nozzle; the scene owner adds their meshes beside the group
+  const trails = parts.nozzles.map(n => ({ trail: new EngineTrail(def.colour, 0.3 + n.r * 0.9), local: new THREE.Vector3(n.x, n.y, n.z + 0.3) }));
+  return { group, exhaust, flames, flapL, flapR, light, colour: def.colour, def, trails, thrust: 0 };
 }
+
+/** call once per frame after the craft is posed: grows the trails from the nozzles toward the camera's view */
+const _w = new THREE.Vector3();
+export function updateTrails(craft, camera, now) {
+  for (const t of craft.trails) {
+    _w.copy(t.local); craft.group.localToWorld(_w);
+    t.trail.update(_w, craft.group.visible ? craft.thrust : 0, camera, now);
+  }
+}
+export function disposeTrails(craft) { for (const t of craft.trails) t.trail.dispose(); }
 
 /** per-frame animation of a craft's dressing */
 export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead }) {
   const e = throttle ? (boost ? 2.4 : 1.4 + speedFrac * 0.6) : 0.5;
   const t = performance.now() * 0.001;
+  craft.thrust = dead ? 0 : throttle ? (boost ? 1.4 : 0.55 + speedFrac * 0.45) : 0.12;
   for (const sp of craft.exhaust) { sp.scale.set(sp.userData.s ?? (sp.userData.s = sp.scale.x), sp.userData.s, 1); sp.scale.multiplyScalar(e / 1.4); sp.material.opacity = dead ? 0 : 0.7; }
   for (const f of craft.flames || []) animatePlume(f, { throttle, boost, speedFrac, dead }, t);
   craft.flapL.rotation.x = THREE.MathUtils.lerp(craft.flapL.rotation.x, abL ? -0.9 : 0, 0.3);

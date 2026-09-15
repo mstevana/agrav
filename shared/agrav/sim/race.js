@@ -12,7 +12,7 @@ import { vehicleStats } from '../vehicles.js';
 import { getTrack, TRACK_IDS } from '../tracks/index.js';
 import { makeVehicleState, stepVehicle, environmentDamage } from './vehicle.js';
 import { rollItem, useItem, stepProjectiles, stepMinigun, resetProjectileIds } from './weapons.js';
-import { ITEMS, PAD, GRID, PHASE, CONTACT, COUNTDOWN_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
+import { ITEMS, PAD, GRID, PHASE, CONTACT, HIT_SLOW, COUNTDOWN_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
          TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS } from '../constants.js';
 
 const ribbonCache = new Map();
@@ -127,6 +127,9 @@ function makeDamage(race, tick) {
     if (victim.dead || victim.finished || amount <= 0) return;
     if (victim.v.shieldT > 0) { events.push({ t: 'absorb', id: victim.id, by, source }); return; }
     victim.hp -= amount;
+    // a hit knocks speed off: the craft has to wind back up
+    const slow = HIT_SLOW[source] ?? 1;
+    if (slow < 1) { victim.v.vs *= slow; victim.v.vt *= slow; }
     events.push({ t: 'hit', id: victim.id, by, source, dmg: Math.round(amount), hp: Math.max(0, Math.round(victim.hp)) });
     if (victim.hp <= 0) {
       victim.hp = 0; victim.dead = true; victim.deathTick = tick; victim.killer = by;
@@ -246,25 +249,37 @@ function resolveContacts(race, events, applyDamage) {
       const halfL = (a.stats.length + b.stats.length) / 2 * 0.85;
       const halfW = (a.stats.width + b.stats.width) / 2 * 0.95;
       if (Math.abs(ds) >= halfL || Math.abs(dt) >= halfW || Math.abs(a.v.h - b.v.h) > 2.5) continue;
-      // separate along the axis with the smaller penetration
+      // separate along the axis with the smaller penetration; the heavier hull (armour) gives way less
       const penS = halfL - Math.abs(ds), penT = halfW - Math.abs(dt);
       const relS = b.v.vs - a.v.vs, relT = b.v.vt - a.v.vt;
-      if (penT < penS) {
-        const n = dt >= 0 ? 1 : -1;
-        a.v.t -= n * penT / 2; b.v.t += n * penT / 2;
-        if (relT * n < 0) {
-          const j_ = -(1 + CONTACT.restitution) * relT * n / 2;
-          a.v.vt -= j_ * n; b.v.vt += j_ * n;
-        }
-      } else {
-        const n = ds >= 0 ? 1 : -1;
-        a.v.s = wrapS(race.ribbon, a.v.s - n * penS / 2); b.v.s = wrapS(race.ribbon, b.v.s + n * penS / 2);
-        if (relS * n < 0) {
-          const j_ = -(1 + CONTACT.restitution) * relS * n / 2;
-          a.v.vs -= j_ * n; b.v.vs += j_ * n;
-        }
-      }
+      const ma = a.stats.armor, mb = b.stats.armor, wa = mb / (ma + mb), wb = ma / (ma + mb);   // share of the correction each takes
       const rel = Math.hypot(relS, relT);
+      if (penT < penS) {
+        // side swipe: bounce apart laterally, scrub the sliding speed, and twist both hulls
+        const n = dt >= 0 ? 1 : -1;
+        a.v.t -= n * penT * wa; b.v.t += n * penT * wb;
+        if (relT * n < 0) {
+          const j_ = -(1 + CONTACT.restitution) * relT * n;
+          a.v.vt -= j_ * n * wa; b.v.vt += j_ * n * wb;
+        }
+        const f = relS * CONTACT.friction;
+        a.v.vs += f * wa; b.v.vs -= f * wb;
+        const kick = Math.max(-0.35, Math.min(0.35, relS * CONTACT.spin));
+        a.v.yaw += kick * n * wa; b.v.yaw += kick * n * wb;
+      } else {
+        // nose to tail: the impulse runs along the track, the faster hull shoves the slower one on
+        const n = ds >= 0 ? 1 : -1;
+        a.v.s = wrapS(race.ribbon, a.v.s - n * penS * wa); b.v.s = wrapS(race.ribbon, b.v.s + n * penS * wb);
+        if (relS * n < 0) {
+          const j_ = -(1 + CONTACT.restitution) * relS * n;
+          a.v.vs -= j_ * n * wa; b.v.vs += j_ * n * wb;
+        }
+        const f = relT * CONTACT.friction;
+        a.v.vt += f * wa; b.v.vt -= f * wb;
+      }
+      // every bump costs a little energy
+      const loss = 1 - CONTACT.loss * Math.min(1, rel / 20);
+      a.v.vs *= loss; b.v.vs *= loss;
       events.push({ t: 'bump', a: a.id, b: b.id, force: Math.round(rel) });
       // a hard ram hurts once, not on every tick two craft stay pressed together
       if (rel > CONTACT.hardHit && race.tick - Math.max(a.lastRamTick || 0, b.lastRamTick || 0) > CONTACT.cooldownTicks) {

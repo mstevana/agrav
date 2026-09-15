@@ -16,7 +16,7 @@ import { Hud, fmtTime, ordinal, esc } from './hud.js';
 import { audio } from './audio.js';
 import { settings, setSetting, applyDocumentSettings, QualityGovernor } from './settings.js';
 import { buildTrack, prewarmTrack, poseObject } from './render/track.js';
-import { buildCraft, animateCraft } from './render/vehicle.js';
+import { buildCraft, animateCraft, updateTrails, disposeTrails } from './render/vehicle.js';
 import { buildEnvironment, prewarmEnvironment } from './render/env/index.js';
 import { skyEnvironment, markShadows } from './render/env/common.js';
 import { Fx } from './render/fx.js';
@@ -114,19 +114,21 @@ function liteEnvironment(three, track) {
 }
 function disposeScene() {
   if (!scene.three) return;
-  for (const c of scene.crafts.values()) scene.three.remove(c.group);
+  for (const c of scene.crafts.values()) removeCraft(c);
   scene.fx?.dispose();
   scene.three.traverse(o => { if (o.geometry && !o.isInstancedMesh) o.geometry.dispose?.(); });
   scene = { three: null, trackId: null, env: null, track: null, crafts: new Map(), fx: null, ribbon: null };
 }
+function removeCraft(c) { scene.three.remove(c.group); for (const t of c.trails) scene.three.remove(t.trail.mesh); disposeTrails(c); }
 function craftFor(id, vehicleId) {
   let c = scene.crafts.get(id);
   if (c && c.def.id === vehicleId) return c;
-  if (c) scene.three.remove(c.group);
+  if (c) removeCraft(c);
   c = buildCraft(vehicleId);
   c.shield = scene.fx.makeShield(id); c.group.add(c.shield);
   if (!LITE) c.group.traverse(o => { if (o.isMesh && !o.isSprite) { o.castShadow = true; o.receiveShadow = true; } });
   scene.three.add(c.group);
+  for (const t of c.trails) scene.three.add(t.trail.mesh);
   scene.crafts.set(id, c);
   return c;
 }
@@ -282,7 +284,7 @@ function enterRace(room) {
   ui.screen = 'race'; ui.results = null; ui.spectateId = -1; ui.lastPhase = -1; ui.lastCount = 99; ui.elapsedAtFinish = null;
   show(null); hud.show(true);
   buildScene(room.opts.track, client.ribbon);
-  for (const c of scene.crafts.values()) scene.three.remove(c.group);
+  for (const c of scene.crafts.values()) removeCraft(c);
   scene.crafts.clear();
   hud.status('');
   audio.setMusicMode('race');
@@ -449,7 +451,7 @@ function renderRace(dt) {
   };
   if (me && myPose) place(me, myPose, true);
   for (const p of others.racers) { const r = race.byId[p.id]; if (r) place(r, p, false); }
-  for (const [id, c] of scene.crafts) if (!seen.has(id)) { scene.three.remove(c.group); scene.crafts.delete(id); }
+  for (const [id, c] of scene.crafts) if (!seen.has(id)) { removeCraft(c); scene.crafts.delete(id); }
 
   // projectiles, pads
   scene.fx.setProjectiles(others.projectiles);
@@ -480,6 +482,7 @@ function renderRace(dt) {
     const fov = 72 + Math.min(1, speed / 100) * 10 + (boosting ? 8 : 0);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 6); camera.updateProjectionMatrix(); }
   }
+  for (const c of scene.crafts.values()) updateTrails(c, camera, performance.now() * 0.001);
   followSun(camera); scene.env?.update(dt, camera);
   scene.fx.update(dt);
   audio.setListener(camera);

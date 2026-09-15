@@ -45,7 +45,8 @@ Zenith Fuel, Neo-Kyo Dynamics, Axiom Avionics, Pulse, Vanta Optics, Orbital Logi
 Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`): an open tube
 behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
 edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
-middle; throttle and boost set its length and heat. Shields and weapons are shaders too
+middle; throttle and boost set its length and heat, and a Homeworld-style ribbon trail hangs in the air
+behind each nozzle for a second, wide and bright at the engine and fading to nothing. Shields and weapons are shaders too
 (`src/render/fxshaders.js`): hex-cell shield skins with a fresnel rim, a scanning band and a ripple
 spreading from where a hit lands; rockets and missiles as white-cored bolts with streaks and fading
 ribbon trails (missiles carry a plume); mines that pulse red once armed; noise-eroded fireballs with
@@ -70,6 +71,11 @@ sponsor spots in rotation on the city's wall screens and holo boards.
   banked hairpin, a climb back through the strata.
 - **Cape Vanta** — coastal cliffs: cliff-edge sweepers, a tunnel through the headland, a
   jump across the cove, a chicane on the beach, a long sweep round the south point.
+
+Getting hit costs speed as well as hull: a rocket scrubs 14 %, a missile 20 %, a mine 28 %, each
+minigun round about 1 %. Craft-to-craft contact is mass-weighted (armour is mass): the heavier
+hull gives way less, side swipes scrub sliding speed and twist both hulls, nose-to-tail shoves the
+slower craft on, and every bump costs a little energy (`CONTACT` in `shared/agrav/constants.js`).
 
 ## Items
 

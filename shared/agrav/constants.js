@@ -24,11 +24,17 @@ export const WALL = Object.freeze({
 });
 
 export const CONTACT = Object.freeze({
-  restitution: 0.5,
+  restitution: 0.35,      // bounce: craft are hovering hulls, not billiard balls
+  friction: 0.3,          // how much of the sliding velocity a contact scrubs off
+  loss: 0.035,            // speed lost per hard bump (fraction, scaled by impact speed / 20)
+  spin: 0.012,            // yaw kick per m/s of longitudinal slip in a side swipe (rad)
   hardHit: 14,            // m/s relative: above this both take damage
   damage: 6,
   cooldownTicks: 30       // the same pair cannot trade ram damage again for half a second
 });
+
+/** a weapon hit bleeds speed: the victim's longitudinal and lateral velocity are scaled by this */
+export const HIT_SLOW = Object.freeze({ rocket: 0.86, missile: 0.8, mine: 0.72, minigun: 0.988, ram: 1, wall: 1, landing: 1 });
 
 export const LANDING = Object.freeze({ hard: 14, speedLoss: 0.92, damageAbove: 24, damagePerMs: 0.8 });
 

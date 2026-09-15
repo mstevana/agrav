@@ -83,15 +83,20 @@ export function instanced(geo, mat, items, setup) {
   return mesh;
 }
 
-/** split items across several geometry variants (one instanced mesh each) */
-export function instancedVariants(geos, mat, items, setup) {
+/** split items across several geometry variants (one instanced mesh each); `tint` gives each instance its own shade */
+export function instancedVariants(geos, mat, items, setup, tint = null) {
   const g = new THREE.Group();
   geos.forEach((geo, vi) => {
     const mine = items.filter((_, i) => i % geos.length === vi);
-    if (mine.length) g.add(instanced(geo, mat, mine, setup));
+    if (!mine.length) return;
+    const m = instanced(geo, mat, mine, setup);
+    if (tint) { const c = new THREE.Color(); mine.forEach((it, i) => { const [r, gg, b] = tint(it); m.setColorAt(i, c.setRGB(r, gg, b)); }); m.instanceColor.needsUpdate = true; }
+    g.add(m);
   });
   return g;
 }
+/** a mild random shade for instanced rock: brightness ±15 %, a touch warmer or cooler */
+export const rockTint = (it) => { const k = 0.85 + it.rng() * 0.3, w = (it.rng() - 0.5) * 0.08; return [k + w, k, k - w]; };
 
 /** one mesh from many absolute-positioned geometries */
 export function merged(geos, mat) {
