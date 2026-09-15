@@ -1,0 +1,31 @@
+# systemd unit for the AGRAV games server.
+#   sudo cp deploy/agrav.service /etc/systemd/system/agrav.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now agrav
+[Unit]
+Description=AGRAV games server (Node.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agrav
+Group=agrav
+WorkingDirectory=/opt/agrav
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+Environment=MAX_ROOMS=64
+Environment=LOG_LEVEL=info
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=2
+# hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/agrav
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
