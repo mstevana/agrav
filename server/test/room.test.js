@@ -83,6 +83,38 @@ test('create, join, ready, start, inputs drive state, results', async () => {
   L.close();
 });
 
+test('after a race the lobby works again: options apply, the phase returns to lobby, the rematch starts fresh', async () => {
+  const L = lobby();
+  const host = new TestClient(L);
+  await host.hello('Host');
+  host.send(MSG.CREATE_ROOM, { game: 'echo', opts: { ticks: 3 }, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  const r = L.rooms.get(room.code);
+  host.send(MSG.READY, { ready: true }); await settle();
+  host.send(MSG.START, {}); await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  for (let t = 1; t <= 3; t++) host.sendInput(t, t, IN.THROTTLE);
+  await settle();
+  for (let i = 0; i < 3; i++) r._doTick();
+  await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'results');
+  assert.equal(r.state.players[room.you].x, 3);
+
+  // the host changes an option from the post-race lobby: it applies and the room is a lobby again
+  host.send(MSG.SET_OPTS, { opts: { ticks: 7 } }); await settle();
+  const back = host.last(MSG.ROOM);
+  assert.equal(back.phase, 'lobby');
+  assert.equal(back.opts.ticks, 7);
+  assert.equal(r.phase, 'lobby');
+  assert.equal(L.listPublic()[0].phase, 'lobby');
+
+  // readying and starting again runs on a fresh match, not the finished one
+  host.send(MSG.READY, { ready: true }); await settle();
+  host.send(MSG.START, {}); await settle();
+  assert.equal(r.phase, 'running');
+  assert.equal(r.state.players[room.you].x, 0);
+  assert.equal(r.state.opts.ticks, 7);
+  L.close();
+});
+
 test('a missing input tick is filled from the newest earlier input', async () => {
   const L = lobby();
   const c = new TestClient(L);

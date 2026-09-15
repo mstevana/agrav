@@ -122,6 +122,12 @@ try {
   await host.click('#btn-results-ready');
   await host.waitForSelector('#screen-lobby:not([hidden])', { timeout: 5000 });
   step('back in the lobby');
+  // the post-race lobby must still take clicks: the host picks another track and the lobby follows
+  await host.click('[data-track="canyon"]');
+  await host.waitForFunction(() => window.__agrav.client.room?.opts.track === 'canyon', null, { timeout: 4000 }).catch(() => fail('track change ignored after the race'));
+  await host.waitForFunction(() => /SUNFALL CANYON/.test(document.getElementById('lobby-track-name').textContent) && document.querySelector('[data-track="canyon"]').classList.contains('sel'), null, { timeout: 4000 }).catch(() => fail('lobby did not re-render after the track change'));
+  if (!(await host.$eval('#btn-start', b => b.disabled))) fail('start should wait for everyone to re-ready after an option change');
+  step('post-race lobby accepts the track change');
   if (errors.length) fail('page errors:\n' + errors.join('\n'));
   console.log('PASS racetest');
 } catch (e) {

@@ -215,7 +215,7 @@ $('laps-plus').addEventListener('click', () => client.setOpts({ laps: (client.ro
 $('btn-chat').addEventListener('click', sendChat);
 $('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 function sendChat() { const t = $('chat-input').value.trim(); if (!t) return; client.chat(t); $('chat-input').value = ''; }
-$('btn-results-ready').addEventListener('click', () => { ui.ready = true; client.setReady(true); showLobby(client.room); });
+$('btn-results-ready').addEventListener('click', () => { ui.ready = true; ui.results = null; client.setReady(true); showLobby(client.room); });
 $('btn-results-leave').addEventListener('click', () => { client.leaveRoom(); leaveToMenu(); });
 
 function leaveToMenu() {
@@ -259,7 +259,7 @@ client.onRoom = (room) => {
   const me = room.players.find(p => p.id === room.you);
   if (me && (!me.profile?.vehicle) && ui.screen !== 'race') client.setProfile({ vehicle: ui.vehicle, name: $('name').value.trim() });
   if (room.phase === 'running') { if (ui.screen !== 'race') enterRace(room); }
-  else if (room.phase === 'results' && ui.results) { /* stay on results */ }
+  else if (room.phase === 'results' && ui.screen === 'results') { /* stay on results until the player leaves them */ }
   else showLobby(room);
 };
 client.onChat = (m) => { const c = $('chat'); c.insertAdjacentHTML('beforeend', `<div><b>${esc(m.from)}</b> ${esc(m.text)}</div>`); c.scrollTop = c.scrollHeight; if (ui.screen === 'race') hud.say(`${m.from}: ${m.text}`); };

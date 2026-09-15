@@ -188,11 +188,20 @@ export class Room {
     const p = this.players.get(session.playerId);
     if (!p || this.phase === 'running') return;
     p.ready = ready;
+    this._leaveResults();
     this.broadcastRoomState();
+  }
+
+  /** the first lobby action after a race brings the room back to the lobby phase */
+  _leaveResults() {
+    if (this.phase !== 'results') return;
+    this.phase = 'lobby';
+    this.results = null;
   }
 
   setOpts(session, opts, isPublic) {
     if (!this._isHost(session) || this.phase === 'running') return;
+    this._leaveResults();
     if (typeof isPublic === 'boolean') { this.isPublic = isPublic; if (!Object.keys(opts).length) return this.broadcastRoomState(); }
     this.opts = this.game.validateOpts({ ...this.opts, ...opts });
     this.state = this.game.createMatch(this.opts, this.seed);
@@ -213,11 +222,12 @@ export class Room {
   }
 
   start() {
-    if (this.phase === 'results') {
-      // a rematch: fresh state, same players and picks
+    if (this.raced) {
+      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since)
       this.seed = (Math.random() * 0xffffffff) >>> 0;
       this.state = this.game.createMatch(this.opts, this.seed);
       for (const p of this.players.values()) this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+      this.raced = false;
     }
     this.phase = 'running';
     this.results = null;
@@ -317,6 +327,7 @@ export class Room {
   _finish() {
     if (this.phase !== 'running') return;
     this.phase = 'results';
+    this.raced = true;
     this.results = this.game.results(this.state);
     this.broadcast(encodeJson(MSG.RESULTS, { results: this.results }));
     for (const p of [...this.players.values()]) {
