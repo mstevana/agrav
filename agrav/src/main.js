@@ -124,7 +124,7 @@ function craftFor(id, vehicleId) {
   if (c && c.def.id === vehicleId) return c;
   if (c) scene.three.remove(c.group);
   c = buildCraft(vehicleId);
-  c.shield = scene.fx.makeShield(); c.group.add(c.shield);
+  c.shield = scene.fx.makeShield(id); c.group.add(c.shield);
   if (!LITE) c.group.traverse(o => { if (o.isMesh && !o.isSprite) { o.castShadow = true; o.receiveShadow = true; } });
   scene.three.add(c.group);
   scene.crafts.set(id, c);

@@ -45,7 +45,11 @@ Zenith Fuel, Neo-Kyo Dynamics, Axiom Avionics, Pulse, Vanta Optics, Orbital Logi
 Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`): an open tube
 behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
 edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
-middle; throttle and boost set its length and heat. The same sponsors advertise along every track: a banner under each
+middle; throttle and boost set its length and heat. Shields and weapons are shaders too
+(`src/render/fxshaders.js`): hex-cell shield skins with a fresnel rim, a scanning band and a ripple
+spreading from where a hit lands; rockets and missiles as white-cored bolts with streaks and fading
+ribbon trails (missiles carry a plume); mines that pulse red once armed; noise-eroded fireballs with
+a shock ring; minigun tracers as stretched bolts. The same sponsors advertise along every track: a banner under each
 light gantry, roadside billboards on posts beyond the barriers in the canyon and on the coast, and
 sponsor spots in rotation on the city's wall screens and holo boards.
 
