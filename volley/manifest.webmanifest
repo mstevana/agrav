@@ -1,0 +1,15 @@
+{
+  "name": "Volley",
+  "short_name": "Volley",
+  "description": "Blobby 2-on-2 beach volleyball for up to four networked players.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1c2b4a",
+  "theme_color": "#1c2b4a",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

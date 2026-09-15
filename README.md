@@ -5,13 +5,18 @@ hosts many rooms of many games at once, a `shared/` simulation and protocol laye
 server and the browser import **unchanged**, and one three.js PWA client per game. No build
 step anywhere: ES modules are served as they are written.
 
-The first game is **[AGRAV](agrav/README.md)**, a 12-player anti-gravity combat racer in
-the spirit of the original Wipeout.
+Two games ship today:
+
+- **[AGRAV](agrav/README.md)** — a 12-player anti-gravity combat racer in the spirit of the
+  original Wipeout.
+- **[Volley](volley/README.md)** — blobby 2-on-2 beach volleyball for up to four players,
+  bots filling any empty seat.
 
 ```
 server/     Node 22 · rooms, sessions, lobby, static files, /api, /ws · one dependency (ws)
 shared/     net protocol + transport, sim primitives, gfx helpers, and shared/<game>/ per game
 agrav/      the AGRAV client (PWA)
+volley/     the Volley client (PWA)
 tools/      lint, balance, network soak, browser end-to-end, icon rendering
 deploy/     systemd unit, nginx site, Ubuntu install script
 ```
@@ -20,10 +25,10 @@ deploy/     systemd unit, nginx site, Ubuntu install script
 
 ```sh
 npm install          # installs ws (and playwright-core for the browser test)
-npm start            # http://localhost:8080  → the launcher; /agrav/ is the game
+npm start            # http://localhost:8080  → the launcher; /agrav/ and /volley/ are the games
 ```
 
-Open the same URL on a phone on the same network and race yourself. Rooms are joined by a
+Open the same URL on a phone on the same network and play yourself. Rooms are joined by a
 four-letter code or from the public list on the menu; the host can add bots.
 
 ## Architecture in one paragraph
@@ -53,7 +58,7 @@ The room, lobby, sessions, reconnect, snapshots and bots-in-the-lobby all come f
 ## Tools
 
 ```sh
-npm test                       # node --test: shared sim + server (26 tests)
+npm test                       # node --test: shared sim + server (53 tests, AGRAV + Volley)
 node tools/tracklint.js        # every track: width, radius, overlap, banking, pads, jumps
 node tools/balance.js          # each craft solo on each track; lap times within ±3 %
 node tools/netsim.js --players 12 --rtt 80 --jitter 20 --loss 0.02

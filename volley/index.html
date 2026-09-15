@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1c2b4a">
+  <title>Volley</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="touch" class="hidden" aria-hidden="true">
+    <button class="tbtn" data-key="left">◀</button>
+    <button class="tbtn" data-key="right">▶</button>
+    <button class="tbtn jump" data-key="jump">▲</button>
+  </div>
+
+  <div id="banner" class="hidden"></div>
+  <div id="status"></div>
+
+  <section id="menu" class="panel">
+    <h1>Volley</h1>
+    <p class="sub">Blobby 2-on-2 beach volleyball. Up to four players online, bots fill the rest.</p>
+    <label>Your name <input id="name" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
+    <div class="row">
+      <button id="quick" class="primary">Quick play</button>
+      <button id="create">Create room</button>
+    </div>
+    <div class="row">
+      <input id="code" placeholder="ROOM CODE" maxlength="8" autocapitalize="characters" spellcheck="false">
+      <button id="join">Join</button>
+    </div>
+    <h2>Open rooms</h2>
+    <ul id="rooms"><li class="muted">No open rooms. Create one!</li></ul>
+    <p class="help">Move ← → or A/D · Jump ↑ / W / Space (hold to jump higher) · Three touches per side</p>
+  </section>
+
+  <section id="lobby" class="panel hidden">
+    <h1>Room <span id="roomcode"></span></h1>
+    <p class="sub">Share this code or <a id="sharelink" href="#">this link</a> with friends.</p>
+    <div id="slots"></div>
+    <div id="hostopts" class="opts">
+      <label>Points to win
+        <select id="opt-points"><option>5</option><option>10</option><option selected>15</option><option>25</option></select>
+      </label>
+      <label>Bots
+        <select id="opt-bots"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select>
+      </label>
+      <label class="pub"><input type="checkbox" id="opt-public" checked> Public</label>
+    </div>
+    <p id="lobbymsg" class="muted"></p>
+    <div class="row">
+      <button id="ready" class="primary">Ready</button>
+      <button id="addbot">Add bot</button>
+    </div>
+    <div class="row">
+      <button id="start" class="primary">Start game</button>
+      <button id="leave">Leave</button>
+    </div>
+  </section>
+
+  <section id="over" class="panel hidden">
+    <h1 id="overtitle">Game over</h1>
+    <p id="overscore" class="big"></p>
+    <div class="row">
+      <button id="rematch" class="primary">Back to room</button>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

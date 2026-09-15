@@ -5,7 +5,8 @@
 // ============================================================================
 
 const loaders = {
-  agrav: () => import('../shared/agrav/module.js')
+  agrav: () => import('../shared/agrav/module.js'),
+  volley: () => import('../shared/volley/module.js')
 };
 
 const cache = new Map();
