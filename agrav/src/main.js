@@ -15,9 +15,10 @@ import { Input } from './input.js';
 import { Hud, fmtTime, ordinal, esc } from './hud.js';
 import { audio } from './audio.js';
 import { settings, setSetting, applyDocumentSettings, QualityGovernor } from './settings.js';
-import { buildTrack, poseObject } from './render/track.js';
+import { buildTrack, prewarmTrack, poseObject } from './render/track.js';
 import { buildCraft, animateCraft } from './render/vehicle.js';
-import { buildEnvironment } from './render/env/index.js';
+import { buildEnvironment, prewarmEnvironment } from './render/env/index.js';
+import { skyEnvironment, markShadows } from './render/env/common.js';
 import { Fx } from './render/fx.js';
 import { makeBot, botInput } from '../../shared/agrav/bot.js';
 
@@ -37,6 +38,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
+renderer.info.autoReset = false;   // reset per frame so tools can read the whole frame's counts
+renderer.shadowMap.enabled = !LITE;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $('canvas-host').appendChild(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.5, 4000);
 const bloom = new BloomComposer(renderer, { strength: 0.65, threshold: 0.86, enabled: !LITE });
@@ -48,7 +52,8 @@ const quality = new QualityGovernor({
   setMsaa: (n) => { if (bloom.samples === n) return; bloom.samples = n; if (bloom.enabled) bloom.setSize(); },
   setBloom: (on) => bloom.setEnabled(on && !LITE),
   setPixelRatio: (r) => { if (LITE) return; renderer.setPixelRatio(r); if (bloom.enabled) bloom.setSize(); },
-  setEffects: (on) => { effectsOn = on; if (scene.fx) scene.fx.enabled = on; }
+  setEffects: (on) => { effectsOn = on; if (scene.fx) scene.fx.enabled = on; scene.env?.setDetail?.(on); },
+  setShadows: (on) => { const want = on && !LITE; if (renderer.shadowMap.enabled === want) return; renderer.shadowMap.enabled = want; scene.three?.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
 });
 quality.applyManual();
 applyDocumentSettings();
@@ -68,8 +73,39 @@ function buildScene(trackId, ribbon) {
   three.add(t.group);
   const env = LITE ? liteEnvironment(three, track) : buildEnvironment(three, ribbon, track);
   const fx = new Fx(three, ribbon); fx.enabled = effectsOn;
+  env.setDetail?.(effectsOn);
+  if (!LITE && env.sky) {
+    // reflections come from the sky dome; the sun casts shadows in a box that follows the camera
+    three.environment = skyEnvironment(renderer, env.sky.dome);
+    const sun = env.sky.sun;
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -170; sun.shadow.camera.right = sun.shadow.camera.top = 170;
+    sun.shadow.camera.near = 20; sun.shadow.camera.far = 1400;
+    sun.shadow.bias = -0.0006; sun.shadow.normalBias = 1.2;
+    three.add(sun.target);
+    env.sunDir = sun.position.clone().normalize();
+    markShadows(env.group); if (env.fine) markShadows(env.fine, { cast: false, receive: true });
+    markShadows(t.group, { cast: false, receive: true });
+  }
   scene = { three, trackId, env, track: t, crafts: new Map(), fx, ribbon, trackDef: track };
   hud.setTrackMap(ribbon);
+}
+// the heavy procedural work (texture sets, terrain) happens here, off the race start
+let prewarmed = null;
+function prewarm(trackId) {
+  if (prewarmed === trackId || !TRACKS[trackId]) return;
+  prewarmed = trackId;
+  setTimeout(() => { try { prewarmTrack(TRACKS[trackId].env); if (!LITE) prewarmEnvironment(ribbonFor(trackId), TRACKS[trackId]); } catch (e) { console.warn('prewarm', e); } }, 60);
+}
+const _sunTarget = new THREE.Vector3(), _fwd = new THREE.Vector3();
+function followSun(camera) {
+  const sky = scene.env?.sky; if (!sky || !scene.env.sunDir) return;
+  camera.getWorldDirection(_fwd);
+  _sunTarget.copy(camera.position).addScaledVector(_fwd, 90);
+  sky.sun.target.position.copy(_sunTarget);
+  sky.sun.position.copy(_sunTarget).addScaledVector(scene.env.sunDir, 600);
+  sky.sun.target.updateMatrixWorld();
 }
 function liteEnvironment(three, track) {
   three.background = new THREE.Color(track.env.sky);
@@ -89,6 +125,7 @@ function craftFor(id, vehicleId) {
   if (c) scene.three.remove(c.group);
   c = buildCraft(vehicleId);
   c.shield = scene.fx.makeShield(); c.group.add(c.shield);
+  if (!LITE) c.group.traverse(o => { if (o.isMesh && !o.isSprite) { o.castShadow = true; o.receiveShadow = true; } });
   scene.three.add(c.group);
   scene.crafts.set(id, c);
   return c;
@@ -193,6 +230,7 @@ function renderLobby(room) {
   const isHost = room.hostId === room.you;
   $('lobby-code').textContent = room.code;
   $('lobby-track-name').textContent = `${TRACKS[room.opts.track]?.name || ''} · ${room.opts.laps} LAPS${room.public ? ' · PUBLIC' : ' · PRIVATE'}`;
+  prewarm(room.opts.track);
   $('host-opts').style.display = isHost ? '' : 'none';
   $('laps').textContent = room.opts.laps;
   $('btn-public').classList.toggle('on', !!room.public);
@@ -309,6 +347,7 @@ let camInit = false;
 
 function frame(now) {
   requestAnimationFrame(frame);
+  renderer.info.reset();
   const dt = Math.min(0.25, (now - last) / 1000); last = now;
   fpsN++; fpsT += dt; if (fpsT >= 1) { fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
   quality.sample(dt);
@@ -332,7 +371,7 @@ function frame(now) {
       const f = w.frame;
       camera.position.set(w.x - f.tangent.x * 40 + f.right.x * 20, w.y + 14, w.z - f.tangent.z * 40 + f.right.z * 20);
       camera.lookAt(w.x, w.y, w.z);
-      scene.env?.update(dt, camera);
+      followSun(camera); scene.env?.update(dt, camera);
       scene.fx?.update(dt);
       bloom.render(scene.three, camera);
     }
@@ -353,6 +392,8 @@ function renderShowcase(dt) {
       poseObject(c.group, scene.ribbon, s, t, 0, 0, 0, HOVER_HEIGHT);
       animateCraft(c, { throttle: true, abL: false, abR: false, boost: false, speedFrac: 0.6, dead: false });
     });
+    // a soft key light so the hulls read under any theme's sky
+    const key = new THREE.PointLight(0xfff4e0, 60, 60, 1.6); const kw = toWorld(scene.ribbon, 64, -6, 9); key.position.set(kw.x, kw.y, kw.z); scene.three.add(key);
     window.__agrav.showcaseReady = true;
   }
   showcaseT += dt;
@@ -363,7 +404,7 @@ function renderShowcase(dt) {
   camera.lookAt(lw.x, lw.y, lw.z);
   if (Math.abs(camera.fov - 50) > 0.1) { camera.fov = 50; camera.updateProjectionMatrix(); }
   for (const c of scene.crafts.values()) { for (const sp of c.exhaust) sp.material.opacity = 0.8 + Math.sin(showcaseT * 20) * 0.15; }
-  scene.env?.update(dt, camera);
+  followSun(camera); scene.env?.update(dt, camera);
   scene.fx?.update(dt);
   bloom.render(scene.three, camera);
 }
@@ -439,7 +480,7 @@ function renderRace(dt) {
     const fov = 72 + Math.min(1, speed / 100) * 10 + (boosting ? 8 : 0);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 6); camera.updateProjectionMatrix(); }
   }
-  scene.env?.update(dt, camera);
+  followSun(camera); scene.env?.update(dt, camera);
   scene.fx.update(dt);
   audio.setListener(camera);
 
@@ -479,4 +520,4 @@ function renderRace(dt) {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 requestAnimationFrame(frame);
 // expose for tools/racetest.js
-window.__agrav = { client, input, scene: () => scene, ui, settings };
+window.__agrav = { client, input, scene: () => scene, ui, settings, renderer, camera, THREE };

@@ -60,10 +60,43 @@ get better odds of missiles and shields, leaders of mines and the minigun.
 | Shield | 5 s of invulnerability |
 | Turbo | 3 s at +35 % top speed |
 
+## Environments
+
+Everything you see beside the road is generated on the client from a seed the moment the
+track is chosen (the lobby prewarms it), so the server ships nothing but the ribbon:
+
+- **Material sets** (`src/render/surfaces.js`): a height function per surface is evaluated
+  once per texel and yields the albedo, a Sobel normal map, a bump map, a roughness map and,
+  for the city facades, an emissive map with lit windows. Asphalt with recessed panel seams and
+  puddles, canyon strata with cracks and ledges, striated coastal rock, rippled sand, riveted
+  plating, formwork concrete, water normals.
+- **Terrain** (`src/render/terrain.js`): one displaced grid per track. Each vertex knows its
+  nearest ribbon frame, the theme shapes the landscape from that (ridged canyon walls and a
+  river channel, cliffs falling through a beach into the sea), and a corridor rule caps the
+  ground just under the road so it never pokes through while bridges stay bridges. The material
+  blends two sets by slope and samples them triplanar so cliff faces do not smear.
+- **Displaced geometry** (`src/render/props.js`): rocks, mesas, cliff slabs, sea stacks and
+  arches are primitives pushed by 3D noise; towers come tiered, round or stepped with ledges and
+  rooftop clutter; tunnels are cross-sections swept along the ribbon and roughened.
+- **Neon Meridian's life** (`src/render/env/city.js`): wall screens run generated adverts of six
+  kinds (wordmarks, product discs, glyph walls, the watching eye, tickers, racing promos) and swap
+  and flicker; vertical kanji signs and small signage crowd the road-facing faces; a skytrain weaves
+  on a lit guideway suspended above the expressway; ten stacked lanes of flying traffic (taxis
+  first) climb the canyon between the towers; glass sky bridges cross high over the road;
+  searchlights sweep from the tallest roofs. Everything moving stays above the road or beyond the
+  barriers, so none of it touches the race.
+- **Track furniture** (`src/render/track.js`): a concrete deck under the road, rumble-strip
+  curbs, barrier posts carrying the energy wall, light gantries, pad housings, skid marks at the
+  braking zones.
+- **Light**: the sun casts soft shadows in a box that follows the camera, wet asphalt, water and
+  hulls reflect a pre-filtered copy of the sky dome, and the quality governor drops shadows, then
+  the fine-detail layer (grass, mist, birds, traffic, drones, cables) before it touches resolution.
+
 ## Screenshots
 
 Rendered by `node tools/shots.js` (headless Chromium, software GL, so the frame counter
-in the corner reads low; a real GPU runs the same scene at 60 fps).
+in the corner reads low; a real GPU runs the same scene at 60 fps). The first detail pass is
+kept in `docs/screenshots/pass1/` for comparison.
 
 | Neon Meridian | Sunfall Canyon | Cape Vanta |
 |---|---|---|

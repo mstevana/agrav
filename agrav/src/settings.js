@@ -36,7 +36,7 @@ const MAX_LEVEL = 4;
 
 /**
  * Watches the median frame time and sheds work in stages: MSAA first (costs
- * nothing in legibility), then bloom, then pixel ratio, then effect density.
+ * nothing in legibility), then shadows and bloom, then pixel ratio, then effect density.
  * Recovers slowly so an old phone settles instead of oscillating.
  */
 export class QualityGovernor {
@@ -57,6 +57,7 @@ export class QualityGovernor {
   _apply(level) {
     this.level = level;
     this.hooks.setMsaa(level < 1 ? 4 : 0);
+    this.hooks.setShadows?.(level < 2);
     this.hooks.setBloom(level < 2);
     this.hooks.setPixelRatio(level < 3 ? this.basePixelRatio : Math.min(1, this.basePixelRatio));
     this.hooks.setEffects(level < 4);

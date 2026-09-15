@@ -61,6 +61,7 @@ node tools/netsim.js --players 12 --rtt 80 --jitter 20 --loss 0.02
 node tools/racetest.js         # two headless Chromium clients + a bot race to the results
 node tools/icons.js            # re-render the PWA icons
 node tools/shots.js            # screenshots of every track and craft into docs/screenshots
+                               #   [outdir] [--only meridian,craft] [--times 5,15,25] [--hide water]
 ```
 
 Netsim baseline on a 4-core box (12 racers, 80 ms ±20 ms RTT, 2 % loss, one lap of Neon
