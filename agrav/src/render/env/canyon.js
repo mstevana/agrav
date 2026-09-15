@@ -3,9 +3,9 @@
 // strata on every rock, eroded mesas on the horizon, boulders, scrub, a
 // hazy sun and drifting dust.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock } from './common.js';
+import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
-import { strataSet, sandSet, cliffSet, concreteSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
+import { strataSet, sandSet, cliffSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
 import { rock, mesa, cliffSlab, cactusGeo, deadTreeGeo, pylonGeo, archGeo } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
 import { fbm2, ridged2, smoothstep } from '../noise.js';
@@ -118,6 +118,9 @@ export function buildCanyon(scene, ribbon, track) {
     if (h > 5) pylons.push(placed(pylonGeo(h + 2, 1.6), f.pos.x, g - 2, f.pos.z));
   }
   if (pylons.length) group.add(merged(pylons, concrete));
+  // sponsor billboards on posts beside the road
+  const bb = billboards(ribbon, { every: 190, seed: 5, y: heightAt });
+  group.add(bb.ads, merged(bb.frames, standard(metalPlateSet(0x4a505c), { bumpScale: 0.05, metalness: 0.6, roughness: 0.5 })));
   // dust motes and heat haze
   const dust = particleField(500, { seed: 41, box: [180, 40, 180], colour: 0xffd9a0, size: 0.6, opacity: 0.22, drift: [3, 0, 1], map: glowSprite() });
   fine.add(dust);

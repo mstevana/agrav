@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { makeRng } from '../../../shared/sim/rng.js';
 import { fbm2, smoothstep } from './noise.js';
+import { SPONSORS } from './livery.js';
 
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function tex(c, { repeat = [1, 1], srgb = true, aniso = 4 } = {}) {
@@ -301,6 +302,29 @@ export function adTexture(seed, colour, style = seed % 6) {
     const t = tex(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; return t;
   });
 }
+
+const TAGLINES = {
+  umbrella: ['OUR BUSINESS IS LIFE ITSELF', 'PRESERVING THE FUTURE'], zenith: ['BURN BRIGHTER', 'RACE-GRADE. STREET-LEGAL.'], neokyo: ['MOTION, PERFECTED'],
+  axiom: ['SEE THE APEX FIRST'], pulse: ['DRINK THE FUTURE', 'ZERO LATENCY'], vanta: ['NOTHING ESCAPES'], orbital: ['ANYWHERE. BY MORNING.'],
+  hypercell: ['CHARGE AHEAD'], synth: ['HEAR THE SPEED'], nova: ['STAY COOL AT 300']
+};
+/** a sponsor's display advert, 512 × 256: mark and wordmark on a brand field with a tagline */
+export function sponsorAdTexture(id, variant = 0) {
+  return memo(`spad${id}${variant}`, () => {
+    const W = 512, H = 256;
+    const c = canvas(W, H), g = c.getContext('2d'), sp = SPONSORS[id], rng = makeRng(id.length * 31 + variant);
+    const tags = TAGLINES[id] || ['']; const tag = tags[variant % tags.length];
+    if (variant % 2 === 0) { g.fillStyle = '#0a0c14'; g.fillRect(0, 0, W, H); }
+    else { const grad = g.createLinearGradient(0, 0, W, H); grad.addColorStop(0, '#1a1e2c'); grad.addColorStop(1, '#0a0c14'); g.fillStyle = grad; g.fillRect(0, 0, W, H); }
+    if (id === 'umbrella') { g.fillStyle = '#d0141b'; g.fillRect(0, 0, W, 14); g.fillRect(0, H - 14, W, 14); }
+    g.save(); g.translate(W / 2, H * 0.4); sp.logo(g, W * 0.86, H * 0.42); g.restore();
+    g.fillStyle = '#e8e8f0'; g.font = `${H * 0.11}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tag, W / 2, H * 0.8);
+    g.fillStyle = 'rgba(0,0,0,0.15)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
+    void rng;
+    const t = tex(c); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t;
+  });
+}
+export const SPONSOR_IDS = Object.keys(SPONSORS);
 
 /** a tall vertical neon sign: a column of glyphs in one colour, 64 × 384 */
 export function neonSignTexture(seed, colour) {

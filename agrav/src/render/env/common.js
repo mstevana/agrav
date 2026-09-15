@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { frameAt } from '../../../../shared/sim/spline.js';
 import { makeRng } from '../../../../shared/sim/rng.js';
-import { skyDomeTexture, glowSprite } from '../textures.js';
+import { skyDomeTexture, glowSprite, sponsorAdTexture, SPONSOR_IDS } from '../textures.js';
 import { mergeGeometries } from '../../../../shared/gfx/merge.js';
 
 /**
@@ -200,4 +200,35 @@ export function fogCards(items, { colour = 0x8090c0, opacity = 0.07, scale = [60
     sp.position.set(it.x, it.y, it.z); sp.scale.set(scale[0], scale[1], 1); g.add(sp);
   }
   return g;
+}
+
+/**
+ * Roadside billboards: a sponsor advert on a post beyond the barrier every
+ * `every` metres, alternating sides, turned to face oncoming racers. `y(x, z)`
+ * gives the ground height under the post. Returns { ads: Group, frames: [geo] }
+ * so the theme merges the posts into its own metal.
+ */
+export function billboards(ribbon, { every = 210, seed = 4, gap = 6, w = 14, h = 7, lift = 5, y = null } = {}) {
+  const rng = makeRng(seed);
+  const ads = new THREE.Group(), frames = [];
+  let sd = 1, i = 0;
+  for (let s = every * 0.5; s < ribbon.length - 40; s += every, i++) {
+    const f = frameAt(ribbon, s + rng() * 40), t = sd * (f.width / 2 + gap + w * 0.5);
+    const px = f.pos.x + f.right.x * t, pz = f.pos.z + f.right.z * t;
+    const base = y ? y(px, pz) : f.pos.y - 1;
+    const id = SPONSOR_IDS[(i * 7 + seed) % SPONSOR_IDS.length];
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: sponsorAdTexture(id, i % 2), side: THREE.DoubleSide, toneMapped: false }));
+    m.position.set(px, Math.max(base, f.pos.y - 2) + lift + h / 2, pz);
+    // face back down the track, angled slightly toward the road
+    const back = new THREE.Vector3(f.tangent.x, 0, f.tangent.z).normalize().multiplyScalar(-1);
+    const toRoad = new THREE.Vector3(-f.right.x * sd, 0, -f.right.z * sd);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), back.multiplyScalar(0.8).add(toRoad.multiplyScalar(0.6)).normalize());
+    m.userData.noShadow = true;
+    ads.add(m);
+    const fr = new THREE.BoxGeometry(w + 0.8, h + 0.8, 0.5); fr.translate(0, 0, -0.35); fr.applyMatrix4(new THREE.Matrix4().compose(m.position, m.quaternion, new THREE.Vector3(1, 1, 1))); frames.push(fr);
+    const postH = m.position.y - h / 2 - base;
+    for (const dx of [-w * 0.3, w * 0.3]) { const post = new THREE.CylinderGeometry(0.22, 0.28, postH, 8); post.translate(dx, postH / 2, -0.4); post.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(px, base, pz), m.quaternion, new THREE.Vector3(1, 1, 1))); frames.push(post); }
+    sd = -sd;
+  }
+  return { ads, frames };
 }

@@ -15,6 +15,7 @@ import { loft, displaceAlongNormal } from './props.js';
 import { metalPlateSet, standard } from './surfaces.js';
 import { liverySet, ATLAS } from './livery.js';
 import { fbm3 } from './noise.js';
+import { makePlume, animatePlume } from './exhaust.js';
 
 const protos = new Map();
 const L = BASE.length, W = BASE.width;
@@ -146,15 +147,14 @@ export function buildCraft(vehicleId) {
   const parts = proto.userData.parts;
   const glow = glowSprite();
   const exhaust = [], flames = [];
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-  for (const n of parts.nozzles) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: def.colour, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    sp.position.set(n.x, n.y, n.z + 0.2); sp.scale.set(n.r * 5, n.r * 5, 1);
+  parts.nozzles.forEach((n, i) => {
+    // a small hot glow at the throat, and the shader plume behind it
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xfff0d0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.position.set(n.x, n.y, n.z + 0.1); sp.scale.set(n.r * 3, n.r * 3, 1);
     group.add(sp); exhaust.push(sp);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(n.r * 0.85, 1.4, 12, 1, true), flameMat);
-    cone.geometry.rotateX(-Math.PI / 2); cone.geometry.translate(0, 0, 0.7);
-    cone.position.set(n.x, n.y, n.z); group.add(cone); flames.push(cone);
-  }
+    const plume = makePlume(def.colour, n.r, i * 3.7 + def.id.length);
+    plume.position.set(n.x, n.y, n.z + 0.05); group.add(plume); flames.push(plume);
+  });
   // airbrake panels hinge up from the wing / outrigger trailing edges
   const flapMat = new THREE.MeshStandardMaterial({ color: def.accent, roughness: 0.5, metalness: 0.4 });
   const fp = parts.flaps;
@@ -172,8 +172,9 @@ export function buildCraft(vehicleId) {
 /** per-frame animation of a craft's dressing */
 export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead }) {
   const e = throttle ? (boost ? 2.4 : 1.4 + speedFrac * 0.6) : 0.5;
-  for (const sp of craft.exhaust) { sp.scale.set(sp.userData.s ?? (sp.userData.s = sp.scale.x), sp.userData.s * 0.8, 1); sp.scale.multiplyScalar(e / 1.4); sp.material.opacity = dead ? 0 : 0.9; }
-  for (const f of craft.flames || []) { const k = throttle ? (boost ? 1.8 : 0.6 + speedFrac * 0.6) : 0.15; f.scale.set(1, 1, k * (0.9 + Math.random() * 0.2)); f.material.opacity = dead ? 0 : (boost ? 0.8 : 0.5); }
+  const t = performance.now() * 0.001;
+  for (const sp of craft.exhaust) { sp.scale.set(sp.userData.s ?? (sp.userData.s = sp.scale.x), sp.userData.s, 1); sp.scale.multiplyScalar(e / 1.4); sp.material.opacity = dead ? 0 : 0.7; }
+  for (const f of craft.flames || []) animatePlume(f, { throttle, boost, speedFrac, dead }, t);
   craft.flapL.rotation.x = THREE.MathUtils.lerp(craft.flapL.rotation.x, abL ? -0.9 : 0, 0.3);
   craft.flapR.rotation.x = THREE.MathUtils.lerp(craft.flapR.rotation.x, abR ? -0.9 : 0, 0.3);
   craft.light.intensity = dead ? 0 : (boost ? 3 : 1.2);

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { frameAt, toWorld } from '../../../shared/sim/spline.js';
 import { HOVER_HEIGHT } from '../../../shared/agrav/constants.js';
-import { padTexture, checkerTexture, curbTexture, skidTexture } from './textures.js';
+import { padTexture, checkerTexture, curbTexture, skidTexture, sponsorAdTexture, SPONSOR_IDS } from './textures.js';
 import { asphaltSet, concreteSet, metalPlateSet, standard } from './surfaces.js';
 import { sweep, barrierPostGeo, gantryGeo } from './props.js';
 import { instanced } from './env/common.js';
@@ -117,6 +117,16 @@ export function buildTrack(ribbon, track, env) {
     const m = new THREE.Matrix4().compose(new THREE.Vector3(f.pos.x, f.pos.y, f.pos.z), frameQuat(f), new THREE.Vector3(1, 1, 1));
     g.frame.applyMatrix4(m); g.lamps.applyMatrix4(m);
     frames.push(g.frame); lamps.push(g.lamps);
+  }
+  // a sponsor banner hangs from every gantry, facing oncoming racers
+  let gi = 0;
+  for (let s = 140; s < ribbon.length - 60; s += 160, gi++) {
+    const f = frameAt(ribbon, s), id = SPONSOR_IDS[(gi * 3 + track.id.length) % SPONSOR_IDS.length];
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(12, f.width * 0.5), 2.4), new THREE.MeshBasicMaterial({ map: sponsorAdTexture(id, gi % 2), side: THREE.DoubleSide, toneMapped: false }));
+    banner.position.set(f.pos.x + f.up.x * 6.4, f.pos.y + f.up.y * 6.4, f.pos.z + f.up.z * 6.4);
+    banner.quaternion.copy(frameQuat(f));
+    banner.userData.noShadow = true;
+    group.add(banner);
   }
   if (frames.length) {
     const gm = new THREE.Mesh(mergeGeometries(frames), metal); gm.frustumCulled = false; gm.name = 'gantry'; group.add(gm);

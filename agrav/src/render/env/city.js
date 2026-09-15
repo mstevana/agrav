@@ -6,7 +6,7 @@
 // Everything that moves stays above the road or beyond the barriers.
 import * as THREE from 'three';
 import { setupSky, placeAlong, instanced, ground, merged, placed, particleField, fogCards } from './common.js';
-import { glowSprite, holoTexture, adTexture, neonSignTexture } from '../textures.js';
+import { glowSprite, holoTexture, adTexture, neonSignTexture, sponsorAdTexture, SPONSOR_IDS } from '../textures.js';
 import { asphaltSet, facadeSet, concreteSet, metalPlateSet, standard } from '../surfaces.js';
 import { tower, towerDressing, pylonGeo, lampPostGeo, sweep, frameRuns } from '../props.js';
 import { frameQuat } from '../track.js';
@@ -135,14 +135,15 @@ export function buildCity(scene, ribbon, track) {
   const screenMats = [];
   const screenFrames = [];
   screens.forEach((sc, i) => {
-    const t0 = adTexture(sc.seed, sc.colour).clone(), t1 = adTexture(sc.seed + 31, sc.colour, (sc.seed + 2) % 6).clone();
+    // every screen alternates a generic advert with a sponsor spot
+    const t0 = adTexture(sc.seed, sc.colour).clone(), t1 = sponsorAdTexture(SPONSOR_IDS[(sc.seed * 5 + i) % SPONSOR_IDS.length], i % 2).clone();
     t0.needsUpdate = t1.needsUpdate = true;
     const m = new THREE.MeshBasicMaterial({ map: t0, toneMapped: false });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sc.w, sc.h), m);
     mesh.position.set(sc.x, sc.y, sc.z);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(sc.n.x, 0, sc.n.z).normalize());
     group.add(mesh);
-    screenMats.push({ m, t0, t1, ticker: sc.seed % 6 === 4 || (sc.seed + 2) % 6 === 4, period: 3 + (i % 4), phase: i * 0.7 });
+    screenMats.push({ m, t0, t1, ticker: sc.seed % 6 === 4, period: 3 + (i % 4), phase: i * 0.7 });
     const fr = new THREE.BoxGeometry(sc.w + 1.2, sc.h + 1.2, 0.8); fr.translate(0, 0, -0.45);
     fr.applyMatrix4(new THREE.Matrix4().compose(mesh.position, mesh.quaternion, new THREE.Vector3(1, 1, 1)));
     screenFrames.push(fr);
@@ -289,9 +290,9 @@ export function buildCity(scene, ribbon, track) {
   const frameGeo = [];
   bbItems.forEach((it, i) => {
     const c = env.neon[i % env.neon.length];
-    const t = holoTexture(50 + (i % 5), c).clone(); t.needsUpdate = true;
+    const t = (i % 2 ? sponsorAdTexture(SPONSOR_IDS[i % SPONSOR_IDS.length], 1) : holoTexture(50 + (i % 5), c)).clone(); t.needsUpdate = true;
     const m = new THREE.MeshBasicMaterial({ map: t, color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
-    holoMats.push({ m, speed: 0.05 + (i % 3) * 0.04 });
+    holoMats.push({ m, speed: i % 2 ? 0 : 0.05 + (i % 3) * 0.04 });   // sponsor spots hold still, glyph boards scroll
     const mesh = new THREE.Mesh(bb, m);
     mesh.position.set(it.p.x, it.p.y, it.p.z);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-it.f.right.x * it.sd, 0, -it.f.right.z * it.sd).normalize());

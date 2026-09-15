@@ -42,7 +42,12 @@ the livery paints. Each ship wears a painted 1024² atlas (`src/render/livery.js
 normal, bump, roughness and emissive maps: team paint and pattern, a race number, panel lines and
 rivets, the team wordmark and four sponsor decals. Sponsors are invented: Umbrella Corporation,
 Zenith Fuel, Neo-Kyo Dynamics, Axiom Avionics, Pulse, Vanta Optics, Orbital Logistics, Hypercell,
-Synth Audio, Nova Coolant.
+Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`): an open tube
+behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
+edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
+middle; throttle and boost set its length and heat. The same sponsors advertise along every track: a banner under each
+light gantry, roadside billboards on posts beyond the barriers in the canyon and on the coast, and
+sponsor spots in rotation on the city's wall screens and holo boards.
 
 | Craft | Shape | Livery |
 |---|---|---|

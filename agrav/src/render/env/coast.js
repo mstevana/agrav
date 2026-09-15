@@ -3,9 +3,9 @@
 // shader with foam and sun glitter, sea stacks, a displaced rock tunnel
 // through the headland, a lighthouse with a sweeping beam, grass and spray.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock } from './common.js';
+import { setupSky, placeAlong, instancedVariants, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
-import { cliffSet, sandSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
+import { cliffSet, sandSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
 import { rock, cliffSlab, seaStack, grassGeo, sweep, frameRuns } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
 import { fbm2, fbm3, ridged2, smoothstep } from '../noise.js';
@@ -182,6 +182,9 @@ gl_Position = projectionMatrix * mvPosition;`);
   const spray = particleField(160, { seed: 46, box: [240, 6, 240], colour: 0xffffff, size: 1.6, opacity: 0.1, drift: [2, 0, 0.5], map: glowSprite(), fixedY: SEA_LEVEL + 0.5 });
   fine.add(spray);
 
+  // sponsor billboards on posts beside the road
+  const bb = billboards(ribbon, { every: 200, seed: 9, y: heightAt });
+  group.add(bb.ads, merged(bb.frames, standard(metalPlateSet(0x4a505c), { bumpScale: 0.05, metalness: 0.6, roughness: 0.5 })));
   // gulls over the cove and round the lighthouse
   const gulls = flock(12, { x: lhx + 40, z: lhz + 30 }, 70, lhy + 50, { seed: 12, colour: 0xf4f4f8, size: 1.3, speed: 0.3 });
   const gulls2 = flock(10, { x: -470, z: 110 }, 60, 30, { seed: 13, colour: 0xf4f4f8, size: 1.2, speed: 0.4 });
