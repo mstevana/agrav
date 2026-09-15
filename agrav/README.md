@@ -60,6 +60,27 @@ get better odds of missiles and shields, leaders of mines and the minigun.
 | Shield | 5 s of invulnerability |
 | Turbo | 3 s at +35 % top speed |
 
+## Screenshots
+
+Rendered by `node tools/shots.js` (headless Chromium, software GL, so the frame counter
+in the corner reads low; a real GPU runs the same scene at 60 fps).
+
+| Neon Meridian | Sunfall Canyon | Cape Vanta |
+|---|---|---|
+| ![](../docs/screenshots/meridian-1.png) | ![](../docs/screenshots/canyon-1.png) | ![](../docs/screenshots/vanta-1.png) |
+| ![](../docs/screenshots/meridian-2.png) | ![](../docs/screenshots/canyon-2.png) | ![](../docs/screenshots/vanta-2.png) |
+| ![](../docs/screenshots/meridian-3.png) | ![](../docs/screenshots/canyon-3.png) | ![](../docs/screenshots/vanta-3.png) |
+
+| Kestrel | Talon | Vantage |
+|---|---|---|
+| ![](../docs/screenshots/craft-kestrel.png) | ![](../docs/screenshots/craft-talon.png) | ![](../docs/screenshots/craft-vantage.png) |
+
+| Bulwark | Reaper | Corsair |
+|---|---|---|
+| ![](../docs/screenshots/craft-bulwark.png) | ![](../docs/screenshots/craft-reaper.png) | ![](../docs/screenshots/craft-corsair.png) |
+
+![The grid](../docs/screenshots/craft-all.png)
+
 ## Files
 
 ```

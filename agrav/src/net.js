@@ -3,6 +3,12 @@
 // view (prediction of the local craft, reconciliation against snapshots,
 // interpolation of everyone else).
 //
+//   input clock : ticks are stamped as a continuous local sequence seeded from
+//                 the first snapshot plus a round-trip-based lead, then nudged
+//                 one tick at a time by how early the server says they arrive;
+//                 no wall-clock estimate is involved, so a starved main thread
+//                 (10 fps on a weak phone) cannot yank it around
+//   render clock: the latest snapshot's tick plus the time since it arrived
 //   local craft : shared stepVehicle() every client tick with the live input,
 //                 stamped `lead` ticks ahead of the server; on every snapshot
 //                 the server's state replaces ours and the inputs it has not
@@ -53,7 +59,10 @@ export class Client {
     this.latest = null;
     this.pending = [];           // inputs the server has not confirmed
     this.seq = 0;
-    this.nextInputTick = 0;
+    this.nextInputTick = 0;      // continuous stamp sequence; 0 until the first snapshot seeds it
+    this.holdTicks = 0;          // local ticks to skip (inputs are arriving too early)
+    this.marginEma = null;
+    this.marginAt = 0;
     this.pred = null;            // predicted vehicle state for me
     this.smooth = { s: 0, t: 0, h: 0, yaw: 0 };
     this.phase = PHASE.LOBBY;
@@ -196,8 +205,9 @@ export class Client {
     for (const r of snap.racers) snap.byId[r.id] = r;
     this.stats.snaps++;
     this.stats.in += u8.length;
-    this.clock.onMargin(h.margin);
     if (this.latest && snap.tick <= this.latest.tick) return;   // out of order (impossible on ws, cheap to guard)
+    if (this.nextInputTick === 0) this.nextInputTick = snap.tick + this._initialLead();
+    else this._onMargin(h.margin);
     this.snaps.push(snap);
     if (this.snaps.length > 12) this.snaps.shift();
     this.latest = snap;
@@ -213,6 +223,27 @@ export class Client {
       r.burstT = rec.burstT;
     }
     this._reconcile(snap);
+  }
+
+  /** ticks to stamp ahead of the newest snapshot before the server has told us anything */
+  _initialLead() {
+    const half = this.clock.synced ? (this.clock.rtt / 2) / this.clock.tickMs : 4;
+    return Math.max(3, Math.min(30, Math.ceil(half) + 3));
+  }
+
+  /**
+   * margin = how many ticks early our newest input reached the server (server-measured).
+   * Aim for a small positive margin: too late → skip a stamp forward; too early → hold one.
+   * One nudge per 250 ms, then let the smoothed margin reflect it.
+   */
+  _onMargin(margin) {
+    this.marginEma = this.marginEma == null ? margin : this.marginEma * 0.8 + margin * 0.2;
+    const now = this.clock.now();
+    if (now - this.marginAt < 250) return;
+    const target = 2;
+    if (this.marginEma < target - 1) { this.nextInputTick += Math.min(4, Math.ceil(target - this.marginEma)); this.marginEma = null; this.marginAt = now; }
+    else if (this.marginEma > target + 3) { this.holdTicks = Math.min(4, Math.floor(this.marginEma - target - 1)); this.marginEma = null; this.marginAt = now; }
+    this.clock.leadTicks = Math.round(this.nextInputTick - this.serverTickNow());   // for display only
   }
 
   _reconcile(snap) {
@@ -250,18 +281,8 @@ export class Client {
 
   /** one client tick: stamp, send (bundled with the two before it), predict */
   tickInput(input) {
-    if (!this.race || !this.chan || !this.clock.synced) return;
-    const target = this.clock.inputTick();
-    // stay in lockstep with the clock: converge gently on small drift (never stamp a tick twice),
-    // re-base only after a real jump
-    const drift = target - this.nextInputTick;
-    if (this.nextInputTick === 0 || Math.abs(drift) > 12) {
-      this.nextInputTick = target;
-      // re-basing backwards re-stamps ticks already sent: forget those so nothing is replayed twice
-      this.pending = this.pending.filter(i => i.tick < target);
-    }
-    else if (drift >= 2) this.nextInputTick += 1;          // we fell behind: skip a tick forward
-    else if (drift <= -2) return;                          // we are ahead: hold this local tick
+    if (!this.race || !this.chan || this.nextInputTick === 0) return;
+    if (this.holdTicks > 0) { this.holdTicks--; return; }
     const rec = { seq: (++this.seq) & 0xffff, tick: this.nextInputTick++, bits: input.bits, steer: input.steer };
     this.pending.push(rec);
     if (this.pending.length > 120) this.pending.shift();
@@ -281,13 +302,17 @@ export class Client {
     this.smooth.s *= k; this.smooth.t *= k; this.smooth.h *= k; this.smooth.yaw *= k;
   }
 
-  /** current server tick estimate */
-  serverTickNow() { return this.clock.serverTick(); }
+  /** server tick right now: the newest snapshot's tick, aged by the time since it arrived, plus half a round trip */
+  serverTickNow() {
+    if (!this.latest) return 0;
+    const half = Math.min(10, (this.clock.rtt / 2) / this.clock.tickMs);
+    return this.latest.tick + (this.clock.now() - this.lastSnapTime) / this.clock.tickMs + half;
+  }
 
   /** estimated race tick right now (negative during the countdown) */
   raceTickNow() {
     if (!this.latest) return this.raceTick;
-    return this.raceTick + (this.clock.serverTick() - this.latest.tick);
+    return this.raceTick + (this.serverTickNow() - this.latest.tick);
   }
 
   /** pose of my craft for rendering: prediction plus the decaying correction */
@@ -302,7 +327,7 @@ export class Client {
   othersPoses() {
     const out = { racers: [], projectiles: [] };
     if (!this.latest) return out;
-    const renderTick = this.clock.serverTick() - INTERP_TICKS;
+    const renderTick = this.serverTickNow() - INTERP_TICKS;
     // bracket
     let a = null, b = null;
     for (let i = this.snaps.length - 1; i >= 0; i--) {

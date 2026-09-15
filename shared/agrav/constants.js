@@ -26,7 +26,8 @@ export const WALL = Object.freeze({
 export const CONTACT = Object.freeze({
   restitution: 0.5,
   hardHit: 14,            // m/s relative: above this both take damage
-  damage: 6
+  damage: 6,
+  cooldownTicks: 30       // the same pair cannot trade ram damage again for half a second
 });
 
 export const LANDING = Object.freeze({ hard: 14, speedLoss: 0.92, damageAbove: 24, damagePerMs: 0.8 });

@@ -80,7 +80,7 @@ function nozzleShape() {
 
 function prototype(def) {
   if (protos.has(def.id)) return protos.get(def.id);
-  const hull = new THREE.Mesh(hullShape(def), new THREE.MeshStandardMaterial({ color: def.colour, roughness: 0.45, metalness: 0.55 }));
+  const hull = new THREE.Mesh(hullShape(def), new THREE.MeshStandardMaterial({ color: def.colour, roughness: 0.5, metalness: 0.25, emissive: def.colour, emissiveIntensity: 0.12 }));
   const trim = new THREE.Mesh(trimShape(), new THREE.MeshStandardMaterial({ color: def.accent, roughness: 0.4, metalness: 0.3, emissive: def.accent, emissiveIntensity: 0.25 }));
   const canopy = new THREE.Mesh(canopyShape(), new THREE.MeshStandardMaterial({ color: 0x0a0d18, roughness: 0.15, metalness: 0.8 }));
   const nozzles = new THREE.Mesh(nozzleShape(), new THREE.MeshStandardMaterial({ color: 0x222630, roughness: 0.6, metalness: 0.7, side: THREE.DoubleSide }));

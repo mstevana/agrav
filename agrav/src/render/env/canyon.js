@@ -17,25 +17,25 @@ export function buildCanyon(scene, ribbon, track) {
   const strata = new THREE.MeshStandardMaterial({ map: strataTexture(env.strata), roughness: 0.95 });
   // rock walls: tall boxes hugging the track, taller the higher the track sits (the walls are the canyon)
   const rock = new THREE.BoxGeometry(1, 1, 1); rock.translate(0, 0.5, 0);
-  const near = placeAlong(ribbon, { every: 14, gap: 3, spread: 6, clear: 18, seed: 31 });
+  const near = placeAlong(ribbon, { every: 14, gap: 2, spread: 6, seed: 31, halfExtent: (rng) => 8 + rng() * 8 });
   group.add(instanced(rock, strata, near, (it, pos, q, sc) => {
     const h = 18 + it.rng() * 30 + Math.max(0, 50 - it.p.y) * 0.5;
     pos.set(it.p.x, it.p.y - 30 - it.rng() * 6, it.p.z);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28);
-    sc.set(16 + it.rng() * 16, h + 30, 12 + it.rng() * 12);
+    sc.set(it.r * 2, h + 30, it.r * (1.2 + it.rng() * 0.8));
   }));
   // far mesas
-  const far = placeAlong(ribbon, { every: 50, gap: 120, spread: 400, clear: 60, seed: 32 });
+  const far = placeAlong(ribbon, { every: 50, gap: 60, spread: 400, seed: 32, halfExtent: (rng) => 40 + rng() * 90 });
   const mesa = new THREE.CylinderGeometry(0.7, 1, 1, 7); mesa.translate(0, 0.5, 0);
   group.add(instanced(mesa, strata, far, (it, pos, q, sc) => {
     pos.set(it.p.x, -6, it.p.z);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28);
-    const r = 40 + it.rng() * 90;
+    const r = it.r;
     sc.set(r, 40 + it.rng() * 90, r);
   }));
   // boulders on the floor
   const boulder = new THREE.DodecahedronGeometry(1, 0);
-  const rocks = placeAlong(ribbon, { every: 26, gap: 4, spread: 20, clear: 16, seed: 33 });
+  const rocks = placeAlong(ribbon, { every: 26, gap: 2, spread: 20, seed: 33, halfExtent: 4 });
   group.add(instanced(boulder, new THREE.MeshStandardMaterial({ color: 0x9c5a3c, roughness: 1 }), rocks, (it, pos, q, sc) => {
     const r = 1.5 + it.rng() * 4;
     pos.set(it.p.x, it.p.y - 1 + r * 0.3, it.p.z);

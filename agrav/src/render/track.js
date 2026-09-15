@@ -28,9 +28,11 @@ export function buildTrack(ribbon, track, env) {
     }
   }
   const stride = ACROSS + 1;
+  // counter-clockwise seen from above: (along × across) must point along `up`, so the
+  // across edge comes first
   for (let i = 0; i < n; i++) for (let k = 0; k < ACROSS; k++) {
     const a = i * stride + k, b = a + stride;
-    idx.push(a, b, a + 1, a + 1, b, b + 1);
+    idx.push(a, a + 1, b, a + 1, b + 1, b);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -39,7 +41,7 @@ export function buildTrack(ribbon, track, env) {
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(idx);
   const surface = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    map: trackSurface(env.surface ?? 0x2a2f3b, env.seam ?? 0x161922), vertexColors: true, roughness: env.wet ? 0.35 : 0.85, metalness: env.wet ? 0.35 : 0.05
+    map: trackSurface(env.surface ?? 0x333948, env.seam ?? 0x1a1e28), vertexColors: true, roughness: env.wet ? 0.35 : 0.85, metalness: env.wet ? 0.35 : 0.05
   }));
   surface.receiveShadow = false;
   group.add(surface);

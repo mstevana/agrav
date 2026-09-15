@@ -20,7 +20,7 @@ const cache = new Map();
 function memo(key, f) { if (!cache.has(key)) cache.set(key, f()); return cache.get(key); }
 
 /** track surface: panelled composite with faint seams; tile = 8 m along, full width across */
-export function trackSurface(base = 0x2a2f3b, seam = 0x161922) {
+export function trackSurface(base = 0x333948, seam = 0x1a1e28) {
   return memo('surf' + base, () => {
     const c = canvas(512, 512), g = c.getContext('2d'), rng = makeRng(7);
     g.fillStyle = hex(base); g.fillRect(0, 0, 512, 512);

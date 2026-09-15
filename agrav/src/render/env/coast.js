@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { setupSky, placeAlong, instanced, ground } from './common.js';
 import { cliffTexture, groundTexture } from '../textures.js';
-import { frameAt } from '../../../../shared/sim/spline.js';
 
 const SEA_VERT = `uniform float time; varying vec2 vUv; varying float vH;
 void main(){ vUv = uv; vec3 p = position; float w = sin(p.x*0.05 + time*0.9)*0.6 + sin(p.y*0.08 - time*1.3)*0.4 + sin((p.x+p.y)*0.02 + time*0.5)*0.8; p.z += w; vH = w; gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0); }`;
@@ -26,19 +25,14 @@ export function buildCoast(scene, ribbon, track) {
   // the land side is whichever side is higher than the sea: sample the frame's right vector against world up bias; simpler: cliffs on the side away from the sea centre
   const seaCentre = { x: -400, z: 200 };   // the water lies west/north of the loop (mirrored world)
   const landward = (f) => { const dx = seaCentre.x - f.pos.x, dz = seaCentre.z - f.pos.z; return (dx * f.right.x + dz * f.right.z) > 0 ? -1 : 1; };
-  const items = [];
-  for (let s = 0; s < ribbon.length; s += 12) {
-    const f = frameAt(ribbon, s);
-    const sd = landward(f);
-    for (let k = 0; k < 2; k++) {
-      const d = f.width / 2 + 3 + k * 14 + Math.random() * 6;
-      items.push({ x: f.pos.x + f.right.x * sd * d, y: f.pos.y, z: f.pos.z + f.right.z * sd * d, h: 12 + k * 18 + Math.random() * 14, w: 14 + Math.random() * 10, rot: Math.random() * 6.28 });
-    }
+  const nearCliff = placeAlong(ribbon, { every: 12, gap: 1, spread: 4, seed: 40, halfExtent: (rng) => 7 + rng() * 5 }).filter(it => landward(it.f) === it.sd);
+  const farCliff = placeAlong(ribbon, { every: 16, gap: 14, spread: 12, seed: 42, halfExtent: (rng) => 8 + rng() * 6 }).filter(it => landward(it.f) === it.sd);
+  for (const [items, extra] of [[nearCliff, 0], [farCliff, 18]]) {
+    group.add(instanced(slab, cliff, items, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 24, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(it.r * 2, 12 + extra + it.rng() * 14 + 24, it.r * 2); }));
   }
-  group.add(instanced(slab, cliff, items, (it, pos, q, sc) => { pos.set(it.x, it.y - 24, it.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rot); sc.set(it.w, it.h + 24, it.w); }));
   // sea-side: low rocks and the drop to the water
-  const seaSide = placeAlong(ribbon, { every: 20, gap: 2, spread: 8, clear: 14, seed: 41 }).filter(it => landward(it.f) !== it.sd);
-  group.add(instanced(slab, cliff, seaSide, (it, pos, q, sc) => { pos.set(it.p.x, -8, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(6 + it.rng() * 8, it.p.y + 8 - 2 - it.rng() * 3, 6 + it.rng() * 8); }));
+  const seaSide = placeAlong(ribbon, { every: 20, gap: 1, spread: 8, seed: 41, halfExtent: (rng) => 3 + rng() * 4 }).filter(it => landward(it.f) !== it.sd);
+  group.add(instanced(slab, cliff, seaSide, (it, pos, q, sc) => { pos.set(it.p.x, -8, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(it.r * 2, it.p.y + 8 - 2 - it.rng() * 3, it.r * 2); }));
   // headland tunnel: a tube of rock around the narrow section (width <= 20)
   const tunnelFrames = ribbon.frames.filter(f => f.width < 19.5);
   if (tunnelFrames.length) {

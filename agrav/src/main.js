@@ -28,6 +28,9 @@ const toast = (msg, ms = 2600) => { const t = $('toast'); t.textContent = msg; t
 // ----------------------------------------------------------------- three ----
 // ?lite=1: no scenery, no bloom, half resolution — for headless tests and very weak devices
 const LITE = new URLSearchParams(location.search).has('lite');
+// ?showcase=<vehicleId|all>: no menu, one craft (or the whole grid) posed on the Meridian straight
+const SHOWCASE = new URLSearchParams(location.search).get('showcase');
+const SHOWCASE_TRACK = new URLSearchParams(location.search).get('track') || 'meridian';
 const renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'high-performance' });
 renderer.setPixelRatio(LITE ? 0.5 : Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -259,7 +262,7 @@ function onEvent(e) {
     case 'go': audio.play('go'); hud.say('GO', 'good'); break;
     case 'fire': audio.play(e.item === 'mine' ? 'mine' : e.item, pos); break;
     case 'shot': audio.play('minigun', pos); break;
-    case 'hit': audio.play('hit', pos); if (e.id === me) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); break;
+    case 'hit': if (e.dmg < 1) break; audio.play('hit', pos); if (e.id === me && (e.source !== 'wall' || e.dmg >= 4)) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); break;
     case 'absorb': audio.play('absorb', pos); break;
     case 'boom': audio.play('boom', scene.fx.world(e.s, e.tt, e.h)); break;
     case 'dead': audio.play('dead', pos); hud.say(e.by >= 0 && e.by !== e.id ? `${nameOf(e.by)} destroyed ${nameOf(e.id)}` : `${nameOf(e.id)} was destroyed`, 'kill'); if (e.id === me) hud.status('ELIMINATED — spectating'); break;
@@ -306,15 +309,18 @@ let camInit = false;
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
   fpsN++; fpsT += dt; if (fpsT >= 1) { fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
   quality.sample(dt);
   hud.renderFeed();
 
+  if (SHOWCASE) { renderShowcase(dt); return; }
   if (ui.screen === 'race' || (ui.screen === 'results' && scene.three)) {
     // fixed-rate input ticks
     acc += dt;
-    while (acc >= DT) { acc -= DT; if (ui.screen === 'race') client.tickInput(readInput()); }
+    let n = 0;
+    while (acc >= DT && n++ < 15) { acc -= DT; if (ui.screen === 'race') client.tickInput(readInput()); }
+    if (acc > DT * 4) acc = 0;   // a very long stall: drop the backlog instead of spiralling
     client.frame(dt);
     renderRace(dt);
   } else {
@@ -331,6 +337,35 @@ function frame(now) {
       bloom.render(scene.three, camera);
     }
   }
+}
+
+// showcase: static craft on the start straight, three-quarter front camera
+let showcaseT = 0;
+function renderShowcase(dt) {
+  if (!scene.three) {
+    show(null); hud.show(false);
+    buildScene(SHOWCASE_TRACK, ribbonFor(SHOWCASE_TRACK));
+    const ids = SHOWCASE === 'all' ? VEHICLES.map(v => v.id) : [SHOWCASE];
+    ids.forEach((id, i) => {
+      const c = craftFor(i, VEHICLES.some(v => v.id === id) ? id : 'corsair');
+      const row = Math.floor(i / 2), col = i % 2;
+      const s = ids.length === 1 ? 60 : 70 - row * 9, t = ids.length === 1 ? 0 : (col - 0.5) * 11;
+      poseObject(c.group, scene.ribbon, s, t, 0, 0, 0, HOVER_HEIGHT);
+      animateCraft(c, { throttle: true, abL: false, abR: false, boost: false, speedFrac: 0.6, dead: false });
+    });
+    window.__agrav.showcaseReady = true;
+  }
+  showcaseT += dt;
+  const single = SHOWCASE !== 'all';
+  const cw = single ? toWorld(scene.ribbon, 60 + 9, 6.5, 3.2) : toWorld(scene.ribbon, 92, 14, 9);
+  const lw = single ? toWorld(scene.ribbon, 60, 0, 0.9) : toWorld(scene.ribbon, 58, 0, 1);
+  camera.position.set(cw.x, cw.y, cw.z);
+  camera.lookAt(lw.x, lw.y, lw.z);
+  if (Math.abs(camera.fov - 50) > 0.1) { camera.fov = 50; camera.updateProjectionMatrix(); }
+  for (const c of scene.crafts.values()) { for (const sp of c.exhaust) sp.material.opacity = 0.8 + Math.sin(showcaseT * 20) * 0.15; }
+  scene.env?.update(dt, camera);
+  scene.fx?.update(dt);
+  bloom.render(scene.three, camera);
 }
 
 // autopilot: the shared bot drives the predicted craft (demo mode, AFK, and the browser test)
@@ -394,9 +429,10 @@ function renderRace(dt) {
     const cw = toWorld(ribbon, target.s - back, target.t * 0.6, target.h + up);
     const lw = toWorld(ribbon, target.s + 16, target.t, target.h + 1.6);
     tmpV.set(cw.x, cw.y, cw.z);
-    if (!camInit) { camPos.copy(tmpV); camInit = true; }
-    camPos.lerp(tmpV, 1 - Math.exp(-dt * 9));
-    camLook.lerp(tmpV.set(lw.x, lw.y, lw.z), 1 - Math.exp(-dt * 14));
+    if (!camInit) { camPos.copy(tmpV); camLook.set(lw.x, lw.y, lw.z); camInit = true; }
+    const k = 1 - Math.exp(-dt * 12);
+    camPos.lerp(tmpV, k);
+    camLook.lerp(tmpV.set(lw.x, lw.y, lw.z), k);
     camera.position.copy(camPos);
     camera.lookAt(camLook);
     const boosting = !!(latest?.byId[targetId]?.flags & VF.BOOST);

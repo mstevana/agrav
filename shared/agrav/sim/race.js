@@ -266,7 +266,9 @@ function resolveContacts(race, events, applyDamage) {
       }
       const rel = Math.hypot(relS, relT);
       events.push({ t: 'bump', a: a.id, b: b.id, force: Math.round(rel) });
-      if (rel > CONTACT.hardHit) {
+      // a hard ram hurts once, not on every tick two craft stay pressed together
+      if (rel > CONTACT.hardHit && race.tick - Math.max(a.lastRamTick || 0, b.lastRamTick || 0) > CONTACT.cooldownTicks) {
+        a.lastRamTick = b.lastRamTick = race.tick;
         applyDamage(a, CONTACT.damage, b.id, 'ram', events);
         applyDamage(b, CONTACT.damage, a.id, 'ram', events);
       }

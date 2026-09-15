@@ -123,7 +123,7 @@ const dead = clients.filter(c => c.race?.byId[c.me]?.dead).length;
 console.log(`ran ${elapsed.toFixed(1)} s · ${finished} finished, ${dead} eliminated of ${clients.length}`);
 for (const c of clients) { const r = c.race?.byId[c.me]; if (r && !r.finished && !r.dead) console.log(`  unfinished: ${r.name} lap ${r.lap} s=${c.pred.s.toFixed(0)} t=${c.pred.t.toFixed(1)} vs=${c.pred.vs.toFixed(1)} hp=${r.hp} phase=${c.phase} pending=${c.pending.length} lead=${c.clock.leadTicks}`); }
 console.log(`server tick p95 ${tickP95.toFixed(2)} ms (${rooms.length} rooms) · snapshots ${snaps}`);
-console.log(`per client: ${(inB / clients.length / elapsed / 1024).toFixed(1)} KB/s down · ${(outB / clients.length / elapsed / 1024).toFixed(1)} KB/s up · lead ${(clients.reduce((s, c) => s + c.clock.leadTicks, 0) / clients.length).toFixed(1)} ticks · ${resyncs} clock resyncs`);
+console.log(`per client: ${(inB / clients.length / elapsed / 1024).toFixed(1)} KB/s down · ${(outB / clients.length / elapsed / 1024).toFixed(1)} KB/s up · lead ${(clients.reduce((s, c) => s + (c.nextInputTick - c.serverTickNow()), 0) / clients.length).toFixed(1)} ticks`);
 for (const c of clients) if (c.stats.corrections) console.log(`  hard snaps for ${c.name}: ${c.stats.corrections}\n    ${(c.stats.snapLog || []).slice(0, 6).map(x => JSON.stringify(x)).join('\n    ')}`);
 console.log(`prediction error after reconciliation: median ${pct(errs, 0.5).toFixed(2)} m · p95 ${pct(errs, 0.95).toFixed(2)} m · max ${pct(errs, 1).toFixed(2)} m · hard snaps ${hard}`);
 const ok = tickP95 < 4 && pct(errs, 0.95) < 1.0 && hard === 0 && finished + dead === clients.length;

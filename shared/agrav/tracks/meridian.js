@@ -57,5 +57,5 @@ export default {
     { s: 2200, lanes: [-6, 6] },
     { s: 2550, lanes: [-7, 0, 7] }
   ],
-  env: { sky: 0x0b0d1f, fog: 0x141a3a, fogDensity: 0.0026, sun: 0x8090ff, sunIntensity: 0.35, ambient: 0x303860, neon: [0xff2d95, 0x2df1ff, 0xffe14d, 0x9d4dff] }
+  env: { sky: 0x0b0d1f, fog: 0x141a3a, fogDensity: 0.0022, sun: 0x9fb0ff, sunIntensity: 0.9, ambient: 0x5a6aa0, edge: 0x2df1ff, surface: 0x3a4052, wet: true, neon: [0xff2d95, 0x2df1ff, 0xffe14d, 0x9d4dff] }
 };
