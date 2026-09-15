@@ -111,3 +111,23 @@ test('disconnect makes a seat a bot; reconnect gives it back', () => {
   module.onReconnect(s, 0, 70);
   assert.equal(s.control[0], 'human');
 });
+
+test('the 1v1 module is a two-seat variant sharing the same code', async () => {
+  const { default: m1 } = await import('../volley/module1.js');
+  assert.equal(m1.id, 'volley1');
+  assert.equal(m1.maxPlayers, 2);
+  assert.equal(m1.teamSize, 1);
+  const s = m1.createMatch({ pointsToWin: 2 }, 3);
+  assert.equal(s.blobs.length, 2);
+  const ps = m1.publicState(s);
+  assert.deepEqual(ps.slots.map((x) => x.team), [0, 1]);
+  assert.deepEqual(ps.slots.map((x) => x.role), ['solo', 'solo']);
+  // each blob owns a whole half
+  assert.ok(s.blobs[0].zone.max - s.blobs[0].zone.min > 300);
+  // one human vs one bot finishes a match
+  m1.addPlayer(s, 0, {}, false);
+  for (let t = 1; t < 60 * 60 * 4 && !m1.isOver(s); t++) { m1.applyInput(s, 0, { bits: 0, steer: 0 }, t); m1.step(s, t, []); }
+  assert.ok(m1.isOver(s));
+  const d = m1.decodeSnapshot(m1.encodeSnapshot(s));
+  assert.equal(d.blobs.length, 2);
+});

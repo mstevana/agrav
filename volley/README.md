@@ -6,9 +6,14 @@ the AGRAV games platform, sharing its server, lobby, netcode and reconnect for f
 ## Play
 
 Create a room (you become the host) or join one by four-letter code or from the public list.
-Volley is always **2 vs 2**: two Blue seats on the left, two Red on the right, split into a
-back and a front zone. Each player owns their zone and cannot leave it, so blobs never
-collide with each other or the net.
+Pick a mode on the menu:
+
+- **2 vs 2** — two Blue seats on the left, two Red on the right, each split into a back and a
+  front zone (up to four players).
+- **1 vs 1** — one blob per side, each owning a whole half (up to two players).
+
+Each player owns their zone and cannot leave it, so blobs never collide with each other or
+the net.
 
 The host readies up and starts. **Empty seats and lobby bots play as bots**, so one player
 can start alone and get three bots; the host can also add bots to fill the court, and a

@@ -15,9 +15,11 @@ const ui = {
   name: $('name'), code: $('code'), rooms: $('rooms'), slots: $('slots'), roomcode: $('roomcode'),
   sharelink: $('sharelink'), hostopts: $('hostopts'), lobbymsg: $('lobbymsg'),
   ready: $('ready'), addbot: $('addbot'), start: $('start'),
-  optPoints: $('opt-points'), optBots: $('opt-bots'), optPublic: $('opt-public'),
+  optPoints: $('opt-points'), optBots: $('opt-bots'), optPublic: $('opt-public'), optMode: $('opt-mode'),
   overtitle: $('overtitle'), overscore: $('overscore'),
 };
+
+const MODE_LABEL = { volley: '2v2', volley1: '1v1' };
 
 const app = {
   screen: 'menu',
@@ -93,7 +95,7 @@ setInterval(() => { if (app.screen === 'menu') refreshRooms(); }, 3000);
 
 // ---------------- menu ----------------
 $('quick').onclick = () => quickPlay();
-$('create').onclick = async () => { if (await ensureConnected()) net.createRoom(readOpts(), ui.optPublic.checked); };
+$('create').onclick = async () => { if (await ensureConnected()) net.createRoom(readGame(), readOpts(), ui.optPublic.checked); };
 $('join').onclick = async () => { const c = ui.code.value.trim().toUpperCase(); if (c && await ensureConnected()) net.joinRoom(c); };
 ui.code.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join').click(); });
 
@@ -101,11 +103,11 @@ let openRooms = [];
 function renderRooms(rooms) {
   openRooms = rooms || [];
   ui.rooms.innerHTML = '';
-  const volley = openRooms.filter((r) => r.game === 'volley' && r.phase === 'lobby');
+  const volley = openRooms.filter((r) => MODE_LABEL[r.game] && r.phase === 'lobby');
   if (!volley.length) { ui.rooms.innerHTML = '<li class="muted">No open rooms. Create one!</li>'; return; }
   for (const r of volley) {
     const li = document.createElement('li');
-    li.innerHTML = `<span><code>${r.code}</code> · ${escapeHtml(r.name || '')}</span><span class="muted">${r.players}/${r.max}</span>`;
+    li.innerHTML = `<span><code>${r.code}</code> · ${escapeHtml(r.name || '')}</span><span class="muted">${MODE_LABEL[r.game]} · ${r.players}/${r.max}</span>`;
     li.onclick = async () => { if (await ensureConnected()) net.joinRoom(r.code); };
     ui.rooms.appendChild(li);
   }
@@ -114,11 +116,13 @@ function renderRooms(rooms) {
 async function quickPlay() {
   if (!await ensureConnected()) return;
   await refreshRooms();
-  const open = openRooms.find((r) => r.game === 'volley' && r.phase === 'lobby' && r.players < r.max);
+  const game = readGame();
+  const open = openRooms.find((r) => r.game === game && r.phase === 'lobby' && r.players < r.max);
   if (open) net.joinRoom(open.code);
-  else net.createRoom(readOpts(), ui.optPublic.checked);
+  else net.createRoom(game, readOpts(), ui.optPublic.checked);
 }
 
+function readGame() { return ui.optMode.value === 'volley1' ? 'volley1' : 'volley'; }
 function readOpts() {
   return { pointsToWin: Number(ui.optPoints.value), botDifficulty: ui.optBots.value };
 }
@@ -158,9 +162,10 @@ function onRoom(room) {
 
   const humans = room.players.filter((p) => !p.bot).length;
   const hostName = room.players.find((p) => p.id === room.hostId)?.name || 'the host';
+  const mode = MODE_LABEL[room.game] || '2v2';
   if (room.phase === 'running') ui.lobbymsg.textContent = 'Match in progress…';
-  else if (isHost) ui.lobbymsg.textContent = `${humans} player${humans === 1 ? '' : 's'} here. Add bots to fill the court, then start. Empty seats also play as bots.`;
-  else ui.lobbymsg.textContent = `Ready up. Waiting for ${escapeHtml(hostName)} to start.`;
+  else if (isHost) ui.lobbymsg.textContent = `${mode} · ${humans} player${humans === 1 ? '' : 's'} here. Add bots to fill the court, then start. Empty seats also play as bots.`;
+  else ui.lobbymsg.textContent = `${mode} · ready up. Waiting for ${escapeHtml(hostName)} to start.`;
 
   if (room.phase === 'running') { if (!app.playing) startGame(room); }
   else if (!app.playing && app.screen !== 'over') show('lobby');
@@ -212,8 +217,7 @@ function onEvents(m) {
 
 function onResults(r) {
   stopGame();
-  const me = app.room?.players.find((p) => p.id === app.room.you);
-  const myTeam = me ? (me.id <= 1 ? 0 : 1) : -1;
+  const myTeam = app.room?.state?.slots?.find((s) => s.slot === app.room.you)?.team ?? -1;
   const won = r.winner === myTeam;
   ui.overtitle.textContent = `${r.winnerName || TEAM_NAMES[r.winner]} wins${won ? ' — you win!' : ''}`;
   ui.overscore.textContent = `${r.score[0]} : ${r.score[1]}`;

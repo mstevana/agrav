@@ -12,7 +12,8 @@
 //   others+ball : rendered a few ticks in the past, between two snapshots.
 // ============================================================================
 
-import module from '../../shared/volley/module.js';
+import module2 from '../../shared/volley/module.js';
+import module1 from '../../shared/volley/module1.js';
 import { WsChannel } from '../../shared/net/channel.js';
 import { NetClock } from '../../shared/net/clock.js';
 import { MSG, PROTOCOL_VERSION, encodeJson, decodeJson, messageType, isJsonType,
@@ -24,6 +25,7 @@ const TOKEN_KEY = 'volley_token';
 const INTERP_TICKS = 4;   // render others this many ticks behind the server clock
 
 const toMove = (i) => ({ left: i.steer < -0.3, right: i.steer > 0.3, jump: !!(i.bits & 1) });
+const moduleFor = (game) => (game === 'volley1' ? module1 : module2);
 
 export class Client {
   constructor() {
@@ -35,6 +37,7 @@ export class Client {
     this.room = null;
     this.me = -1;
     this.connected = false;
+    this.module = module2;
     // callbacks
     this.onRoom = this.onEvents = this.onResults = this.onChat = null;
     this.onError = this.onState = this.onRooms = null;
@@ -96,7 +99,7 @@ export class Client {
   _pingBurst() { clearInterval(this._burst); let n = 0; this._burst = setInterval(() => { this.ping(); if (++n >= 10) clearInterval(this._burst); }, 150); }
 
   _send(type, obj) { if (this.chan) this.chan.send(encodeJson(type, obj)); }
-  createRoom(opts, isPublic) { this._send(MSG.CREATE_ROOM, { game: 'volley', opts, public: isPublic !== false }); }
+  createRoom(game, opts, isPublic) { this._send(MSG.CREATE_ROOM, { game: game || 'volley', opts, public: isPublic !== false }); }
   joinRoom(code) { this._send(MSG.JOIN_ROOM, { code }); }
   leaveRoom() { this._send(MSG.LEAVE_ROOM, {}); }
   setReady(ready) { this._send(MSG.READY, { ready }); }
@@ -139,7 +142,8 @@ export class Client {
     this._reset();
     this.clock.reset();
     this._pingBurst();
-    this.state = module.createMatch(room.opts, room.seed);
+    this.module = moduleFor(room.game);
+    this.state = this.module.createMatch(room.opts, room.seed);
     const mine = this.state.blobs[this.me];
     if (mine) this.pred = { ...mine };
   }
@@ -149,7 +153,7 @@ export class Client {
   _onSnapshot(u8) {
     if (!this.state) return;
     const h = decodeSnapshotHeader(u8);
-    const snap = module.decodeSnapshot(h.payload);
+    const snap = this.module.decodeSnapshot(h.payload);
     snap.tick = h.tick;
     if (this.latest && snap.tick <= this.latest.tick) return;   // stale/out of order
     this.headerPhase = h.phase;
@@ -163,7 +167,7 @@ export class Client {
     this.state.serving = snap.serving;
     this.state.touchTeam = snap.touchTeam;
     this.state.touches = snap.touches;
-    this.state.phase = h.phase === module.PHASE.OVER ? 'over' : h.phase === module.PHASE.POINT ? 'point' : 'play';
+    this.state.phase = h.phase === this.module.PHASE.OVER ? 'over' : h.phase === this.module.PHASE.POINT ? 'point' : 'play';
     this._reconcile(snap);
   }
 
