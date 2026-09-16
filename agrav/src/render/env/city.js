@@ -274,13 +274,20 @@ export function buildCity(scene, ribbon, track) {
   placeCars(0);
 
   // ------------------------------------------------ neon strips, billboards --
+  // Glowing edge strips lining each side of the track, seated just OUTSIDE the
+  // road edge and on the surface — never floating over the racing line.
   const strip = new THREE.BoxGeometry(0.3, 0.3, 12);
-  const neonItems = placeAlong(ribbon, { every: 18, gap: 1.5, spread: 0.5, seed: 9, yOffset: 3.5, halfExtent: -3 });
+  const neonItems = [];
+  for (let s = 6; s < ribbon.length - 6; s += 15) {
+    const f = frameAt(ribbon, s);
+    neonItems.push({ f, sd: 1 }, { f, sd: -1 });
+  }
   env.neon.forEach((c, ci) => {
     const mine = neonItems.filter((_, i) => i % env.neon.length === ci);
     group.add(instanced(strip, neonMat[ci], mine, (it, pos, q, sc) => {
-      pos.set(it.p.x, it.p.y, it.p.z);
-      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(it.f.tangent.x, 0, it.f.tangent.z).normalize());
+      const f = it.f, t = it.sd * (f.width / 2 + 0.6);
+      pos.set(f.pos.x + f.right.x * t, f.pos.y + f.right.y * t + 0.2, f.pos.z + f.right.z * t);
+      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(f.tangent.x, 0, f.tangent.z).normalize());
       sc.set(1, 1, 1);
     }));
   });
@@ -315,7 +322,7 @@ export function buildCity(scene, ribbon, track) {
     sc.set(1, 1, 1);
   }));
   for (const it of lamps) {
-    const f = it.f, t = it.sd * (f.width / 2 - 1.5);
+    const f = it.f, t = it.sd * (f.width / 2 + 1.1);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xfff1c8, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
     sp.position.set(f.pos.x + f.right.x * t, f.pos.y + 8.5, f.pos.z + f.right.z * t); sp.scale.set(6, 6, 1); fine.add(sp);
   }
@@ -358,7 +365,7 @@ export function buildCity(scene, ribbon, track) {
   group.add(rain);
   const mist = particleField(220, { seed: 78, box: [260, 26, 260], colour: 0x6a7cc0, size: 14, opacity: 0.08, drift: [1.5, 0, 0.6], map: glow });
   fine.add(mist);
-  const glowItems = placeAlong(ribbon, { every: 60, gap: 3, spread: 4, seed: 21, yOffset: 1, halfExtent: -3 });
+  const glowItems = placeAlong(ribbon, { every: 60, gap: 3, spread: 4, seed: 21, yOffset: 1, halfExtent: 0 });
   for (const it of glowItems) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: env.neon[Math.floor(it.u * env.neon.length)], transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
     sp.position.set(it.p.x, it.p.y, it.p.z); sp.scale.set(14, 14, 1); group.add(sp);
