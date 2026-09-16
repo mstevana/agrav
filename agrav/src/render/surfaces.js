@@ -376,6 +376,40 @@ export function waterSet(seed = 1) {
   });
 }
 
+/** lava: dark basalt crust plates over a glowing melt that shows in the cracks (the emissive map) */
+export function lavaSet(base = 0x140806, hot = 0xff5a10, seed = 31) {
+  const B = rgb(base), Hh = rgb(hot);
+  const crust = (u, v) => voronoi2(u * 5 + fbm2(u * 3, v * 3, { octaves: 2, seed: seed + 1 }) * 0.5, v * 5 + fbm2(u * 3 + 7, v * 3, { octaves: 2, seed: seed + 2 }) * 0.5, seed);
+  const crack = (cr) => 1 - smoothstep(0.02, 0.1, cr.f2 - cr.f1);   // 1 inside a crack
+  return surfaceSet(`lava${base}${hot}${seed}`, 256, {
+    normalStrength: 2.6,
+    height(u, v) { const cr = crust(u, v); return 0.55 + cr.id * 0.15 - crack(cr) * 0.35 + fbm2(u * 40, v * 40, { octaves: 3, seed: seed + 3 }) * 0.08; },
+    albedo(u, v, h) { const cr = crust(u, v); const plate = mul(B, 0.7 + h * 0.6 + cr.id * 0.2); return mix(plate, mul(Hh, 0.35), crack(cr)); },
+    roughness: (u, v, h) => 0.95 - h * 0.15,
+    emissive(u, v) {
+      const cr = crust(u, v);
+      const pulse = 0.55 + 0.45 * fbm2(u * 6, v * 6, { octaves: 2, seed: seed + 4 });
+      const e = crack(cr) * pulse;
+      return [Hh[0] * e, Hh[1] * e * 0.9, Hh[2] * e];
+    }
+  });
+}
+
+/** a lava material: the glowing crack map drifts along `flow` (uv per second) so the melt seems to move; tick `userData.time.value` */
+export function lavaMaterial(set, { repeat = [1, 1], emissiveIntensity = 2.2, flow = [0, 0.03], ...rest } = {}) {
+  const m = standard(set, { repeat, bumpScale: 0.12, normalScale: 1.1, emissiveIntensity, ...rest });
+  const time = { value: 0 };
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = time; shader.uniforms.uFlow = { value: new THREE.Vector2(flow[0], flow[1]) };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uFlow;')
+      .replace('texture2D( emissiveMap, vEmissiveMapUv )', 'texture2D( emissiveMap, vEmissiveMapUv + uFlow * uTime )');
+  };
+  m.customProgramCacheKey = () => 'lava' + flow.join();
+  m.userData.time = time;
+  return m;
+}
+
 /** scrubby dry ground: cracked earth with dust */
 export function scrubGroundSet(base = 0xb08a62) {
   const B = rgb(base);

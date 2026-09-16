@@ -165,6 +165,112 @@ export function mesa(seed = 1) {
   return g;
 }
 
+/** a volcano: eroded cone with radial gullies and a sunken crater, base at y=0, height 1, base radius 1 */
+export function volcanoGeo(seed = 1) {
+  const g = new THREE.CylinderGeometry(0.3, 1, 1, 40, 14, false);
+  g.translate(0, 0.5, 0);
+  displace(g, (x, y, z) => {
+    const r = Math.hypot(x, z);
+    if (r < 1e-4) return [0, y > 0.5 ? -0.18 : 0, 0];   // the cap centre sinks into the crater
+    const a = Math.atan2(z, x);
+    const gully = Math.max(0, ridged2(a * 3 + seed, y * 3, { octaves: 3, seed: seed + 2 }) - 0.5) * 0.35 * (1 - y * 0.5);
+    const erode = fbm3(x * 2.5, y * 6 + seed, z * 2.5, { octaves: 4, seed }) * 0.18;
+    const k = 1 + erode - gully;
+    return [x * (k - 1), 0, z * (k - 1)];
+  });
+  return g;
+}
+
+/** a dome: the upper half of a unit sphere, open underneath (habitats, sunken cities); scale to size */
+export function domeGeo(segs = 24) {
+  return new THREE.SphereGeometry(1, segs, Math.max(8, Math.round(segs / 2)), 0, Math.PI * 2, 0, Math.PI / 2);
+}
+
+/** a jungle tree: trunk with branches, and a canopy of displaced blobs; returns { trunk, canopy } */
+export function treeGeo(seed = 1) {
+  const rng = makeRng(seed);
+  const h = 7 + rng() * 6;
+  const parts = [];
+  const trunk = new THREE.CylinderGeometry(0.18, 0.45, h, 7); trunk.translate(0, h / 2, 0); parts.push(trunk);
+  for (let i = 0; i < 3; i++) {
+    const y = h * (0.55 + rng() * 0.3), len = 2 + rng() * 2.5;
+    const b = new THREE.CylinderGeometry(0.08, 0.18, len, 5); b.translate(0, len / 2, 0); b.rotateZ(0.7 + rng() * 0.5); b.translate(0, y, 0); b.rotateY(rng() * Math.PI * 2); parts.push(b);
+  }
+  const trunkG = mergeGeometries(parts); worldUv(trunkG, 1, 1);
+  const blobs = [];
+  const n = 3 + rng.int(0, 2);
+  for (let i = 0; i < n; i++) {
+    const s = 2.2 + rng() * 1.8, a = rng() * Math.PI * 2, d = i === 0 ? 0 : 1.2 + rng() * 1.6, o = rng() * 20;
+    const b = weld(new THREE.IcosahedronGeometry(1, 2));
+    displace(b, (x, y, z) => { const k = fbm3(x * 1.6 + o, y * 1.6, z * 1.6 + o, { octaves: 3, seed: seed + i }) * 0.35; return [x * k, y * k * 0.7, z * k]; });
+    b.scale(s, s * 0.75, s); b.translate(Math.cos(a) * d, h * 0.92 + (rng() - 0.3) * 1.5, Math.sin(a) * d); blobs.push(b);
+  }
+  const canopy = mergeGeometries(blobs); worldUv(canopy, 3, 3);
+  return { trunk: trunkG, canopy };
+}
+
+/** a palm: a leaning trunk and a crown of drooping fronds; returns { trunk, fronds } */
+export function palmGeo(seed = 1) {
+  const rng = makeRng(seed);
+  const h = 8 + rng() * 5, lean = (rng() - 0.5) * 0.5, dir = rng() * Math.PI * 2;
+  const segs = [], N = 6;
+  for (let i = 0; i < N; i++) { const c = new THREE.CylinderGeometry(0.22 - i * 0.02, 0.26 - i * 0.02, h / N + 0.05, 7); c.translate(0, h * (i + 0.5) / N, 0); segs.push(c); }
+  const trunk = mergeGeometries(segs);
+  displace(trunk, (x, y, z) => { const k = (y / h) ** 2 * lean * h; return [Math.cos(dir) * k, 0, Math.sin(dir) * k]; });
+  worldUv(trunk, 1, 1);
+  const top = { x: Math.cos(dir) * lean * h, y: h, z: Math.sin(dir) * lean * h };
+  const fronds = [];
+  const nf = 7 + rng.int(0, 3);
+  for (let i = 0; i < nf; i++) {
+    const p = new THREE.PlaneGeometry(1.1, 5, 1, 6); p.translate(0, 2.5, 0);
+    displace(p, (x, y) => [x * (1 - y / 5.5) - x, 0, -((y / 5) ** 2) * 2.2]);   // taper to the tip, droop
+    p.rotateX(-(0.9 + rng() * 0.5)); p.rotateY(i / nf * Math.PI * 2 + rng() * 0.3); p.translate(top.x, top.y, top.z); fronds.push(p);
+  }
+  return { trunk, fronds: mergeGeometries(fronds) };
+}
+
+/** a mangrove: a trunk standing on splayed prop roots that reach down into the water; returns { trunk, canopy } */
+export function mangroveGeo(seed = 1) {
+  const rng = makeRng(seed);
+  const h = 4 + rng() * 3, parts = [];
+  const trunk = new THREE.CylinderGeometry(0.16, 0.24, h, 7); trunk.translate(0, 1.5 + h / 2, 0); parts.push(trunk);
+  const nr = 6 + rng.int(0, 4);
+  for (let i = 0; i < nr; i++) {
+    const len = 2.4 + rng() * 1.2;
+    const r = new THREE.CylinderGeometry(0.05, 0.1, len, 5); r.translate(0, len / 2, 0); r.rotateX(Math.PI); r.rotateZ(0.5 + rng() * 0.35); r.rotateY(i / nr * Math.PI * 2 + rng() * 0.4); r.translate(0, 2.2, 0); parts.push(r);
+  }
+  const trunkG = mergeGeometries(parts); worldUv(trunkG, 1, 1);
+  const blobs = [];
+  for (let i = 0; i < 3; i++) {
+    const s = 1.6 + rng() * 1.2, a = rng() * Math.PI * 2, d = i === 0 ? 0 : 1 + rng(), o = rng() * 20;
+    const b = weld(new THREE.IcosahedronGeometry(1, 2));
+    displace(b, (x, y, z) => { const k = fbm3(x * 1.8 + o, y * 1.8, z * 1.8 + o, { octaves: 3, seed: seed + 9 + i }) * 0.3; return [x * k, y * k * 0.6, z * k]; });
+    b.scale(s, s * 0.7, s); b.translate(Math.cos(a) * d, 1.5 + h + 0.4, Math.sin(a) * d); blobs.push(b);
+  }
+  const canopy = mergeGeometries(blobs); worldUv(canopy, 3, 3);
+  return { trunk: trunkG, canopy };
+}
+
+/** coral, unit-ish size: kind 0 staghorn (branching), 1 brain (a low boulder), 2 sea fan (a standing half disc) */
+export function coralGeo(seed = 1, kind = 0) {
+  const rng = makeRng(seed);
+  if (kind === 1) { const g = rock(seed, 2); g.scale(1, 0.7, 1); return g; }
+  if (kind === 2) {
+    const g = new THREE.CircleGeometry(1, 28, 0, Math.PI);
+    displace(g, (x, y) => { const n = fbm2(x * 3 + seed, y * 3, { octaves: 3, seed }); const r = Math.hypot(x, y); return [x * n * 0.25 * r, y * n * 0.25 * r, n * 0.15]; });
+    return g;
+  }
+  const parts = [];
+  const trunk = new THREE.CylinderGeometry(0.08, 0.16, 0.8, 6); trunk.translate(0, 0.4, 0); parts.push(trunk);
+  const nb = 8 + rng.int(0, 4);
+  for (let i = 0; i < nb; i++) {
+    const len = 0.5 + rng() * 0.7;
+    const b = new THREE.CylinderGeometry(0.03, 0.08, len, 5); b.translate(0, len / 2, 0); b.rotateZ(0.4 + rng() * 0.9); b.rotateY(i / nb * Math.PI * 2 + rng() * 0.5); b.translate(0, 0.45 + rng() * 0.35, 0); parts.push(b);
+  }
+  const g = mergeGeometries(parts); worldUv(g, 1, 1);
+  return g;
+}
+
 /** a rock slab for cliffs and canyon walls: unit box on the ground, faces bulged by noise */
 export function cliffSlab(seed = 1) {
   const g = new THREE.BoxGeometry(1, 1, 1, 5, 7, 5);

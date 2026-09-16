@@ -177,8 +177,8 @@ export function skyTexture(top, horizon, sun) {
  * A full sky dome: gradient top → horizon, optional star field, nebula haze,
  * clouds and a horizon glow. 1024 × 512, u around, v top → bottom.
  */
-export function skyDomeTexture(top, horizon, { stars = false, nebula = false, clouds = false, glow = null, seed = 1 } = {}) {
-  return memo(`dome${top}${horizon}${stars}${nebula}${clouds}${glow}${seed}`, () => {
+export function skyDomeTexture(top, horizon, { stars = false, nebula = false, clouds = false, glow = null, seed = 1, milkyway = false } = {}) {
+  return memo(`dome${top}${horizon}${stars}${nebula}${clouds}${glow}${seed}${milkyway}`, () => {
     const W = 1024, H = 512;
     const c = canvas(W, H), g = c.getContext('2d'), rng = makeRng(seed);
     const grad = g.createLinearGradient(0, 0, 0, H);
@@ -195,6 +195,16 @@ export function skyDomeTexture(top, horizon, { stars = false, nebula = false, cl
         if (nebula && v < 0.55) {
           const n = Math.max(0, fbm2(u * 6, v * 8, { octaves: 4, seed: seed + 2 })) * (1 - v / 0.55);
           r += n * 40; gg += n * 20; b += n * 70;
+        }
+        if (milkyway && v < 0.6) {
+          // the galactic band: a sinuous belt of unresolved stars around the sky, torn by dark dust lanes, brighter at its core
+          const c = 0.3 + 0.13 * Math.sin(u * Math.PI * 2);
+          const band = Math.exp(-(((v - c) / 0.065) ** 2));
+          const dust = smoothstep(0.05, 0.45, fbm2(u * 16, v * 26, { octaves: 4, seed: seed + 6 }));
+          const wisp = 0.6 + 0.4 * fbm2(u * 40, v * 60, { octaves: 3, seed: seed + 7 });
+          const core = 0.55 + 0.45 * Math.exp(-(((u - 0.62) / 0.16) ** 2));
+          const k = band * (1 - dust * 0.85) * wisp * core;
+          r += k * 105; gg += k * 100; b += k * 125;
         }
         if (clouds && v < 0.5) {
           const n = fbm2(u * 7 + seed, v * 14, { octaves: 5, seed: seed + 4 });
@@ -214,6 +224,16 @@ export function skyDomeTexture(top, horizon, { stars = false, nebula = false, cl
       for (let i = 0; i < 1800; i++) {
         const x = rng() * W, y = rng() * rng() * H * 0.5, s = rng() < 0.08 ? 2 : 1, a = 0.35 + rng() * 0.65;
         g.fillStyle = `rgba(${220 + rng() * 35},${220 + rng() * 35},255,${a.toFixed(2)})`; g.fillRect(x, y, s, s);
+      }
+    }
+    if (milkyway) {
+      // a dense sprinkle of faint stars along the band
+      for (let i = 0; i < 5000; i++) {
+        const x = rng() * W, u = x / W, c = 0.3 + 0.13 * Math.sin(u * Math.PI * 2);
+        const y = (c + (rng() + rng() + rng() - 1.5) * 0.09) * H;
+        if (y < 0 || y > H * 0.58) continue;
+        const a = 0.2 + rng() * 0.5, warm = rng() < 0.3;
+        g.fillStyle = `rgba(${warm ? 255 : 225},${warm ? 235 : 230},${warm ? 205 : 255},${a.toFixed(2)})`; g.fillRect(x, y, 1, 1);
       }
     }
     const t = tex(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; return t;
