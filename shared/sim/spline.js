@@ -7,7 +7,7 @@
 // Sampling is O(1): frames are stored every STEP metres and interpolated.
 // ============================================================================
 
-import { v3, add, sub, scale, cross, norm, dot, len, lerp } from './vec.js';
+import { v3, add, sub, scale, cross, norm, dot, len, lerp, clamp } from './vec.js';
 
 export const STEP = 2;   // metres between stored frames
 
@@ -21,8 +21,66 @@ function catmullScalar(a, b, c, d, u) {
   return 0.5 * ((2 * b) + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
 }
 
+// ---------------------------------------------------------------- loops ----
+// A vertical loop-the-loop cannot be framed against world up (the road never
+// inverts and `right` flips where the tangent goes vertical), so control points
+// carry `loop: 1` through the loop. Those frames get a rotation-minimising
+// (parallel-transported) basis seeded from the frame before the run, and the
+// twist it accumulates is spread linearly along the run so it rejoins the
+// world-up frame at the exit. On a helix that is exactly the Frenet frame with
+// `up` toward the axis. Tracks without the flag never enter any of this.
+const worldUp = v3(0, 1, 0);
+function worldUpBasis(tangent) {
+  let right = norm(cross(tangent, worldUp));
+  if (len(right) < 1e-3) right = v3(1, 0, 0);
+  const up = norm(cross(right, tangent));
+  return [right, up];
+}
+function rollBasis(right, up, b) {
+  const cb = Math.cos(b), sb = Math.sin(b);
+  return [add(scale(right, cb), scale(up, sb)), sub(scale(up, cb), scale(right, sb))];
+}
+/** contiguous runs of loop frames as [a, b] index pairs, wrap-aware */
+function loopRunsOf(frames, count) {
+  let off = 0;
+  while (off < count && frames[off].isLoop) off++;
+  if (off === count) throw new Error('a track cannot be a loop everywhere');
+  const runs = [];
+  let start = -1;
+  for (let k = 0; k <= count; k++) {
+    const i = (off + k) % count;
+    const on = k < count && frames[i].isLoop;
+    if (on && start < 0) start = i;
+    if (!on && start >= 0) { runs.push([start, (i - 1 + count) % count]); start = -1; }
+  }
+  return runs;
+}
+export function loopRuns(ribbon) { return ribbon.hasLoop ? loopRunsOf(ribbon.frames, ribbon.count) : []; }
+function transportLoops(frames, count) {
+  for (const [a, b] of loopRunsOf(frames, count)) {
+    const k = ((b - a + count) % count) + 1;
+    let [r, u] = worldUpBasis(frames[(a - 1 + count) % count].tangent);   // unbanked seed
+    const rT = [], uT = [];
+    for (let m = 0; m < k; m++) {
+      const T = frames[(a + m) % count].tangent;
+      r = norm(sub(r, scale(T, dot(r, T))));   // previous right projected onto the plane ⊥ tangent
+      u = norm(cross(r, T));
+      rT.push(r); uT.push(u);
+    }
+    // the twist between the transported basis and the world-up basis at the run's end, in roll's own terms
+    const [rW] = worldUpBasis(frames[b].tangent);
+    const phi = Math.atan2(dot(rW, uT[k - 1]), dot(rW, rT[k - 1]));
+    for (let m = 0; m < k; m++) {
+      const i = (a + m) % count;
+      let [rr, uu] = rollBasis(rT[m], uT[m], phi * (m + 1) / k);
+      if (frames[i].bank) [rr, uu] = rollBasis(rr, uu, frames[i].bank);
+      frames[i].right = rr; frames[i].up = uu;
+    }
+  }
+}
+
 /**
- * @param {Array<{x,y,z,width?,bank?}>} points  control points of a closed loop
+ * @param {Array<{x,y,z,width?,bank?,loop?}>} points  control points of a closed loop
  * @returns ribbon
  */
 export function buildRibbon(points, opts = {}) {
@@ -32,6 +90,7 @@ export function buildRibbon(points, opts = {}) {
   const P = (i) => points[((i % n) + n) % n];
   const W = (i) => P(i).width ?? defaultWidth;
   const B = (i) => P(i).bank ?? 0;
+  const L = (i) => P(i).loop ?? 0;
 
   // dense pre-sample to measure arc length, then resample at STEP
   const dense = [];
@@ -42,7 +101,8 @@ export function buildRibbon(points, opts = {}) {
       dense.push({
         p: catmull(P(i - 1), P(i), P(i + 1), P(i + 2), u),
         w: catmullScalar(W(i - 1), W(i), W(i + 1), W(i + 2), u),
-        b: catmullScalar(B(i - 1), B(i), B(i + 1), B(i + 2), u)
+        b: catmullScalar(B(i - 1), B(i), B(i + 1), B(i + 2), u),
+        l: catmullScalar(L(i - 1), L(i), L(i + 1), L(i + 2), u)
       });
     }
   }
@@ -60,10 +120,11 @@ export function buildRibbon(points, opts = {}) {
     const seg = cum[j + 1] - cum[j] || 1;
     const u = (s - cum[j]) / seg;
     const a = dense[j], b = dense[(j + 1) % dense.length];
-    frames[i] = { s, pos: lerp(a.p, b.p, u), width: a.w + (b.w - a.w) * u, bank: a.b + (b.b - a.b) * u };
+    frames[i] = { s, pos: lerp(a.p, b.p, u), width: a.w + (b.w - a.w) * u, bank: a.b + (b.b - a.b) * u, loop: a.l + (b.l - a.l) * u };
+    frames[i].isLoop = frames[i].loop > 0.5;
   }
+  const hasLoop = frames.some(f => f.isLoop);
   // tangents by central difference, then a stable up/right basis
-  const worldUp = v3(0, 1, 0);
   for (let i = 0; i < count; i++) {
     const prev = frames[(i - 1 + count) % count].pos, next = frames[(i + 1) % count].pos;
     const tangent = norm(sub(next, prev));
@@ -84,10 +145,19 @@ export function buildRibbon(points, opts = {}) {
     // slope: vertical rise per metre travelled (world y along tangent)
     frames[i].slope = tangent.y;
   }
+  if (hasLoop) transportLoops(frames, count);
   // signed yaw curvature (rad/m): rotation of the horizontal tangent per metre.
   // positive = turning right (toward +right)
   for (let i = 0; i < count; i++) {
     const t0 = frames[(i - 1 + count) % count].tangent, t1 = frames[(i + 1) % count].tangent;
+    if (frames[i].isLoop) {
+      // through a loop the heading formula below spikes where z reverses; measure the turn in the road plane instead
+      const u = frames[i].up;
+      const p0 = sub(t0, scale(u, dot(t0, u))), p1 = sub(t1, scale(u, dot(t1, u)));
+      const ang = Math.atan2(dot(cross(p0, p1), u), dot(p0, p1));
+      frames[i].curvature = -ang / (2 * step);
+      continue;
+    }
     const a0 = Math.atan2(t0.x, t0.z), a1 = Math.atan2(t1.x, t1.z);
     let d = a1 - a0;
     while (d > Math.PI) d -= 2 * Math.PI;
@@ -99,7 +169,7 @@ export function buildRibbon(points, opts = {}) {
     frames[i].curvature = Math.abs(d) / (2 * step) * turnRight;
     void r;
   }
-  return { frames, length, step, count, points };
+  return { frames, length, step, count, points, hasLoop };
 }
 
 /** frame at s (wrapped), interpolated between stored frames */
@@ -119,7 +189,9 @@ export function frameAt(ribbon, s) {
     width: a.width + (b.width - a.width) * u,
     bank: a.bank + (b.bank - a.bank) * u,
     curvature: a.curvature + (b.curvature - a.curvature) * u,
-    slope: a.slope + (b.slope - a.slope) * u
+    slope: a.slope + (b.slope - a.slope) * u,
+    loop: clamp(a.loop + (b.loop - a.loop) * u, 0, 1),
+    isLoop: a.isLoop || b.isLoop
   };
 }
 

@@ -40,6 +40,8 @@ function buildTerrainNow(ribbon, { cells = 180, pad = 320, skip = 3, sigma = 90,
   const dx = (maxX - minX) / cells, dz = (maxZ - minZ) / cells;
   const frames = []; for (let i = 0; i < ribbon.count; i += skip) frames.push(ribbon.frames[i]);
   const orientOf = frames.map(orient), capOf = frames.map(f => !noCap(f));
+  // loop-the-loop frames still cap the ground under them but never shape it (their height would mound the terrain)
+  const loopOf = frames.map(f => !!f.isLoop);
   const lowEdgeOf = frames.map(f => f.pos.y - Math.abs(Math.sin(f.bank)) * f.width / 2);
   const heights = new Float32Array(nx * nz);
   const infos = new Array(nx * nz);
@@ -51,13 +53,15 @@ function buildTerrainNow(ribbon, { cells = 180, pad = 320, skip = 3, sigma = 90,
       const f = frames[k];
       const ex = x - f.pos.x, ez = z - f.pos.z;
       const d2 = ex * ex + ez * ez;
-      if (d2 < bd) { bd = d2; best = k; }
-      const d4 = d2 * d2;
-      const w = 1 / (1 + d4 / s4);
-      const sd = (ex * f.right.x + ez * f.right.z) > 0 ? 1 : -1;
-      wsum += w; ssum += w * sd * orientOf[k];
-      const w2 = 1 / (1 + d4 / t4);
-      tw += w2; tsum += w2 * f.pos.y;
+      if (!loopOf[k]) {
+        if (d2 < bd) { bd = d2; best = k; }
+        const d4 = d2 * d2;
+        const w = 1 / (1 + d4 / s4);
+        const sd = (ex * f.right.x + ez * f.right.z) > 0 ? 1 : -1;
+        wsum += w; ssum += w * sd * orientOf[k];
+        const w2 = 1 / (1 + d4 / t4);
+        tw += w2; tsum += w2 * f.pos.y;
+      }
       if (capOf[k]) {
         const out = Math.sqrt(d2) - f.width / 2;
         if (out < margin + fade) { const c = lowEdgeOf[k] - drop + smoothstep(margin, margin + fade, out) * 600; if (c < cap) cap = c; }

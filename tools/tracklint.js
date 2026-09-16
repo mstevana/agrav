@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { TRACKS } from '../shared/agrav/tracks/index.js';
-import { buildRibbon, frameAt, toWorld } from '../shared/sim/spline.js';
+import { buildRibbon, frameAt, toWorld, loopRuns } from '../shared/sim/spline.js';
 import { vehicleStats } from '../shared/agrav/vehicles.js';
 import module from '../shared/agrav/module.js';
 import { makeBot, botInput } from '../shared/agrav/bot.js';
@@ -62,6 +62,14 @@ for (const id of ids) {
   let badBank = 0;
   for (const f of r.frames) if (Math.abs(f.curvature) > CORNER_CURVATURE && Math.abs(f.bank) > 0.05 && Math.sign(f.bank) === Math.sign(f.curvature)) badBank++;
   if (badBank > r.count * 0.02) problems.push(`${badBank} frames banked toward the inside of the bend`);
+  // loop-the-loops: never banked, and the run must start and end on shallow ground so the frame hand-over is clean
+  const loops = loopRuns(r);
+  const bankedLoop = r.frames.filter(f => f.isLoop && Math.abs(f.bank) > 0.01).length;
+  if (bankedLoop) problems.push(`${bankedLoop} loop frames are banked`);
+  for (const [a, b] of loops) {
+    const before = r.frames[(a - 1 + r.count) % r.count], after = r.frames[(b + 1) % r.count];
+    if (Math.abs(before.slope) > 0.35 || Math.abs(after.slope) > 0.35) problems.push(`the loop at s=${r.frames[a].s.toFixed(0)} must start and end on a shallow slope`);
+  }
   // pads on the surface
   for (const row of track.pads) {
     if (row.s < 0 || row.s > r.length) problems.push(`pad row at s=${row.s} is off the ${r.length.toFixed(0)} m loop`);
@@ -99,7 +107,7 @@ for (const id of ids) {
   if (!ok) failed = true;
   console.log(`${ok ? 'PASS' : 'FAIL'} ${track.name} (${id})`);
   console.log(`     length ${r.length.toFixed(0)} m · width ${minW.toFixed(0)}–${Math.max(...r.frames.map(f => f.width)).toFixed(0)} m · tightest radius ${(1 / maxK).toFixed(0)} m`);
-  console.log(`     corners ${corners} (${left} left, ${right} right) · elevation ${minY.toFixed(0)}..${maxY.toFixed(0)} m (${(maxY - minY).toFixed(0)} m range) · pads ${track.pads.reduce((n, p) => n + p.lanes.length, 0)} in ${track.pads.length} rows`);
+  console.log(`     corners ${corners} (${left} left, ${right} right) · elevation ${minY.toFixed(0)}..${maxY.toFixed(0)} m (${(maxY - minY).toFixed(0)} m range) · pads ${track.pads.reduce((n, p) => n + p.lanes.length, 0)} in ${track.pads.length} rows · loops ${loops.length}`);
   console.log(`     jumps ${uniq.length}: ${uniq.map(j => `s=${j.s.toFixed(0)} ${j.sec.toFixed(2)}s h=${j.maxH.toFixed(1)}m land=${j.landing.toFixed(0)}`).join(', ') || 'none'} · hardest landing ${hardest.toFixed(0)} m/s`);
   console.log(`     bot (kestrel): best lap ${racer.bestLap ? racer.bestLap.toFixed(1) : '-'} s · wall hits ${wallHits} (hardest ${hardestWall.toFixed(0)} m/s) · hp left ${racer.hp.toFixed(0)} · tightest bend at s=${tightest.s.toFixed(0)}`);
   for (const p of problems) console.log(`     ! ${p}`);

@@ -11,7 +11,8 @@ import { skyDomeTexture, glowSprite, sponsorAdTexture, SPONSOR_IDS } from '../te
 import { mergeGeometries } from '../../../../shared/gfx/merge.js';
 
 /**
- * Sky dome + lights. opts: { stars, nebula, clouds, glow, seed, sunPos, sunDisc: {colour, size} }
+ * Sky dome + lights. opts: { stars, nebula, milkyway, clouds, glow, seed, sunPos, sunDisc: {colour, size},
+ * hemi, amb (fill intensities; a vacuum wants almost none) }
  */
 export function setupSky(scene, env, top, horizon, opts = {}) {
   scene.background = new THREE.Color(env.sky);
@@ -20,11 +21,11 @@ export function setupSky(scene, env, top, horizon, opts = {}) {
   dome.renderOrder = -10;
   scene.add(dome);
   // three r155+ lights are physically scaled: a sun needs ~3, fill ~1.5 to read as daylight
-  const hemi = new THREE.HemisphereLight(top, 0x404040, 1.4);
+  const hemi = new THREE.HemisphereLight(top, opts.hemiGround ?? 0x404040, opts.hemi ?? 1.4);
   const sun = new THREE.DirectionalLight(env.sun, env.sunIntensity * 3.2);
   const sp = opts.sunPos || { x: 300, y: 500, z: 200 };
   sun.position.set(sp.x, sp.y, sp.z);
-  const amb = new THREE.AmbientLight(env.ambient, 1.6);
+  const amb = new THREE.AmbientLight(env.ambient, opts.amb ?? 1.6);
   scene.add(hemi, sun, amb);
   let sunMesh = null;
   if (opts.sunDisc) {
@@ -53,6 +54,7 @@ export function placeAlong(ribbon, { every = 30, side = 0, gap = 8, spread = 30,
   for (let s = 0; s < ribbon.length; s += every) {
     const ss = s + rng() * every * 0.5;
     const f = frameAt(ribbon, ss);
+    if (f.isLoop) continue;   // nothing hangs in the air beside a loop-the-loop
     const sides = side === 0 ? [1, -1] : [side];
     for (const sd of sides) {
       // the object's own footprint decides how far out it sits and what it must clear
@@ -219,6 +221,7 @@ export function billboards(ribbon, { every = 210, seed = 4, gap = 6, w = 14, h =
   let sd = 1, i = 0;
   for (let s = every * 0.5; s < ribbon.length - 40; s += every, i++) {
     const f = frameAt(ribbon, s + rng() * 40), t = sd * (f.width / 2 + gap + w * 0.5);
+    if (f.isLoop) continue;
     const px = f.pos.x + f.right.x * t, pz = f.pos.z + f.right.z * t;
     const base = y ? y(px, pz) : f.pos.y - 1;
     const id = SPONSOR_IDS[(i * 7 + seed) % SPONSOR_IDS.length];

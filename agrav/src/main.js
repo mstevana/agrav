@@ -347,6 +347,7 @@ renderer.domElement.addEventListener('pointerdown', () => {
 
 // ------------------------------------------------------------------- loop ----
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmpV = new THREE.Vector3();
+const camUp = new THREE.Vector3(0, 1, 0), tmpUp = new THREE.Vector3(), tmpFrameUp = new THREE.Vector3();   // rolls with the road through a loop-the-loop
 let acc = 0, last = performance.now(), fpsN = 0, fpsT = 0, fps = 0;
 let camInit = false;
 
@@ -480,6 +481,13 @@ function renderRace(dt) {
     camPos.lerp(tmpV, k);
     camLook.lerp(tmpV.set(lw.x, lw.y, lw.z), k);
     camera.position.copy(camPos);
+    // through a loop the camera's up follows the road (weighted by the loop flag, so flat tracks keep world up exactly)
+    const fr = cw.frame;
+    tmpFrameUp.set(fr.up.x, fr.up.y, fr.up.z);
+    tmpUp.set(0, 1, 0).lerp(tmpFrameUp, fr.loop || 0);
+    if (tmpUp.lengthSq() < 0.01) tmpUp.copy(tmpFrameUp);
+    camUp.lerp(tmpUp.normalize(), k).normalize();
+    camera.up.copy(camUp);
     camera.lookAt(camLook);
     const boosting = !!(latest?.byId[targetId]?.flags & VF.BOOST);
     const fov = 72 + Math.min(1, speed / 100) * 10 + (boosting ? 8 : 0);

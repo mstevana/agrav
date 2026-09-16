@@ -5,6 +5,7 @@ import { vehicleStats } from '../agrav/vehicles.js';
 import { makeVehicleState, stepVehicle } from '../agrav/sim/vehicle.js';
 import { IN } from '../net/protocol.js';
 import { DT } from '../agrav/constants.js';
+import { helixTrack } from './spline.test.js';
 
 function oval() {
   const pts = [];
@@ -70,6 +71,32 @@ test('a crest launches the craft and it lands again', () => {
   assert.ok(air > 10, `airborne ticks ${air}`);
   assert.ok(landed);
   assert.equal(v.h, 0);
+});
+
+test('a craft stays on the road through a loop-the-loop at any speed', () => {
+  const r = r0 = helixTrack();
+  const loop = r.frames.filter(f => f.isLoop);
+  const s0 = loop[0].s - 30, s1 = loop[loop.length - 1].s + 30;
+  for (const [id, hold] of [['kestrel', null], ['corsair', 35]]) {
+    const v = makeVehicleState(vehicleStats(id));
+    let inLoop = 0;
+    for (let i = 0; i < 60 * 40; i++) {
+      const sp = Math.hypot(v.vs, v.vt);
+      const bits = hold && sp > hold ? 0 : IN.THROTTLE;
+      stepVehicle(r, v, { bits, steer: centre(v) }, DT);
+      if (v.s >= s0 && v.s <= s1) {
+        inLoop++;
+        assert.ok(v.grounded && v.h === 0 && v.landing === 0, `${id} left the road at s=${v.s.toFixed(0)} (h ${v.h}, landing ${v.landing})`);
+        assert.ok(Math.abs(v.t) < 8, `${id} kept its line at s=${v.s.toFixed(0)}`);
+      }
+    }
+    assert.ok(inLoop > 100, `${id} drove the loop (${inLoop} ticks)`);
+  }
+  // airborne on entry: set down on the first loop tick without a landing hit
+  const v = makeVehicleState(vehicleStats('kestrel'));
+  v.s = loop[0].s - 2.5; v.vs = 40; v.grounded = false; v.h = 3; v.W = 0;
+  stepVehicle(r, v, { bits: IN.THROTTLE, steer: 0 }, DT);
+  assert.ok(v.grounded && v.h === 0 && v.landing === 0);
 });
 
 test('airbrakes tighten the turn', () => {

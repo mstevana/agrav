@@ -126,7 +126,11 @@ export function stepVehicle(ribbon, v, input, dt, frozen = false) {
   // --- vertical: stick to the surface unless it drops away faster than gravity
   const surfW0 = f0.slope * v.vs;   // surface vertical speed under the craft (world)
   const surfW1 = f1.slope * v.vs;
-  if (v.grounded) {
+  if (f0.isLoop || f1.isLoop) {
+    // a loop-the-loop: the craft is held to the road (the crest test below is in world terms
+    // and would fling it off the apex); anything airborne on entry is set down without a landing
+    v.grounded = true; v.h = 0; v.W = surfW1;
+  } else if (v.grounded) {
     const W = surfW0 - GRAVITY * dt;
     if (W > surfW1 + 0.03) {         // crest: the ground falls away faster than gravity
       v.grounded = false;
