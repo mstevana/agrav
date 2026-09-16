@@ -65,6 +65,7 @@ export class Client {
     this.marginAt = 0;
     this.pred = null;            // predicted vehicle state for me
     this.smooth = { s: 0, t: 0, h: 0, yaw: 0 };
+    this.lastTickTime = 0;       // wall time of the last prediction step, for sub-tick render extrapolation
     this.phase = PHASE.LOBBY;
     this.raceTick = -9999;
     this.stats = { in: 0, out: 0, snaps: 0, corrections: 0, maxErr: 0 };
@@ -300,6 +301,7 @@ export class Client {
     this.stats.out += bytes.length;
     const me = this.race.byId[this.me];
     if (this.pred && me && !me.dead) stepVehicle(this.ribbon, this.pred, rec, DT, this.phase === PHASE.COUNTDOWN);
+    this.lastTickTime = this.clock.now();
   }
 
   // ------------------------------------------------------------------ view --
@@ -310,8 +312,15 @@ export class Client {
     this.smooth.s *= k; this.smooth.t *= k; this.smooth.h *= k; this.smooth.yaw *= k;
   }
 
-  /** server tick right now: the newest snapshot's tick, aged by the time since it arrived, plus half a round trip */
+  /**
+   * server tick right now. Once the clock is synced, use its smoothed estimate
+   * (now/tickMs + a heavily-averaged offset): it is a smooth function of wall
+   * time, so remote interpolation and the race clock ride it without the per-
+   * snapshot jitter of an arrival-time re-anchor. Before sync, fall back to the
+   * newest snapshot's tick aged by the time since it arrived, plus half a round trip.
+   */
   serverTickNow() {
+    if (this.clock.synced) return this.clock.serverTick();
     if (!this.latest) return 0;
     const half = Math.min(10, (this.clock.rtt / 2) / this.clock.tickMs);
     return this.latest.tick + (this.clock.now() - this.lastSnapTime) / this.clock.tickMs + half;
@@ -323,11 +332,21 @@ export class Client {
     return this.raceTick + (this.serverTickNow() - this.latest.tick);
   }
 
-  /** pose of my craft for rendering: prediction plus the decaying correction */
+  /**
+   * pose of my craft for rendering: prediction plus the decaying correction,
+   * extrapolated forward by the fraction of a tick since the last prediction
+   * step so the own craft moves at render rate rather than stepping at the 60 Hz
+   * input rate (visible as shimmer against a smooth camera on high-refresh
+   * displays). Seamless: at the next tick `pred` advances a full DT and `frac`
+   * resets to 0, so the drawn value is continuous across the boundary.
+   */
   myPose() {
     if (!this.pred) return null;
     const p = this.pred;
-    return { s: wrapS(this.ribbon, p.s + this.smooth.s), t: p.t + this.smooth.t, h: p.h + this.smooth.h, yaw: wrapAngle(p.yaw + this.smooth.yaw),
+    // s and t advance by vs/vt per tick (see stepVehicle); extrapolate those for smooth
+    // render-rate motion. yaw has no persisted rate and steps <0.04 rad/tick, so leave it.
+    const frac = this.lastTickTime ? Math.min(DT, Math.max(0, (this.clock.now() - this.lastTickTime) / 1000)) : 0;
+    return { s: wrapS(this.ribbon, p.s + p.vs * frac + this.smooth.s), t: p.t + p.vt * frac + this.smooth.t, h: p.h + this.smooth.h, yaw: wrapAngle(p.yaw + this.smooth.yaw),
       vs: p.vs, vt: p.vt, bits: p.bits, steer: p.steer, grounded: p.grounded, scraping: p.scraping };
   }
 
