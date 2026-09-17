@@ -71,6 +71,14 @@ sponsor spots in rotation on the city's wall screens and holo boards.
   banked hairpin, a climb back through the strata.
 - **Cape Vanta** — coastal cliffs: cliff-edge sweepers, a tunnel through the headland, a
   jump across the cove, a chicane on the beach, a long sweep round the south point.
+- **Inferno Basin** — hellscape: a causeway over a lava lake, a climb up a volcano's flank to a
+  jump over a lava chasm, esses through the cinder field, a wide banked loop round a caldera.
+  Meteors fall the whole race; the road itself glows like cooling lava.
+- **Mare Selene** — the Moon: a sweep along a crater rim, a long straight into a full
+  **loop-the-loop**, a descent through the boulder field, a chicane past the moon base.
+- **Osa Reef** — Costa Rican jungle coast: a causeway through the trees, a dive under the sea in
+  a glass tunnel past a sunken city, a mangrove beach, then a second dive into a three-quarter
+  spiral (three right-handers in a row) that climbs until the tunnel crosses over its own entry.
 
 Getting hit costs speed as well as hull: a rocket scrubs 14 %, a missile 20 %, a mine 28 %, each
 minigun round about 1 %. Craft-to-craft contact is mass-weighted (armour is mass): the heavier
@@ -128,6 +136,27 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   first) climb the canyon between the towers; glass sky bridges cross high over the road;
   searchlights sweep from the tallest roofs. Everything moving stays above the road or beyond the
   barriers, so none of it touches the race.
+- **Inferno Basin** (`src/render/env/hell.js`): a red desert basin with lava basins carved under
+  the causeway and the jump, the melt glowing through crust cracks on an emissive map that
+  scrolls; seven volcanoes with ember columns that erupt every few seconds (a fireball and a
+  shower of lava bombs); a pool of meteors that streak in from a dome round the camera and burst
+  on the plain (never on the road), plus distant streaks; rising cinders, falling ash, red mist;
+  two flocks of black pterodactyls; the road material swapped for cooling lava.
+- **Mare Selene** (`src/render/env/moon.js`): a cratered mare (voronoi bowls with raised rims)
+  under a sky with the Milky Way and the Earth; near-zero fill light for hard shadows; angular
+  rock; four glass-domed base clusters lit from inside with airlocks, tubes, masts and solar
+  arrays; an Apollo lander with its flag, a parked rover and one driving a circuit; a crashed
+  saucer a third buried, its lamps still blinking and sparking. The **loop-the-loop** is a
+  one-turn helix: its control points carry `loop: 1`, which gives those frames a
+  parallel-transported basis (see `shared/sim/spline.js`) so the road inverts cleanly, the
+  physics holds the craft to the surface through it, and the chase camera rolls with the road.
+- **Osa Reef** (`src/render/env/jungle.js`): jungle hills, a beach and a reef falling into a deep
+  basin wherever the road dives; dense canopy, palms, mangroves on prop roots, ferns, macaws,
+  parrots and toucans, sloths and monkeys in the trees, iguanas, crocodiles in the shallows, a
+  tapir, blue morphos over the road. Under the sea the road runs in a ribbed glass tunnel: the
+  fog turns deep blue, caustics ripple on the sand, light shafts hang in the water, and around
+  you are corals and sea fans, kelp, four fish schools, a dolphin pod that breaches, manta rays,
+  two whales, turtles and the lit domes and towers of a sunken city.
 - **Track furniture** (`src/render/track.js`): a concrete deck under the road, rumble-strip
   curbs, barrier posts carrying the energy wall, light gantries, pad housings, skid marks at the
   braking zones.
@@ -147,6 +176,11 @@ kept in `docs/screenshots/pass1/` for comparison.
 | ![](../docs/screenshots/meridian-2.png) | ![](../docs/screenshots/canyon-2.png) | ![](../docs/screenshots/vanta-2.png) |
 | ![](../docs/screenshots/meridian-3.png) | ![](../docs/screenshots/canyon-3.png) | ![](../docs/screenshots/vanta-3.png) |
 
+| Inferno Basin | Mare Selene | Osa Reef |
+|---|---|---|
+| ![](../docs/screenshots/inferno-1.png) | ![](../docs/screenshots/selene-1.png) | ![](../docs/screenshots/osa-1.png) |
+| ![](../docs/screenshots/inferno-2.png) | ![](../docs/screenshots/selene-2.png) | ![](../docs/screenshots/osa-2.png) |
+
 | Kestrel | Talon | Vantage |
 |---|---|---|
 | ![](../docs/screenshots/craft-kestrel.png) | ![](../docs/screenshots/craft-talon.png) | ![](../docs/screenshots/craft-vantage.png) |
@@ -163,7 +197,7 @@ kept in `docs/screenshots/pass1/` for comparison.
 index.html          screens + CSS          src/net.js        prediction, reconciliation, interpolation
 src/main.js         wiring, camera, loop   src/input.js      keyboard / gamepad / touch
 src/hud.js          race HUD, minimap      src/audio.js      synthesized engines, weapons, music
-src/render/         track ribbon, craft meshes, effects, procedural textures, three environments
+src/render/         track ribbon, craft meshes, effects, procedural textures, six environments
 ../shared/agrav/    the simulation the server runs (module.js, sim/, tracks/, vehicles.js, bot.js)
 ```
 

@@ -201,7 +201,7 @@ export function treeGeo(seed = 1) {
   const n = 3 + rng.int(0, 2);
   for (let i = 0; i < n; i++) {
     const s = 2.2 + rng() * 1.8, a = rng() * Math.PI * 2, d = i === 0 ? 0 : 1.2 + rng() * 1.6, o = rng() * 20;
-    const b = weld(new THREE.IcosahedronGeometry(1, 2));
+    const b = weld(new THREE.IcosahedronGeometry(1, 1));   // low detail: a jungle has hundreds of these
     displace(b, (x, y, z) => { const k = fbm3(x * 1.6 + o, y * 1.6, z * 1.6 + o, { octaves: 3, seed: seed + i }) * 0.35; return [x * k, y * k * 0.7, z * k]; });
     b.scale(s, s * 0.75, s); b.translate(Math.cos(a) * d, h * 0.92 + (rng() - 0.3) * 1.5, Math.sin(a) * d); blobs.push(b);
   }
@@ -243,7 +243,7 @@ export function mangroveGeo(seed = 1) {
   const blobs = [];
   for (let i = 0; i < 3; i++) {
     const s = 1.6 + rng() * 1.2, a = rng() * Math.PI * 2, d = i === 0 ? 0 : 1 + rng(), o = rng() * 20;
-    const b = weld(new THREE.IcosahedronGeometry(1, 2));
+    const b = weld(new THREE.IcosahedronGeometry(1, 1));
     displace(b, (x, y, z) => { const k = fbm3(x * 1.8 + o, y * 1.8, z * 1.8 + o, { octaves: 3, seed: seed + 9 + i }) * 0.3; return [x * k, y * k * 0.6, z * k]; });
     b.scale(s, s * 0.7, s); b.translate(Math.cos(a) * d, 1.5 + h + 0.4, Math.sin(a) * d); blobs.push(b);
   }
