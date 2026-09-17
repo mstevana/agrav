@@ -141,8 +141,8 @@ export function buildJungle(scene, ribbon, track) {
 
   // caustics: a sheet that hugs the sea floor under each dive, scrolling; light shafts above it
   const caustic = causticTexture(); caustic.repeat.set(12, 12);
-  const causticMat = new THREE.MeshBasicMaterial({ map: caustic, color: 0x9adfff, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
-  const shaftMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true });
+  const causticMat = new THREE.MeshBasicMaterial({ map: caustic, color: 0x9adfff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });   // additive + fog would add the fog colour and wash out
+  const shaftMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
   const shaftGeo = new THREE.PlaneGeometry(7, 44);
   for (const area of seaAreas) {
     const size = area.r * 2.4, cells = 44;
@@ -167,7 +167,7 @@ export function buildJungle(scene, ribbon, track) {
   group.add(instancedVariants(corals, coralMat, reef, (it, pos, q, sc) => { const s = 1.4 + it.rng() * 2.8; pos.set(it.p.x, it.p.y - 0.1, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); sc.set(s, s * (0.8 + it.rng() * 0.6), s); }, coralTint));
   const kelpMat = swayMaterial(new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 1, side: THREE.DoubleSide }), current, 0.5, 'kelp');
   const kelp = placeAlong(ribbon, { every: 7, gap: 1, spread: 50, seed: 72, halfExtent: 0.6, y: heightAt }).filter(it => it.p.y < SEA_LEVEL - 4);
-  fine.add(instancedVariants([grassGeo()], kelpMat, kelp, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 0.1, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); const s = 2 + it.rng() * 3; sc.set(s * 0.6, s * 3, s * 0.6); }));
+  fine.add(instancedVariants([grassGeo()], kelpMat, kelp, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 0.1, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); const s = 2 + it.rng() * 3; sc.set(s * 0.25, s * 3, s * 0.25); }));
   const shoreRock = standard(cliffSet(env.cliff), { repeat: [1.5, 1], bumpScale: 0.2 });
   const boulders = placeAlong(ribbon, { every: 24, gap: 2, spread: 30, seed: 73, halfExtent: 3, y: heightAt });
   group.add(instancedVariants([rock(21), rock(22), rock(23, 3)], shoreRock, boulders, (it, pos, q, sc) => { const r = 1.2 + it.rng() * 3; pos.set(it.p.x, it.p.y + r * 0.2, it.p.z); q.setFromEuler(new THREE.Euler(0, it.rng() * 6.28, 0)); sc.set(r, r * 0.8, r); }, rockTint));
@@ -206,13 +206,18 @@ export function buildJungle(scene, ribbon, track) {
   // ----------------------------------------------------------- sunken city --
   if (deepest) {
     const f = deepest.mid, side = 1;
-    const cx = f.pos.x + f.right.x * side * 95, cz = f.pos.z + f.right.z * side * 95;
+    const cx = f.pos.x + f.right.x * side * 130, cz = f.pos.z + f.right.z * side * 130;
     const facades = [0, 1, 2].map(i => standard(facadeSet(200 + i, 0x2df1ff, 6, 12), { bumpScale: 0.1, emissiveIntensity: 1.3 }));
     const cityGlass = new THREE.MeshPhysicalMaterial({ color: 0x7fc8ff, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0, side: THREE.DoubleSide, depthWrite: false });
     const crng = makeRng(77);
-    for (let i = 0; i < 7; i++) {
-      const a = crng() * 6.28, d = i === 0 ? 0 : 40 + crng() * 60, r = 18 + crng() * 22;
+    // a dome may never reach the road: reject any that would overlap a frame's width plus a margin
+    const coarse = []; for (let i = 0; i < ribbon.count; i += 3) coarse.push(ribbon.frames[i]);
+    const clearOfRoad = (x, z, r) => coarse.every(q => { const dx = q.pos.x - x, dz = q.pos.z - z, need = q.width / 2 + r + 6; return dx * dx + dz * dz >= need * need; });
+    for (let i = 0, placed = 0; i < 40 && placed < 7; i++) {
+      const a = crng() * 6.28, d = placed === 0 ? 0 : 40 + crng() * 70, r = 18 + crng() * 22;
       const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d, y = heightAt(x, z) - 3;
+      if (!clearOfRoad(x, z, r)) continue;
+      placed++;
       const dm = new THREE.Mesh(domeGeo(24), cityGlass); dm.position.set(x, y, z); dm.scale.setScalar(r); dm.userData.noShadow = true; dm.renderOrder = 4; group.add(dm);
       const nt = 2 + crng.int(0, 2);
       for (let k = 0; k < nt; k++) {

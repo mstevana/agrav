@@ -117,7 +117,7 @@ export function buildHell(scene, ribbon, track) {
     coneGeos.push(placed(volcanoGeo(60 + i), it.p.x, it.p.y - 12, it.p.z, yaw, rad, H, rad));
     const top = it.p.y - 12 + H * 0.84;
     const disc = new THREE.Mesh(new THREE.CircleGeometry(rad * 0.24, 20), lavaMat); disc.rotation.x = -Math.PI / 2; disc.position.set(it.p.x, top, it.p.z); disc.userData.noShadow = true; craterDiscs.push(disc);
-    const plume = makePlume(0x6a2410, rad * 0.16, i * 3); plume.rotation.x = -Math.PI / 2; plume.position.set(it.p.x, top + 2, it.p.z); plume.scale.set(1, 1, 120 + H * 0.8); plume.material.uniforms.heat.value = 0.35;
+    const plume = makePlume(0x6a2410, rad * 0.16, i * 3); plume.rotation.x = -Math.PI / 2; plume.position.set(it.p.x, top + 2, it.p.z); plume.scale.set(1, 1, 120 + H * 0.8); plume.material.uniforms.heat.value = 0.22;
     const light = new THREE.PointLight(env.lava, 30, rad * 2.2, 1.4); light.position.set(it.p.x, top + 8, it.p.z);
     fine.add(plume); group.add(disc, light);
     volcanoes.push({ x: it.p.x, y: top, z: it.p.z, rad, plume, light, next: 3 + it.rng() * 8, phase: it.rng() * 6.28 });
@@ -214,10 +214,10 @@ export function buildHell(scene, ribbon, track) {
           v.next = 6 + rng() * 9;
           impact(new THREE.Vector3(v.x, v.y + 6, v.z), v.rad * 0.12);
           const light = v.light; spawn(new THREE.Object3D(), 1.2, (o, k) => { light.intensity = 24 + (1 - k) * 160; }, () => {});
-          v.plume.scale.z *= 1.35; v.plume.material.uniforms.heat.value = 0.9;
+          v.plume.scale.z *= 1.35; v.plume.material.uniforms.heat.value = 0.7;
         }
         v.plume.scale.z += ((120 + v.rad * 0.55) - v.plume.scale.z) * Math.min(1, dt * 0.4);
-        v.plume.material.uniforms.heat.value += (0.35 - v.plume.material.uniforms.heat.value) * Math.min(1, dt * 0.5);
+        v.plume.material.uniforms.heat.value += (0.22 - v.plume.material.uniforms.heat.value) * Math.min(1, dt * 0.5);
       }
       for (const m of meteors) {
         if (!m.active) { m.at -= dt; if (m.at <= 0 && !launch(m, camera)) m.at = 1; continue; }

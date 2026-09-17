@@ -55,8 +55,8 @@ export default {
     { s: 2500, lanes: [-7, 0, 7] }
   ],
   env: {
-    sky: 0x2a0806, fog: 0x4a1408, fogDensity: 0.0024, sun: 0xff7a40, sunIntensity: 0.85, ambient: 0x4a1a12,
+    sky: 0x2a0806, fog: 0x4a1408, fogDensity: 0.0024, sun: 0xffa060, sunIntensity: 1.15, ambient: 0x6a2a1a,
     edge: 0xff7a20, curb: 0xff5a10, lamp: 0xffa040, pad: 0xffb060, deck: 0x2a1c18, metal: 0x3a2a26,
-    lava: 0xff5a10, strata: [0x3a1410, 0x5a2016, 0x2a0e0a, 0x6a2a18, 0x1e0c08], sand: 0x8a2a1a
+    lava: 0xff5a10, strata: [0x6a2a1e, 0x8a3a24, 0x4a1c14, 0x9a4a2c, 0x3a1810], sand: 0xa8482a
   }
 };
