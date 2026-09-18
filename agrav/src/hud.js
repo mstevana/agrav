@@ -36,6 +36,9 @@ export class Hud {
     this.ghostPct = 1; this.ghostAt = 0;
     this.arcAt = -1e9; this.arcAngle = 0;
     this.lastPct = 1;
+    // this runs every frame, so nothing below is written unless it actually moved: a full-screen
+    // gradient reassigned per frame costs a whole-viewport repaint and it shows on a weak client
+    this.wrote = { fill: -1, ghost: -1, band: '', vig: -1, arc: -1, hull: -1 };
   }
 
   show(on) { this.el.root.hidden = !on; }
@@ -85,6 +88,8 @@ export class Hud {
     e.hull.classList.remove('hit'); void e.hull.offsetWidth; e.hull.classList.add('hit');
     if (bearing == null) return;
     this.arcAngle = bearing; this.arcAt = performance.now();
+    // 0 rad is dead ahead, so red starts at the top and swings round with the bearing
+    this.el.arc.style.background = `linear-gradient(${(180 + bearing * 180 / Math.PI).toFixed(0)}deg, rgba(255,70,70,0.5), transparent 38%)`;
   }
 
   /** the hull silhouette, tinted and scorched by how much of it is left */
@@ -128,19 +133,23 @@ export class Hud {
       if (pct < this.lastPct - 0.001) { this.ghostPct = Math.max(this.ghostPct, this.lastPct); this.ghostAt = now; }
       if (now - this.ghostAt > GHOST_HOLD || pct > this.lastPct) this.ghostPct = pct;
       this.lastPct = pct;
-      e.fill.style.transform = `scaleX(${pct.toFixed(4)})`;
-      e.fill.style.background = pct > 0.5 ? 'var(--ok)' : pct > CRITICAL ? 'var(--warn)' : 'var(--bad)';
-      e.ghost.style.transform = `scaleX(${Math.max(pct, this.ghostPct).toFixed(4)})`;
-      e.hpText.textContent = Math.round(pct * 100);
+      const w = this.wrote;
+      const fill = +pct.toFixed(3), ghost = +Math.max(pct, this.ghostPct).toFixed(3);
+      if (fill !== w.fill) { e.fill.style.transform = `scaleX(${fill})`; e.hpText.textContent = Math.round(pct * 100); w.fill = fill; }
+      const band = pct > 0.5 ? 'var(--ok)' : pct > CRITICAL ? 'var(--warn)' : 'var(--bad)';
+      if (band !== w.band) { e.fill.style.background = band; w.band = band; }
+      if (ghost !== w.ghost) { e.ghost.style.transform = `scaleX(${ghost})`; w.ghost = ghost; }
       e.root.classList.toggle('critical', pct <= CRITICAL && !me.dead);
-      // the screen edge reddens as the hull goes, and flares for a moment on each hit
-      // it has to stay readable to drive through, so the wash only starts once the hull is really going
+      // the screen edge reddens as the hull goes and flares on each hit; it still has to be
+      // readable to drive through, so the wash only starts once the hull is really going
       const flare = Math.max(0, 1 - (now - this.arcAt) / 420) * 0.25;
-      e.damage.style.opacity = Math.min(1, Math.max(0, (0.45 - pct) / 0.45) * 0.55 + flare).toFixed(3);
-      // a wash from the edge the hit came from: 0 rad is dead ahead, so red starts at the top
-      e.arc.style.opacity = (Math.max(0, 1 - (now - this.arcAt) / ARC_HOLD) * 0.7).toFixed(3);
-      e.arc.style.background = `linear-gradient(${(180 + this.arcAngle * 180 / Math.PI).toFixed(0)}deg, rgba(255,70,70,0.5), transparent 38%)`;
-      this.drawHull(pct, VEHICLES.find(v => v.id === me.vehicle)?.colour ?? 0x3fd1ff);
+      const vig = +Math.min(1, Math.max(0, (0.45 - pct) / 0.45) * 0.55 + flare).toFixed(2);
+      if (vig !== w.vig) { e.damage.style.opacity = vig; w.vig = vig; }
+      const arc = +(Math.max(0, 1 - (now - this.arcAt) / ARC_HOLD) * 0.7).toFixed(2);
+      if (arc !== w.arc) { e.arc.style.opacity = arc; w.arc = arc; }
+      // the silhouette only changes with the hull or a live arc, and it is a canvas, not the DOM
+      const hull = fill + (arc > 0 ? 1e4 + arc : 0);
+      if (hull !== w.hull) { this.drawHull(pct, VEHICLES.find(v => v.id === me.vehicle)?.colour ?? 0x3fd1ff); w.hull = hull; }
       e.item.classList.toggle('has', me.item !== 'none');
       e.itemGlyph.textContent = ITEM_GLYPH[me.item] || '';
       e.itemLabel.textContent = ITEM_LABEL[me.item] || '';
