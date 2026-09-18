@@ -4,10 +4,10 @@
 // bursting on the plain; cinders rising, ash falling, mist in the hollows;
 // black pterodactyls wheeling overhead; and a road that reads as cooling lava.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, fogCards, billboards } from './common.js';
+import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, fogCards, billboards, glowPools, swayMaterial } from './common.js';
 import { glowSprite } from '../textures.js';
-import { strataSet, sandSet, cliffSet, concreteSet, metalPlateSet, lavaSet, lavaMaterial, standard, triplanarBlended } from '../surfaces.js';
-import { rock, volcanoGeo, deadTreeGeo } from '../props.js';
+import { strataSet, sandSet, cliffSet, metalPlateSet, lavaSet, lavaMaterial, standard, triplanarBlended } from '../surfaces.js';
+import { rock, mesa, cliffSlab, volcanoGeo, deadTreeGeo, pylonGeo } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
 import { fbm2, ridged2, smoothstep } from '../noise.js';
 import { makePlume } from '../exhaust.js';
@@ -41,7 +41,7 @@ function terrainFor(ribbon, env) {
   });
 }
 
-export function prewarmHell(ribbon, track) { const env = track.env; terrainFor(ribbon, env); strataSet(env.strata); sandSet(env.sand); cliffSet(0x2a1a16); lavaSet(0x140806, env.lava); lavaSet(0x1a0c08, env.lava, 32); concreteSet(0x3a2a26); }
+export function prewarmHell(ribbon, track) { const env = track.env; terrainFor(ribbon, env); strataSet(env.strata); sandSet(env.sand); cliffSet(0x2a1a16); lavaSet(0x140806, env.lava); lavaSet(0x1a0c08, env.lava, 32); metalPlateSet(0x3a2a26); }
 
 /** black pterodactyls: a fork of common.js's flock with a long beak, a head crest, elbowed wings and a slow flap; each roams its own wandering circle */
 function pteroFlock(n, centre, radius, height, { seed = 1, colour = 0x0a0608, size = 9 } = {}) {
@@ -101,7 +101,8 @@ export function buildHell(scene, ribbon, track) {
   const lava = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800), lavaMat);
   lava.rotation.x = -Math.PI / 2; lava.position.set(LAKE.x, LAVA_LEVEL, LAKE.z); lava.name = 'lava'; lava.userData.noShadow = true;
   group.add(lava);
-  for (let i = 0; i < 5; i++) { const a = i / 5 * 6.28; const l = new THREE.PointLight(env.lava, 45, 260, 1.6); l.position.set(LAKE.x + Math.cos(a) * LAKE.r * 0.5, LAVA_LEVEL + 6, LAKE.z + Math.sin(a) * LAKE.r * 0.5); group.add(l); }
+  const lakeLights = [];
+  for (let i = 0; i < 5; i++) { const a = i / 5 * 6.28; const l = new THREE.PointLight(env.lava, 45, 260, 1.6); l.position.set(LAKE.x + Math.cos(a) * LAKE.r * 0.5, LAVA_LEVEL + 6, LAKE.z + Math.sin(a) * LAKE.r * 0.5); group.add(l); lakeLights.push({ l, ph: i * 1.7 }); }
   // the road itself: cooling lava
   const road = scene.getObjectByName('road');
   const roadMat = lavaMaterial(lavaSet(0x1a0c08, env.lava, 32), { repeat: [1, 1], flow: [0, 0.012], emissiveIntensity: 1.9, vertexColors: true, metalness: 0.05, bumpScale: 0.08, normalScale: 1.0 });
@@ -111,7 +112,7 @@ export function buildHell(scene, ribbon, track) {
   const strata = standard(strataSet(env.strata), { repeat: [3, 2], bumpScale: 0.3, normalScale: 1.2 });
   const cones = placeAlong(ribbon, { every: 110, gap: 260, spread: 420, seed: 51, halfExtent: (r) => 70 + r() * 50, y: heightAt }).filter((_, i) => i % 2 === 0).slice(0, 7);
   const coneGeos = [], craterDiscs = [], volcanoes = [];
-  const fireGeo = new THREE.SphereGeometry(1, 14, 10), bombGeo = null;
+  const fireGeo = new THREE.SphereGeometry(1, 14, 10);
   cones.forEach((it, i) => {
     const H = 90 + it.rng() * 90, rad = it.r * 2, yaw = it.rng() * 6.28;
     coneGeos.push(placed(volcanoGeo(60 + i), it.p.x, it.p.y - 12, it.p.z, yaw, rad, H, rad));
@@ -119,10 +120,28 @@ export function buildHell(scene, ribbon, track) {
     const disc = new THREE.Mesh(new THREE.CircleGeometry(rad * 0.24, 20), lavaMat); disc.rotation.x = -Math.PI / 2; disc.position.set(it.p.x, top, it.p.z); disc.userData.noShadow = true; craterDiscs.push(disc);
     const plume = makePlume(0x6a2410, rad * 0.16, i * 3); plume.rotation.x = -Math.PI / 2; plume.position.set(it.p.x, top + 2, it.p.z); plume.scale.set(1, 1, 120 + H * 0.8); plume.material.uniforms.heat.value = 0.22;
     const light = new THREE.PointLight(env.lava, 30, rad * 2.2, 1.4); light.position.set(it.p.x, top + 8, it.p.z);
-    fine.add(plume); group.add(disc, light);
-    volcanoes.push({ x: it.p.x, y: top, z: it.p.z, rad, plume, light, next: 3 + it.rng() * 8, phase: it.rng() * 6.28 });
+    // a sprite over the crater: the disc alone is invisible from the road, four hundred metres away
+    const craterGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: env.lava, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+    craterGlow.position.set(it.p.x, top + 3, it.p.z); craterGlow.scale.set(rad * 0.9, rad * 0.6, 1);
+    fine.add(plume); group.add(disc, light, craterGlow);
+    volcanoes.push({ x: it.p.x, y: top, z: it.p.z, rad, plume, light, craterGlow, next: 3 + it.rng() * 8, phase: it.rng() * 6.28 });
   });
   if (coneGeos.length) group.add(merged(coneGeos, strata));
+
+  // ------------------------------------------------- the mid-ground basin --
+  // Without this the basin is an empty plain: the nearest scenery was 34 m out and the next thing
+  // was a volcano at 420 m. Buttes, slabs and spires fill the 60-350 m band and give the horizon a
+  // silhouette. All merged, so the whole band is one draw call.
+  const farItems = placeAlong(ribbon, { every: 45, gap: 60, spread: 300, seed: 54, halfExtent: (r) => 12 + r() * 22, y: heightAt })
+    .filter(it => it.p.y > LAVA_LEVEL - 2);
+  const farGeos = [];
+  for (const it of farItems) {
+    const w = it.r, h = w * (0.7 + it.rng() * 1.5), yaw = it.rng() * 6.28, k = Math.floor(it.rng() * 3);
+    if (k === 0) farGeos.push(placed(mesa(90 + (it.u * 7 | 0)), it.p.x, it.p.y - 2, it.p.z, yaw, w, h, w * (0.7 + it.rng() * 0.5)));
+    else if (k === 1) farGeos.push(placed(cliffSlab(95 + (it.u * 5 | 0)), it.p.x, it.p.y - 1, it.p.z, yaw, w * 1.3, h * 0.8, w * 0.7));
+    else farGeos.push(placed(rock(100 + (it.u * 6 | 0), 2, { elongate: 0.35 }), it.p.x, it.p.y + h * 0.15, it.p.z, yaw, w * 0.5, h * 1.3, w * 0.5));
+  }
+  if (farGeos.length) group.add(merged(farGeos, strata));
 
   // -------------------------------------------------------- rocks and scrub --
   const basalt = standard(cliffSet(0x2a1a16), { repeat: [1.5, 1], bumpScale: 0.2 });
@@ -130,13 +149,88 @@ export function buildHell(scene, ribbon, track) {
   const dry = (it) => it.p.y > LAVA_LEVEL + 1.5;
   const boulders = placeAlong(ribbon, { every: 20, gap: 2, spread: 34, seed: 52, halfExtent: 3, y: heightAt }).filter(dry);
   group.add(instancedVariants(rocks, basalt, boulders, (it, pos, q, sc) => { const r = 1.5 + it.rng() * 4; pos.set(it.p.x, it.p.y + r * 0.25, it.p.z); q.setFromEuler(new THREE.Euler(0, it.rng() * 6.28, 0)); sc.set(r, r * (0.7 + it.rng() * 0.5), r); }, rockTint));
-  const charred = new THREE.MeshStandardMaterial({ color: 0x14100e, roughness: 1 });
+  const heat = { value: 0 };   // a shared clock for everything that wavers in the heat
+  // the lean is weighted by y**2 and these trunks run to eight metres, so the strength stays low
+  const charred = swayMaterial(new THREE.MeshStandardMaterial({ color: 0x14100e, roughness: 1 }), heat, 0.05, 'charred');
   const trees = placeAlong(ribbon, { every: 26, gap: 3, spread: 50, seed: 53, halfExtent: 1, y: heightAt }).filter(it => dry(it) && terrain.slopeAt(it.p.x, it.p.z) < 0.4);
   fine.add(instancedVariants([deadTreeGeo(4), deadTreeGeo(5), deadTreeGeo(6)], charred, trees, (it, pos, q, sc) => { pos.set(it.p.x, it.p.y - 0.2, it.p.z); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), it.rng() * 6.28); const s = 0.9 + it.rng() * 0.8; sc.set(s, s, s); }));
   // flows down the flanks: elongated rock in the melt material
   const flowGeos = [];
   for (const v of volcanoes) for (let k = 0; k < 3; k++) { const a = rng() * 6.28, len = v.rad * (0.5 + rng() * 0.4); const g = rock(80 + k, 2, { elongate: 0.4 }); flowGeos.push(placed(g, v.x + Math.cos(a) * v.rad * 0.55, v.y - 40, v.z + Math.sin(a) * v.rad * 0.55, a, 7, 6, len)); }
   if (flowGeos.length) { const fm = merged(flowGeos, lavaMat); fm.userData.noShadow = true; group.add(fm); }
+
+  // ------------------------------------------- obsidian, fissures, falls --
+  // glassy spires near the road: dark, but they catch the melt and read as shards
+  const obsidian = new THREE.MeshStandardMaterial({ color: 0x120c12, roughness: 0.18, metalness: 0.35 });
+  const spires = placeAlong(ribbon, { every: 34, gap: 5, spread: 48, seed: 55, halfExtent: 2, y: heightAt }).filter(dry);
+  group.add(instancedVariants([rock(110, 1, { elongate: 0.22 }), rock(111, 1, { elongate: 0.3 })], obsidian, spires,
+    (it, pos, q, sc) => { const r = 0.8 + it.rng() * 1.6, h = r * (3 + it.rng() * 4); pos.set(it.p.x, it.p.y + h * 0.35, it.p.z); q.setFromEuler(new THREE.Euler((it.rng() - 0.5) * 0.3, it.rng() * 6.28, (it.rng() - 0.5) * 0.3)); sc.set(r, h, r); }));
+
+  // cracks in the plain with the melt showing through: thin strips laid flat on the height field
+  const fissureGeos = [];
+  for (const it of placeAlong(ribbon, { every: 30, gap: 14, spread: 200, seed: 56, halfExtent: 5, y: heightAt }).filter(dry)) {
+    const a = it.rng() * 6.28, len = 14 + it.rng() * 46, wid = 0.5 + it.rng() * 1.6;
+    const g = new THREE.PlaneGeometry(wid, len, 1, Math.max(2, len / 8 | 0));
+    g.rotateX(-Math.PI / 2);
+    // sag each strip onto the ground so it does not float over the undulations
+    const a3 = g.attributes.position.array;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    for (let i = 0; i < a3.length; i += 3) {
+      const wx = it.p.x + a3[i] * ca - a3[i + 2] * sa, wz = it.p.z + a3[i] * sa + a3[i + 2] * ca;
+      a3[i + 1] = heightAt(wx, wz) - it.p.y + 0.12;
+    }
+    g.computeVertexNormals();
+    fissureGeos.push(placed(g, it.p.x, it.p.y, it.p.z, a));
+  }
+  if (fissureGeos.length) { const fz = merged(fissureGeos, lavaMat); fz.userData.noShadow = true; group.add(fz); }
+
+  // lava falls: sheets pouring off the chasm lip and the lake wall, with a glow at the lip
+  const fallMat = lavaMaterial(lavaSet(0x140806, env.lava), { repeat: [3, 10], flow: [0, 0.22], emissiveIntensity: 3.2 });
+  const falls = new THREE.Group();
+  const fallAt = (cx, cz, r, n, top) => {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * 6.28 + rng() * 0.6, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      const h = Math.max(6, top - LAVA_LEVEL), w = 7 + rng() * 14;
+      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(w, h), fallMat);
+      sheet.position.set(x, LAVA_LEVEL + h / 2, z);
+      sheet.lookAt(cx, LAVA_LEVEL + h / 2, cz);
+      sheet.userData.noShadow = true;
+      falls.add(sheet);
+      const lip = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: env.lava, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+      lip.position.set(x, LAVA_LEVEL + h, z); lip.scale.set(w * 1.4, w * 0.8, 1); falls.add(lip);
+    }
+  };
+  fallAt(CHASM.x, CHASM.z, CHASM.r * 0.9, 5, heightAt(CHASM.x + CHASM.r, CHASM.z) + 4);
+  fallAt(LAKE.x, LAKE.z, LAKE.r * 0.97, 7, LAVA_LEVEL + 22);
+  group.add(falls);
+
+  // vents beside the road, breathing steam
+  const fumaroles = [];
+  for (const it of placeAlong(ribbon, { every: 90, gap: 9, spread: 40, seed: 57, halfExtent: 2, y: heightAt }).filter(dry)) {
+    const pl = makePlume(0x6a5a52, 0.8 + it.rng() * 0.7, it.u * 9);
+    pl.rotation.x = -Math.PI / 2; pl.position.set(it.p.x, it.p.y + 0.4, it.p.z);
+    pl.scale.set(1, 1, 10 + it.rng() * 16); pl.material.uniforms.heat.value = 0.16;
+    fine.add(pl); fumaroles.push({ pl, ph: it.rng() * 6.28, base: pl.scale.z });
+  }
+
+  // pools of ember light along the verge
+  fine.add(glowPools(placeAlong(ribbon, { every: 46, gap: 3, spread: 5, seed: 58, halfExtent: 0, y: heightAt }).filter(dry),
+    { colour: env.lava, scale: (it) => 9 + it.u * 8, opacity: 0.3 }));
+
+  // pylons wherever the causeway flies over the melt, so the road reads as structure
+  const pylonGeos = [];
+  for (let i = 0; i < ribbon.count; i += 6) {
+    const f = ribbon.frames[i];
+    if (f.isLoop) continue;
+    const g0 = heightAt(f.pos.x, f.pos.z);
+    const h = f.pos.y - g0;
+    if (h < 7) continue;
+    for (const sd of [-1, 1]) {
+      const t = sd * (f.width / 2 - 2.2);
+      pylonGeos.push(placed(pylonGeo(h, 1.5), f.pos.x + f.right.x * t, g0, f.pos.z + f.right.z * t, Math.atan2(f.tangent.x, f.tangent.z)));
+    }
+  }
+  if (pylonGeos.length) group.add(merged(pylonGeos, basalt));
 
   // ----------------------------------------------------- cinders, ash, mist --
   const cinders = particleField(900, { seed: 61, box: [160, 70, 160], colour: 0xff9a40, size: 0.45, opacity: 0.7, fall: -1.6, drift: [1.2, 0, 0.5], map: glow });
@@ -198,17 +292,25 @@ export function buildHell(scene, ribbon, track) {
   group.add(bb.ads, merged(bb.frames, standard(metalPlateSet(0x3a2a26), { bumpScale: 0.05, metalness: 0.6, roughness: 0.5 })));
 
   scene.add(group, fine);
-  let t = 0;
+  let t = 0, detail = true;
   return {
     group, fine, terrain, sky,
     update(dt, camera) {
       t += dt;
-      lavaMat.userData.time.value = t; roadMat.userData.time.value = t;
-      cinders.tick(dt, camera); ash.tick(dt, camera); mist.tick(dt, camera); streaks.tick(dt, camera);
-      for (const p of pteros) p.tick(dt);
+      heat.value = t;
+      lavaMat.userData.time.value = t; roadMat.userData.time.value = t; fallMat.userData.time.value = t;
+      ash.tick(dt, camera);
+      for (const { l, ph } of lakeLights) l.intensity = 40 + Math.sin(t * 1.9 + ph) * 9 + Math.sin(t * 5.3 + ph * 2) * 5;
+      // the fine tier is hidden when the governor sheds detail, so do not pay to simulate it
+      if (detail) {
+        cinders.tick(dt, camera); mist.tick(dt, camera); streaks.tick(dt, camera);
+        for (const p of pteros) p.tick(dt);
+        for (const f of fumaroles) { f.pl.material.uniforms.time.value = t * 0.3 + f.ph; f.pl.scale.z = f.base * (0.8 + Math.sin(t * 0.5 + f.ph) * 0.25); }
+      }
       for (const v of volcanoes) {
         v.plume.material.uniforms.time.value = t * 0.35 + v.phase;
         v.light.intensity = 24 + Math.sin(t * 3.1 + v.phase) * 6 + Math.sin(t * 7.3 + v.phase * 2) * 4;
+        v.craterGlow.material.opacity = 0.62 + Math.sin(t * 2.3 + v.phase) * 0.16;
         v.next -= dt;
         if (v.next <= 0) {   // an eruption: a burst from the crater and a shower of lava bombs
           v.next = 6 + rng() * 9;
@@ -234,7 +336,7 @@ export function buildHell(scene, ribbon, track) {
         e.update(e.obj, k, dt);
       }
     },
-    setDetail(on) { fine.visible = on; },
+    setDetail(on) { fine.visible = on; detail = on; },
     lighting: { effects: true }
   };
 }
