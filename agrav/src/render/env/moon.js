@@ -141,9 +141,12 @@ export function buildMoon(scene, ribbon, track) {
   const sunPos = { x: 900, y: 520, z: -400 };
   // vacuum: almost no fill, so shadows go near-black and the rays blow out
   const sky = setupSky(scene, env, 0x000000, 0x000000, { stars: true, milkyway: true, seed: 5, sunPos, sunDisc: { colour: 0xffffff, size: 36 }, hemi: 0.05, hemiGround: 0x0a0a10, amb: 0.14 });
-  // ...with one dim fill from overhead so the road and the loop stay readable in the dark half
-  const fill = new THREE.DirectionalLight(0xbcc6e0, 0.5);
-  fill.position.set(-300, 700, 250);
+  // ...with one fill from almost straight overhead so the road and the loop stay readable in the
+  // dark half. A directional lights surfaces by their facing, so a near-vertical one lifts the road
+  // (which faces up) while leaving the rock faces and crater walls in shadow: contrast survives.
+  // Three's lights are physically scaled, so this needs to be of the same order as a sun, not a nudge.
+  const fill = new THREE.DirectionalLight(0xbcc6e0, 2.2);
+  fill.position.set(-120, 900, 160);
   scene.add(fill);
   const glow = glowSprite();
 
