@@ -84,14 +84,15 @@ export function warp2(x, y, strength = 1, opts = {}) {
 /** Worley / voronoi: {f1, f2, id} distances to nearest and second nearest feature point */
 export function voronoi2(x, y, seed = 0) {
   const ix = Math.floor(x), iy = Math.floor(y);
-  let f1 = 9, f2 = 9, id = 0;
+  let f1 = 9, f2 = 9, id = 0, nx = 0, ny = 0;
   for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
     const cx = ix + i, cy = iy + j;
     const px = cx + hash(cx, cy, 1, seed), py = cy + hash(cx, cy, 2, seed);
     const d = Math.hypot(px - x, py - y);
-    if (d < f1) { f2 = f1; f1 = d; id = hash(cx, cy, 3, seed); } else if (d < f2) f2 = d;
+    if (d < f1) { f2 = f1; f1 = d; id = hash(cx, cy, 3, seed); nx = px; ny = py; } else if (d < f2) f2 = d;
   }
-  return { f1, f2, id };
+  // nx, ny: the nearest cell's own point, so callers can work out a direction from its centre
+  return { f1, f2, id, nx, ny };
 }
 export const clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
 export const smoothstep = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };

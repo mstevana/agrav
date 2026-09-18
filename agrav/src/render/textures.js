@@ -199,12 +199,13 @@ export function skyDomeTexture(top, horizon, { stars = false, nebula = false, cl
         if (milkyway && v < 0.6) {
           // the galactic band: a sinuous belt of unresolved stars around the sky, torn by dark dust lanes, brighter at its core
           const c = 0.3 + 0.13 * Math.sin(u * Math.PI * 2);
-          const band = Math.exp(-(((v - c) / 0.065) ** 2));
+          // a wider belt than a strict gaussian: against a black sky the tails are what read
+          const band = Math.exp(-(((v - c) / 0.085) ** 2)) + 0.35 * Math.exp(-(((v - c) / 0.2) ** 2));
           const dust = smoothstep(0.05, 0.45, fbm2(u * 16, v * 26, { octaves: 4, seed: seed + 6 }));
           const wisp = 0.6 + 0.4 * fbm2(u * 40, v * 60, { octaves: 3, seed: seed + 7 });
           const core = 0.55 + 0.45 * Math.exp(-(((u - 0.62) / 0.16) ** 2));
-          const k = band * (1 - dust * 0.85) * wisp * core;
-          r += k * 105; gg += k * 100; b += k * 125;
+          const k = band * (1 - dust * 0.7) * wisp * core;
+          r += k * 165; gg += k * 158; b += k * 195;
         }
         if (clouds && v < 0.5) {
           const n = fbm2(u * 7 + seed, v * 14, { octaves: 5, seed: seed + 4 });
@@ -230,9 +231,9 @@ export function skyDomeTexture(top, horizon, { stars = false, nebula = false, cl
       // a dense sprinkle of faint stars along the band
       for (let i = 0; i < 5000; i++) {
         const x = rng() * W, u = x / W, c = 0.3 + 0.13 * Math.sin(u * Math.PI * 2);
-        const y = (c + (rng() + rng() + rng() - 1.5) * 0.09) * H;
+        const y = (c + (rng() + rng() + rng() - 1.5) * 0.12) * H;
         if (y < 0 || y > H * 0.58) continue;
-        const a = 0.2 + rng() * 0.5, warm = rng() < 0.3;
+        const a = 0.3 + rng() * 0.6, warm = rng() < 0.3;
         g.fillStyle = `rgba(${warm ? 255 : 225},${warm ? 235 : 230},${warm ? 205 : 255},${a.toFixed(2)})`; g.fillRect(x, y, 1, 1);
       }
     }

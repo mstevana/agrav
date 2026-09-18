@@ -198,6 +198,45 @@ export function flock(n, centre, radius, height, { seed = 1, colour = 0x1c1c24, 
   return mesh;
 }
 
+/**
+ * A world-space sway for anything that should bend with a wind or a current: the tips lean, the
+ * base stays put (the lean is weighted by `transformed.y²`, so a geometry whose base sits at y=0
+ * pivots correctly — `grassGeo` and the tree canopies are built that way). Instance-aware.
+ * `clock` is a shared uniform object `{ value }` the caller ticks.
+ */
+export function swayMaterial(mat, clock, strength = 0.35, key = 'sway') {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = clock;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;')
+      .replace('#include <project_vertex>', `vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  mvPosition = instanceMatrix * mvPosition;
+#endif
+mvPosition.x += (sin(uTime * 1.3 + mvPosition.z * 0.1 + mvPosition.x * 0.06) * ${strength.toFixed(2)} + 0.1) * transformed.y * transformed.y * 0.3;
+mvPosition = modelViewMatrix * mvPosition;
+gl_Position = projectionMatrix * mvPosition;`);
+  };
+  mat.customProgramCacheKey = () => key + strength;
+  return mat;
+}
+
+/**
+ * Pools of light on the ground: one additive glow sprite per item, flat to the sky. The cheapest
+ * way to make a surface look lit by something it cannot see (city hangs these along the road).
+ */
+export function glowPools(items, { colour = 0xffffff, scale = 14, opacity = 0.35, yOffset = 0.6 } = {}) {
+  const g = new THREE.Group();
+  const map = glowSprite();
+  for (const it of items) {
+    const c = typeof colour === 'function' ? colour(it) : colour;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: c, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const sc = typeof scale === 'function' ? scale(it) : scale;
+    sp.position.set(it.p.x, it.p.y + yOffset, it.p.z); sp.scale.set(sc, sc, 1); g.add(sp);
+  }
+  return g;
+}
+
 /** soft fog cards: additive glow sprites hung between distant scenery */
 export function fogCards(items, { colour = 0x8090c0, opacity = 0.07, scale = [60, 26] } = {}) {
   const g = new THREE.Group();
