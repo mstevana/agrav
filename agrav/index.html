@@ -85,6 +85,8 @@ label.opt { display: flex; align-items: center; justify-content: space-between; 
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .stepper button { border: 0; background: rgba(255,255,255,0.06); width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
 .stepper span { width: 3em; text-align: center; font-weight: 800; }
+#fullscreen { justify-content: space-between; }
+#fullscreen[hidden], #fullscreen-tip[hidden], #btn-fullscreen[hidden] { display: none; }
 
 /* ---------- HUD */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 4; font-size: calc(14px * var(--hud)); }
@@ -231,6 +233,10 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
           <div id="lobby-track-name" class="muted"></div>
           <div class="row"><button id="btn-leave" class="btn small danger">Leave</button></div>
         </div>
+      </div>
+      <div id="fullscreen" class="row">
+        <span id="fullscreen-tip" class="muted" style="flex:1">Press <kbd id="fullscreen-key">F11</kbd> for fullscreen</span>
+        <button id="btn-fullscreen" class="btn small">Fullscreen</button>
       </div>
       <div id="host-opts" class="col">
         <h2>Track</h2>

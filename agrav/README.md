@@ -10,6 +10,8 @@ laps by default. **Zero health eliminates you**: the craft explodes and you spec
 (tap or click to follow another racer) until the race ends. A race ends when every
 surviving craft has finished, or 45 seconds after the first one did. Finished craft keep
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.
+The room offers fullscreen while you wait for the start, both as the browser's own shortcut
+(F11, or ⌃⌘F on a Mac, which a page cannot press for you) and as a button, which can.
 
 | Keyboard | Gamepad | Touch |
 |---|---|---|

@@ -225,6 +225,36 @@ function sendChat() { const t = $('chat-input').value.trim(); if (!t) return; cl
 $('btn-results-ready').addEventListener('click', () => { ui.ready = true; ui.results = null; client.setReady(true); showLobby(client.room); });
 $('btn-results-leave').addEventListener('click', () => { client.leaveRoom(); leaveToMenu(); });
 
+// The lobby is the one moment a player is sitting still, so it is where the fullscreen prompt goes.
+// F11 belongs to the browser and cannot be bound from a page -- the hint is all we can do there --
+// but the Fullscreen API gives the same result from a click, so the button is the reliable path.
+// It needs a user gesture, which a click is; calling it any other way is rejected.
+const fsRoot = document.documentElement;
+const enterFullscreen = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+// F11 is the shortcut on Windows and Linux only; on a Mac it is a Mission Control key and does
+// nothing to the browser, so name the shortcut that actually works there.
+const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+if (mac) $('fullscreen-key').textContent = '⌃⌘F';
+function syncFullscreen() {
+  const full = isFullscreen();
+  $('btn-fullscreen').textContent = full ? 'Exit fullscreen' : 'Fullscreen';
+  // no keyboard to press F11 with, and nothing to advertise once we are already there
+  $('fullscreen-tip').hidden = full || document.documentElement.classList.contains('touch');
+  // iOS Safari has no Fullscreen API outside video; hide the row rather than offer a dead button
+  $('btn-fullscreen').hidden = !enterFullscreen;
+  $('fullscreen').hidden = $('fullscreen-tip').hidden && $('btn-fullscreen').hidden;
+}
+$('btn-fullscreen').addEventListener('click', () => {
+  audio.play('ui');
+  const req = isFullscreen() ? exitFullscreen?.call(document) : enterFullscreen?.call(fsRoot);
+  Promise.resolve(req).catch(() => toast('Fullscreen was refused'));
+});
+document.addEventListener('fullscreenchange', syncFullscreen);
+document.addEventListener('webkitfullscreenchange', syncFullscreen);
+syncFullscreen();
+
 function leaveToMenu() {
   ui.screen = 'menu'; ui.ready = false; ui.results = null;
   show('screen-menu'); hud.show(false);
@@ -257,7 +287,7 @@ function renderLobby(room) {
   const humans = room.players.filter(p => !p.bot && p.connected);
   $('btn-start').disabled = !humans.every(p => p.ready);
 }
-function showLobby(room) { ui.screen = 'lobby'; show('screen-lobby'); hud.show(false); renderLobby(room); audio.setMusicMode('menu'); }
+function showLobby(room) { ui.screen = 'lobby'; show('screen-lobby'); hud.show(false); renderLobby(room); syncFullscreen(); audio.setMusicMode('menu'); }
 
 // ----------------------------------------------------------------- client ----
 client.onRoom = (room) => {
