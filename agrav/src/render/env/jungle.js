@@ -7,7 +7,7 @@
 // manta rays, whales and turtles, past the domes of a sunken city; the light
 // turns blue and caustics ripple on the sand.
 import * as THREE from 'three';
-import { setupSky, placeAlong, instanced, instancedVariants, rockTint, merged, placed, particleField, flock, billboards } from './common.js';
+import { setupSky, placeAlong, instanced, instancedVariants, rockTint, merged, placed, particleField, flock, billboards, fogCards, swayMaterial } from './common.js';
 import { glowSprite } from '../textures.js';
 import { cliffSet, sandSet, concreteSet, metalPlateSet, facadeSet, standard, triplanarBlended } from '../surfaces.js';
 import { rock, domeGeo, treeGeo, palmGeo, mangroveGeo, coralGeo, grassGeo, loft, tower, sweep, frameRuns, worldUv } from '../props.js';
@@ -35,7 +35,14 @@ function terrainFor(ribbon, env) {
       const floor = reef + (basin - reef) * smoothstep(-8, -22, info.tySmooth);
       return corridor(info, hills + (floor - hills) * sea);
     },
-    colour(info, y, ny) { const g = smoothstep(0.8, 0.95, ny) * smoothstep(1.5, 4, y); return [1 - g * 0.45, 1 - g * 0.05, 1 - g * 0.5]; },
+    colour(info, y, ny) {
+      const g = smoothstep(0.8, 0.95, ny) * smoothstep(1.5, 4, y);
+      // below the surface the sand loses light with depth and goes blue, so the floor reads as deep
+      const deep = smoothstep(-1, -26, y);
+      const mottle = fbm2(info.x / 18, info.z / 18, { octaves: 3, seed: 14 }) * 0.22 - 0.11;
+      const k = 1 - deep * 0.62 + mottle * (1 - g);
+      return [(1 - g * 0.45) * k, (1 - g * 0.05) * k, (1 - g * 0.5) * k * (1 + deep * 0.25)];
+    },
     blend: (info, y, ny) => Math.max(smoothstep(5, 1.5, y), (1 - smoothstep(0.7, 0.95, ny)) * 0),
     material: terrainMat
   });
@@ -54,24 +61,6 @@ function causticTexture() {
   }
   g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
-}
-
-/** a world-space sway for foliage and fans: the tips lean with the wind (or the current) */
-function swayMaterial(mat, wind, strength = 0.35, key = 'sway') {
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = wind;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
-      .replace('#include <project_vertex>', `vec4 mvPosition = vec4( transformed, 1.0 );
-#ifdef USE_INSTANCING
-  mvPosition = instanceMatrix * mvPosition;
-#endif
-mvPosition.x += (sin(uTime * 1.3 + mvPosition.z * 0.1 + mvPosition.x * 0.06) * ${strength.toFixed(2)} + 0.1) * transformed.y * transformed.y * 0.3;
-mvPosition = modelViewMatrix * mvPosition;
-gl_Position = projectionMatrix * mvPosition;`);
-  };
-  mat.customProgramCacheKey = () => key + strength;
-  return mat;
 }
 
 // lofted bodies, all with the nose at +z so lookAt() aims them
@@ -99,6 +88,7 @@ export function buildJungle(scene, ribbon, track) {
   const { heightAt, slopeAt } = terrain;
   const glow = glowSprite();
   const rng = makeRng(123);
+  const bubbles = [];
   const wind = { value: 0 }, current = { value: 0 };
 
   // ------------------------------------------------------------------- sea --
@@ -139,11 +129,15 @@ export function buildJungle(scene, ribbon, track) {
   if (ribGeos.length) group.add(merged(ribGeos, metal));
   if (portalGeos.length) group.add(merged(portalGeos, concrete));
 
-  // caustics: a sheet that hugs the sea floor under each dive, scrolling; light shafts above it
+  // Caustics: two sheets hugging the sea floor under each dive, at different scales and scrolling
+  // at different speeds, so the light genuinely crawls instead of sliding rigidly. Light shafts above.
   const caustic = causticTexture(); caustic.repeat.set(12, 12);
-  const causticMat = new THREE.MeshBasicMaterial({ map: caustic, color: 0x9adfff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });   // additive + fog would add the fog colour and wash out
-  const shaftMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const caustic2 = causticTexture(); caustic2.repeat.set(5, 5);
+  const causticMat = new THREE.MeshBasicMaterial({ map: caustic, color: 0x9adfff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });   // additive + fog would add the fog colour and wash out
+  const causticMat2 = new THREE.MeshBasicMaterial({ map: caustic2, color: 0x7fd0ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const shaftMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
   const shaftGeo = new THREE.PlaneGeometry(7, 44);
+  const shafts = [];
   for (const area of seaAreas) {
     const size = area.r * 2.4, cells = 44;
     const g = new THREE.PlaneGeometry(size, size, cells, cells); g.rotateX(-Math.PI / 2);
@@ -151,11 +145,27 @@ export function buildJungle(scene, ribbon, track) {
     for (let i = 0; i < p.count; i++) { const x = p.getX(i) + area.x, z = p.getZ(i) + area.z; p.setY(i, Math.min(SEA_LEVEL - 0.5, heightAt(x, z) + 0.35)); }
     p.needsUpdate = true;
     const sheet = new THREE.Mesh(g, causticMat); sheet.position.set(area.x, 0, area.z); sheet.userData.noShadow = true; fine.add(sheet);
+    const sheet2 = new THREE.Mesh(g, causticMat2); sheet2.position.set(area.x, 0.12, area.z); sheet2.userData.noShadow = true; fine.add(sheet2);
     for (let i = 0; i < 16; i++) {
       const a = rng() * 6.28, d = rng() * area.r * 0.9;
-      const s = new THREE.Mesh(shaftGeo, shaftMat); s.position.set(area.x + Math.cos(a) * d, -18 + rng() * 8, area.z + Math.sin(a) * d); s.rotation.set(0.25 + rng() * 0.2, rng() * 6.28, 0); s.userData.noShadow = true; fine.add(s);
+      const sh = new THREE.Mesh(shaftGeo, shaftMat.clone()); sh.position.set(area.x + Math.cos(a) * d, -18 + rng() * 8, area.z + Math.sin(a) * d); sh.rotation.set(0.25 + rng() * 0.2, rng() * 6.28, 0); sh.userData.noShadow = true; fine.add(sh);
+      shafts.push({ m: sh, y0: sh.rotation.y, ph: rng() * 6.28, a0: sh.material.opacity });
+    }
+    // bubble columns off the reef, and the haze of marine snow this deep
+    for (let i = 0; i < 4; i++) {
+      const a = rng() * 6.28, d = area.r * (0.3 + rng() * 0.5);
+      const bx = area.x + Math.cos(a) * d, bz = area.z + Math.sin(a) * d, by = heightAt(bx, bz);
+      if (by > SEA_LEVEL - 4) continue;
+      // particleField follows whatever it is given as a camera; hand it a fixed point so the
+      // column stays on its vent instead of trailing the player
+      const col = particleField(40, { seed: 90 + i, box: [3.5, Math.abs(by) + 2, 3.5], colour: 0xdff6ff, size: 0.3, opacity: 0.55, fall: -2.4, map: glow, fixedY: by });
+      fine.add(col);
+      bubbles.push({ col, anchor: { position: new THREE.Vector3(bx, 0, bz) } });
     }
   }
+  // suspended silt: the single clearest cue that you are in water rather than blue air
+  const snow = particleField(500, { seed: 93, box: [90, 26, 90], colour: 0xcfe6f0, size: 0.16, opacity: 0.5, fall: 0.35, drift: [0.4, 0, 0.25] });
+  fine.add(snow);
 
   // --------------------------------------------------------------- reef --
   const coralMat = swayMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, side: THREE.DoubleSide }), current, 0.15, 'coral');
@@ -198,18 +208,25 @@ export function buildJungle(scene, ribbon, track) {
     for (let i = 0; i < 3; i++) swimmer(new THREE.Mesh(dg, grey), { cx: area.x, cz: area.z, r: 55 + i * 8, y: -3.5, w: 0.22, ph: i * 1.1 + ai, bob: 1.2, breach: 0.8 + i * 0.3 });
     swimmer(new THREE.Mesh(mg, dark), { cx: area.x + 30, cz: area.z - 20, r: 70, y: Math.max(area.deep + 8, -20), w: -0.08, ph: ai * 2, bob: 2, flap: true });
     for (let i = 0; i < 2; i++) swimmer(new THREE.Mesh(tg, olive), { cx: area.x - 20, cz: area.z + 30, r: 26 + i * 12, y: -7 - i * 3, w: 0.05, ph: i * 2.2, bob: 0.6, scale: 1.4 });
+    // everything above orbits at 55-70 m, which from inside the tunnel is a distant speck: give each
+    // dive one dolphin and one manta on a tight orbit centred on the glass itself
+    const mf = area.mid;
+    swimmer(new THREE.Mesh(dg, grey), { cx: mf.pos.x, cz: mf.pos.z, r: 17, y: Math.max(area.deep + 5, mf.pos.y + 4), w: 0.3, ph: ai * 1.7, bob: 0.8 });
+    swimmer(new THREE.Mesh(mg, dark), { cx: mf.pos.x, cz: mf.pos.z, r: 22, y: Math.max(area.deep + 4, mf.pos.y + 7), w: -0.14, ph: ai * 2.4 + 1, bob: 1.1, flap: true });
   });
   const deepest = seaAreas.reduce((m, a) => (a.deep < m.deep ? a : m), seaAreas[0]);
   if (deepest) for (let i = 0; i < 2; i++) swimmer(new THREE.Mesh(wg, dark), { cx: deepest.x + 40, cz: deepest.z + 40, r: 120 + i * 40, y: -20 - i * 2, w: 0.035 * (i ? -1 : 1), ph: i * 3, bob: 1.5 });
   for (const s of swimmers) if (s.scale) s.mesh.scale.setScalar(s.scale);
 
   // ----------------------------------------------------------- sunken city --
+  const cityLights = [];
   if (deepest) {
     const f = deepest.mid, side = 1;
     const cx = f.pos.x + f.right.x * side * 130, cz = f.pos.z + f.right.z * side * 130;
     const facades = [0, 1, 2].map(i => standard(facadeSet(200 + i, 0x2df1ff, 6, 12), { bumpScale: 0.1, emissiveIntensity: 1.3 }));
     const cityGlass = new THREE.MeshPhysicalMaterial({ color: 0x7fc8ff, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0, side: THREE.DoubleSide, depthWrite: false });
     const crng = makeRng(77);
+    // (cityLights is declared outside so update() can reach it)
     // a dome may never reach the road: reject any that would overlap a frame's width plus a margin
     const coarse = []; for (let i = 0; i < ribbon.count; i += 3) coarse.push(ribbon.frames[i]);
     const clearOfRoad = (x, z, r) => coarse.every(q => { const dx = q.pos.x - x, dz = q.pos.z - z, need = q.width / 2 + r + 6; return dx * dx + dz * dz >= need * need; });
@@ -224,7 +241,7 @@ export function buildJungle(scene, ribbon, track) {
         const ta = crng() * 6.28, td = crng() * r * 0.45, w = 6 + crng() * 6, h = r * (0.4 + crng() * 0.45);
         const tw = new THREE.Mesh(tower(w, w, h, crng, 24, 48, k % 2 ? 1 : 2), facades[(i + k) % 3]); tw.position.set(x + Math.cos(ta) * td, y + 1, z + Math.sin(ta) * td); group.add(tw);
       }
-      const l = new THREE.PointLight(0x2df1ff, 20, r * 4, 1.5); l.position.set(x, y + r * 0.4, z); group.add(l);
+      const l = new THREE.PointLight(0x2df1ff, 20, r * 4, 1.5); l.position.set(x, y + r * 0.4, z); group.add(l); cityLights.push({ l, ph: crng() * 6.28 });
     }
     var cityFacades = facades;   // eslint-disable-line no-var
   }
@@ -263,15 +280,21 @@ export function buildJungle(scene, ribbon, track) {
   const green = new THREE.MeshStandardMaterial({ color: 0x4a8a2a, roughness: 0.7 });
   const greyish = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.9 });
   const perched = [];   // sloths and monkeys hang in the canopy
+  // these are the props a player actually stops to look at, so none of them is allowed to be frozen
+  const critters = [];   // { mesh, kind, ph, ... } — driven in update()
   const slothG = slothGeo(), monkeyG = rock(91, 1);
-  treeRngs.filter((_, i) => i % 41 === 0).slice(0, 8).forEach(it => { const s = new THREE.Mesh(slothG, brown); s.position.set(it.p.x + 1.2, it.p.y + 8.2, it.p.z); s.rotation.set(0, it.rng() * 6.28, Math.PI); perched.push(s); });
-  treeRngs.filter((_, i) => i % 23 === 5).slice(0, 14).forEach(it => { const m = new THREE.Mesh(monkeyG, black); m.position.set(it.p.x - 1.4, it.p.y + 9.5, it.p.z + 0.8); m.scale.set(0.42, 0.5, 0.42); perched.push(m); });
+  treeRngs.filter((_, i) => i % 41 === 0).slice(0, 8).forEach(it => { const s = new THREE.Mesh(slothG, brown); s.position.set(it.p.x + 1.2, it.p.y + 8.2, it.p.z); s.rotation.set(0, it.rng() * 6.28, Math.PI); perched.push(s); critters.push({ m: s, kind: 'hang', ph: it.rng() * 6.28, z0: Math.PI }); });
+  treeRngs.filter((_, i) => i % 23 === 5).slice(0, 14).forEach(it => { const m = new THREE.Mesh(monkeyG, black); m.position.set(it.p.x - 1.4, it.p.y + 9.5, it.p.z + 0.8); m.scale.set(0.42, 0.5, 0.42); perched.push(m); critters.push({ m, kind: 'bob', ph: it.rng() * 6.28, y0: m.position.y }); });
   fine.add(...perched);
   const igG = iguanaGeo(), crG = crocGeo(), tpG = tapirGeo();
-  boulders.filter((_, i) => i % 6 === 0).slice(0, 9).forEach(it => { if (it.p.y < 1) return; const g = new THREE.Mesh(igG, green); g.position.set(it.p.x, it.p.y + 2.2, it.p.z); g.rotation.y = it.rng() * 6.28; g.scale.setScalar(1.6); fine.add(g); });
+  boulders.filter((_, i) => i % 6 === 0).slice(0, 9).forEach(it => { if (it.p.y < 1) return; const g = new THREE.Mesh(igG, green); g.position.set(it.p.x, it.p.y + 2.2, it.p.z); g.rotation.y = it.rng() * 6.28; g.scale.setScalar(1.6); fine.add(g); critters.push({ m: g, kind: 'nod', ph: it.rng() * 6.28, x0: 0 }); });
   const crocs = [];
   mangroves.filter((_, i) => i % 9 === 3).slice(0, 6).forEach(it => { const c = new THREE.Mesh(crG, olive); c.position.set(it.p.x + 3, SEA_LEVEL - 0.12, it.p.z + 2); c.rotation.y = it.rng() * 6.28; c.scale.setScalar(1.5); crocs.push({ mesh: c, y0: c.rotation.y, ph: it.rng() * 6.28 }); fine.add(c); });
-  placeAlong(ribbon, { every: 300, gap: 8, spread: 12, seed: 85, halfExtent: 2, y: heightAt }).filter(onLand).slice(0, 3).forEach(it => { const tp = new THREE.Mesh(tpG, greyish); tp.position.set(it.p.x, it.p.y, it.p.z); tp.rotation.y = it.rng() * 6.28; tp.scale.setScalar(1.3); fine.add(tp); });
+  placeAlong(ribbon, { every: 300, gap: 8, spread: 12, seed: 85, halfExtent: 2, y: heightAt }).filter(onLand).slice(0, 3).forEach(it => {
+    const tp = new THREE.Mesh(tpG, greyish); tp.position.set(it.p.x, it.p.y, it.p.z); tp.rotation.y = it.rng() * 6.28; tp.scale.setScalar(1.3); fine.add(tp);
+    // a short there-and-back walk across the flat it was placed on
+    critters.push({ m: tp, kind: 'walk', ph: it.rng() * 6.28, x0: it.p.x, z0: it.p.z, dx: Math.cos(tp.rotation.y), dz: Math.sin(tp.rotation.y), y0: tp.rotation.y });
+  });
 
   // birds and butterflies
   const flocks = [];
@@ -284,24 +307,43 @@ export function buildJungle(scene, ribbon, track) {
   const morphos = particleField(220, { seed: 46, box: [90, 10, 90], colour: 0x3a8aff, size: 0.35, opacity: 0.9, drift: [0.5, 0, 0.3], map: glow, fixedY: 4 });
   fine.add(morphos);
 
+  // ------------------------------------------------- the air over the forest --
+  // rainforest humidity: pollen in the light over the road, and mist sitting in the hollows
+  const pollen = particleField(260, { seed: 94, box: [70, 14, 70], colour: 0xffeeb0, size: 0.22, opacity: 0.5, fall: 0.25, drift: [0.6, 0, 0.4], map: glow, fixedY: 7 });
+  fine.add(pollen);
+  const hollows = placeAlong(ribbon, { every: 210, gap: 30, spread: 90, seed: 95, halfExtent: 10, y: heightAt })
+    .filter(it => it.p.y > SEA_LEVEL + 1 && it.p.y < 16)
+    .map(it => ({ x: it.p.x, y: it.p.y + 5, z: it.p.z }));
+  fine.add(fogCards(hollows, { colour: 0xcfe8d8, opacity: 0.06, scale: [70, 22] }));
+  // Shafts of sun through the canopy, the warm twin of the ones under the sea. Merged into one
+  // mesh: individually they were a draw call each, and at racing speed nobody reads their drift.
+  const rayMat = new THREE.MeshBasicMaterial({ color: 0xffeec0, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const rayGeos = [];
+  for (const it of placeAlong(ribbon, { every: 46, gap: 12, spread: 40, seed: 96, halfExtent: 3, y: heightAt }).filter(it => it.p.y > SEA_LEVEL + 2)) {
+    const g = new THREE.PlaneGeometry(6, 30);
+    g.rotateX(0.3 + it.rng() * 0.2);
+    rayGeos.push(placed(g, it.p.x, it.p.y + 13, it.p.z, it.rng() * 6.28));
+  }
+  const canopyRays = merged(rayGeos, rayMat);
+  if (canopyRays) { canopyRays.userData.noShadow = true; fine.add(canopyRays); }
+
   // sponsor boards
   const bb = billboards(ribbon, { every: 230, seed: 8, y: heightAt });
   group.add(bb.ads, merged(bb.frames, metal));
 
   scene.add(group, fine);
-  let t = 0, under = 0;
+  let t = 0, under = 0, detail = true;
   return {
     group, fine, terrain, sky,
     update(dt, camera) {
       t += dt; seaMat.uniforms.time.value = t; wind.value = t; current.value = t * 0.5;
-      caustic.offset.set(t * 0.02, t * 0.013);
       // the light goes blue and thick when the camera is under the surface
       const want = camera.position.y < SEA_LEVEL ? 1 : 0;
       under += (want - under) * Math.min(1, dt * 5);
       scene.fog.color.copy(surfaceFog.colour).lerp(underFog.colour, under);
       scene.fog.density = surfaceFog.density + (underFog.density - surfaceFog.density) * under;
       scene.background.copy(surfaceFog.sky).lerp(underFog.sky, under);
-      for (const s of schools) {
+      if (detail) for (const s of schools) {   // the schools live in `fine`
         const a = s.ph + t * s.w;
         const cx = s.cx + Math.sin(a) * s.A, cz = s.cz + Math.cos(a * 0.7) * s.C, cy = s.y + Math.sin(a * 1.3) * 2;
         const vx = Math.cos(a) * s.A * s.w, vz = -Math.sin(a * 0.7) * s.C * s.w * 0.7;
@@ -320,12 +362,32 @@ export function buildJungle(scene, ribbon, track) {
         s.mesh.lookAt(s.cx + Math.cos(na) * s.r, y + (s.breach ? Math.cos(t * 0.45 + s.ph) * 1.5 : 0), s.cz + Math.sin(na) * s.r);
         if (s.flap) s.mesh.rotation.z += Math.sin(t * 1.4 + s.ph) * 0.12;
       }
+      // the sunken city's lamps breathe with its windows instead of sitting at a flat 20
+      if (cityFacades) for (const m of cityFacades) m.emissiveIntensity = 1.2 + Math.sin(t * 0.8 + m.id) * 0.25;
+      for (const c of cityLights) c.l.intensity = 20 + Math.sin(t * 0.8 + c.ph) * 7;
+      if (!detail) return;   // everything below lives in `fine`, which the governor has hidden
+      snow.tick(dt, camera); pollen.tick(dt, camera);
+      for (const b of bubbles) b.col.tick(dt, b.anchor);
+      // two sheets at different scales and speeds, so the light crawls instead of sliding rigidly
+      caustic.offset.set(t * 0.02, t * 0.013);
+      caustic2.offset.set(-t * 0.011, t * 0.008);
+      for (const sh of shafts) { sh.m.rotation.y = sh.y0 + Math.sin(t * 0.18 + sh.ph) * 0.15; sh.m.material.opacity = sh.a0 * (0.6 + Math.sin(t * 0.5 + sh.ph) * 0.4); }
+      rayMat.opacity = 0.05 * (0.65 + Math.sin(t * 0.33) * 0.35);
       for (const c of crocs) c.mesh.rotation.y = c.y0 + Math.sin(t * 1.1 + c.ph) * 0.06;
+      for (const c of critters) {
+        if (c.kind === 'hang') c.m.rotation.z = c.z0 + Math.sin(t * 0.5 + c.ph) * 0.12;
+        else if (c.kind === 'bob') c.m.position.y = c.y0 + Math.sin(t * 1.6 + c.ph) * 0.25;
+        else if (c.kind === 'nod') c.m.rotation.x = Math.max(0, Math.sin(t * 2.2 + c.ph)) * 0.22;
+        else if (c.kind === 'walk') {
+          const u = Math.sin(t * 0.22 + c.ph) * 7;
+          c.m.position.set(c.x0 + c.dx * u, heightAt(c.x0 + c.dx * u, c.z0 + c.dz * u), c.z0 + c.dz * u);
+          c.m.rotation.y = c.y0 + (Math.cos(t * 0.22 + c.ph) < 0 ? Math.PI : 0);
+        }
+      }
       for (const f of flocks) f.tick(dt);
       morphos.tick(dt, camera);
-      if (cityFacades) for (const m of cityFacades) m.emissiveIntensity = 1.2 + Math.sin(t * 0.8 + m.id) * 0.25;
     },
-    setDetail(on) { fine.visible = on; },
+    setDetail(on) { fine.visible = on; detail = on; },
     lighting: { effects: true }
   };
 }
