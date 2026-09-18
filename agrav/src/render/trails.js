@@ -1,8 +1,10 @@
 // ============================================================================
 // AGRAV — engine trails in the Homeworld manner: a ribbon of the last second
-// of each nozzle's path, billboarded toward the camera, wide and bright at
-// the nozzle, tapering and fading to nothing at the tail. World-space, so it
-// stays where the craft has been.
+// of each engine's path, billboarded toward the camera. It is emitted from the
+// tip of the exhaust plume rather than from the nozzle, so it begins where the
+// fire ends; from there it tapers gently and closes to a point, vanishing into
+// the distance behind the craft. World-space, so it stays where the craft has
+// been.
 // ============================================================================
 
 import * as THREE from 'three';
@@ -10,14 +12,16 @@ import * as THREE from 'three';
 const LIFE = 1.0;          // seconds a point lives
 const MAX = 48;            // points kept per trail
 const MIN_STEP = 0.35;     // metres between samples
+const TAIL = 0.85;         // the last stretch of a point's life, over which the ribbon closes to nothing
+
+const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 const VERT = `
 attribute float age; attribute float side;
-uniform float width; uniform vec3 camPos;
 varying float vAge; varying float vSide;
 void main() {
   vAge = age; vSide = side;
-  // position already carries the centre line; the ribbon is offset here toward the camera's side vector
+  // position already carries the ribbon corner: the width and the billboard are applied on the CPU
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 const FRAG = `
@@ -25,7 +29,7 @@ uniform vec3 color; uniform float intensity;
 varying float vAge; varying float vSide;
 void main() {
   float across = 1.0 - abs(vSide);
-  float a = pow(across, 1.4) * (1.0 - vAge) * (1.0 - vAge) * intensity;
+  float a = pow(across, 1.4) * pow(1.0 - vAge, 1.5) * intensity;
   vec3 col = mix(color, vec3(1.0, 0.98, 0.95), (1.0 - vAge) * 0.35 * across);
   gl_FragColor = vec4(col * a * 1.8, a);
 }`;
@@ -34,7 +38,6 @@ export class EngineTrail {
   constructor(colour, width = 0.55) {
     this.pts = [];              // { p: Vector3, t: spawn time }
     this.width = width;
-    this.intensity = 0;
     this.geo = new THREE.BufferGeometry();
     this.pos = new Float32Array(MAX * 2 * 3); this.age = new Float32Array(MAX * 2); this.side = new Float32Array(MAX * 2);
     this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
@@ -45,7 +48,7 @@ export class EngineTrail {
     this.geo.setDrawRange(0, 0);
     this.mesh = new THREE.Mesh(this.geo, new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: { color: { value: new THREE.Color(colour) }, intensity: { value: 1 }, width: { value: width }, camPos: { value: new THREE.Vector3() } },
+      uniforms: { color: { value: new THREE.Color(colour) }, intensity: { value: 0.9 } },
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
     }));
     this.mesh.frustumCulled = false;
@@ -53,7 +56,7 @@ export class EngineTrail {
     this._tmp = new THREE.Vector3(); this._dir = new THREE.Vector3(); this._toCam = new THREE.Vector3(); this._sideV = new THREE.Vector3();
   }
 
-  /** sample the nozzle's world position; `emit` is the current thrust (0 stops the trail growing) */
+  /** sample the flame tip's world position; `emit` is the current thrust (0 stops the trail growing) */
   update(worldPos, emit, camera, now) {
     const pts = this.pts;
     if (emit > 0.05 && (!pts.length || pts[pts.length - 1].p.distanceToSquared(worldPos) > MIN_STEP * MIN_STEP)) {
@@ -72,7 +75,10 @@ export class EngineTrail {
       this._toCam.subVectors(camera.position, p);
       this._sideV.crossVectors(this._dir, this._toCam).normalize();
       const age = Math.min(1, (now - pts[i].t) / LIFE);
-      const w = this.width * (1 - age * 0.7) * (0.6 + 0.4 * pts[i].e);
+      // a slight taper along most of the ribbon, then closed off to a point over the last of it,
+      // so the trail narrows away rather than ending in a blunt stub that simply fades
+      const taper = (1 - 0.35 * age) * (1 - smoothstep(TAIL, 1, age));
+      const w = this.width * taper * (0.6 + 0.4 * pts[i].e);
       for (const [k, sgn] of [[0, -1], [1, 1]]) {
         const v = i * 2 + k;
         this.pos[v * 3] = p.x + this._sideV.x * w * sgn; this.pos[v * 3 + 1] = p.y + this._sideV.y * w * sgn; this.pos[v * 3 + 2] = p.z + this._sideV.z * w * sgn;
@@ -81,7 +87,6 @@ export class EngineTrail {
     }
     this.geo.attributes.position.needsUpdate = true; this.geo.attributes.age.needsUpdate = true; this.geo.attributes.side.needsUpdate = true;
     this.geo.setDrawRange(0, (n - 1) * 6);
-    this.mesh.material.uniforms.intensity.value = 0.9;
   }
 
   dispose() { this.geo.dispose(); this.mesh.material.dispose(); }

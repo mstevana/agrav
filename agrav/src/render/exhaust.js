@@ -59,10 +59,27 @@ export function makePlume(colour, r, seed = 0) {
   return m;
 }
 
-/** drive a plume: throttle 0/1, boost, speed fraction, dead */
-export function animatePlume(plume, { throttle, boost, speedFrac, dead }, t) {
-  const len = dead ? 0.001 : throttle ? (boost ? 4.0 : 1.8 + speedFrac * 1.6) : 0.6;
-  plume.scale.set(1, 1, len);
-  plume.material.uniforms.time.value = t;
-  plume.material.uniforms.heat.value = dead ? 0 : throttle ? (boost ? 1.3 : 0.75 + speedFrac * 0.25) : 0.35;
+/**
+ * Drive a plume: throttle 0/1, boost, speed fraction, dead. Length and heat are eased rather than
+ * set, so lifting off the throttle does not snap the flame from three metres to half of one in a
+ * single frame -- and so the trail hung off the plume's tip has a tip that moves continuously.
+ */
+const PLUME_RATE = 9;   // 1/s
+export function animatePlume(plume, { throttle, boost, speedFrac, dead }, t, dt = 1) {
+  const u = plume.material.uniforms;
+  const wantLen = dead ? 0.001 : throttle ? (boost ? 4.0 : 1.8 + speedFrac * 1.6) : 0.6;
+  const wantHeat = dead ? 0 : throttle ? (boost ? 1.3 : 0.75 + speedFrac * 0.25) : 0.35;
+  const k = 1 - Math.exp(-dt * PLUME_RATE);
+  const d = plume.userData;
+  d.len = (d.len ?? wantLen) + (wantLen - (d.len ?? wantLen)) * k;
+  d.heat = (d.heat ?? wantHeat) + (wantHeat - (d.heat ?? wantHeat)) * k;
+  plume.scale.set(1, 1, Math.max(0.001, d.len));
+  u.time.value = t;
+  u.heat.value = d.heat;
+}
+
+/** the world position of a plume's tip — where the fire ends and the trail should begin */
+const _tip = new THREE.Vector3();
+export function plumeTip(plume, out) {
+  return (out || _tip).set(0, 0, 1).applyMatrix4(plume.matrixWorld);
 }

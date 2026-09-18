@@ -347,7 +347,7 @@ export class Client {
     // render-rate motion. yaw has no persisted rate and steps <0.04 rad/tick, so leave it.
     const frac = this.lastTickTime ? Math.min(DT, Math.max(0, (this.clock.now() - this.lastTickTime) / 1000)) : 0;
     return { s: wrapS(this.ribbon, p.s + p.vs * frac + this.smooth.s), t: p.t + p.vt * frac + this.smooth.t, h: p.h + this.smooth.h, yaw: wrapAngle(p.yaw + this.smooth.yaw),
-      vs: p.vs, vt: p.vt, bits: p.bits, steer: p.steer, grounded: p.grounded, scraping: p.scraping };
+      vs: p.vs, vt: p.vt, W: p.W, bits: p.bits, steer: p.steer, grounded: p.grounded, scraping: p.scraping };
   }
 
   /** interpolated poses of everyone else (and projectiles) at the render time */

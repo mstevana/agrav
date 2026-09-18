@@ -23,6 +23,8 @@ import { skyEnvironment, markShadows } from './render/env/common.js';
 import { Fx } from './render/fx.js';
 import { makeBot, botInput } from '../../shared/agrav/bot.js';
 
+const ATTITUDE_RATE = 11;   // 1/s: how fast the hull's roll and pitch chase what the controls ask for
+
 const $ = (id) => document.getElementById(id);
 const show = (id) => { for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id; };
 const toast = (msg, ms = 2600) => { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, ms); };
@@ -460,10 +462,30 @@ function renderRace(dt) {
     const dead = !!(flags & VF.DEAD);
     const bits = isMe ? pose.bits : (flags & VF.THROTTLE ? IN.THROTTLE : 0) | (flags & VF.AIRBRAKE_L ? IN.AIRBRAKE_L : 0) | (flags & VF.AIRBRAKE_R ? IN.AIRBRAKE_R : 0);
     const speed = Math.hypot(pose.vs, pose.vt);
-    const steerLean = isMe ? -pose.steer * 0.35 : -Math.sin(0) * 0;
+    // How hard the craft is turning, as a fraction of full lock. My own craft knows its stick; for
+    // everyone else it is recovered from the pose, and the curvature term is what makes it work --
+    // yaw is measured against the tangent, so it barely moves through a steady bend even though
+    // that is exactly where the lean should be deepest.
+    let lock;
+    if (isMe) lock = pose.steer;
+    else {
+      const f = frameAt(ribbon, pose.s);
+      const turn = wrapAngle(pose.yaw - (c.lastYaw ?? pose.yaw)) / Math.max(1e-3, dt) + f.curvature * pose.vs;
+      lock = Math.max(-1, Math.min(1, turn / Math.max(0.3, r.stats.turnRate / (1 + (speed / r.stats.topSpeed) * 0.55))));
+    }
+    c.lastYaw = pose.yaw;
+    // nose follows the vertical motion in the air, and squats under power / lifts under braking
+    const airborne = !(isMe ? pose.grounded : flags & VF.GROUNDED) || pose.h > 0.05;
+    const pitchWant = airborne ? Math.max(-0.3, Math.min(0.3, -(pose.W || 0) / 30))
+      : (bits & IN.BRAKE ? 0.10 : bits & IN.THROTTLE ? -0.06 : 0) * Math.min(1, speed / 25);
+    const rollWant = -lock * 0.35 + (pose.vt / Math.max(20, speed)) * -0.4;
+    // ease both: a key is a switch, and a hull this size does not snap 20 degrees in one frame
+    const k = 1 - Math.exp(-dt * ATTITUDE_RATE);
+    c.visRoll = (c.visRoll ?? rollWant) + (rollWant - (c.visRoll ?? rollWant)) * k;
+    c.visPitch = (c.visPitch ?? pitchWant) + (pitchWant - (c.visPitch ?? pitchWant)) * k;
     const bob = Math.sin(performance.now() * 0.004 + r.id) * 0.08;
-    poseObject(c.group, ribbon, pose.s, pose.t, pose.h, pose.yaw, steerLean + (pose.vt / Math.max(20, speed)) * -0.4, HOVER_HEIGHT + bob);
-    animateCraft(c, { throttle: !!(bits & IN.THROTTLE), abL: !!(bits & IN.AIRBRAKE_L), abR: !!(bits & IN.AIRBRAKE_R), boost: !!(flags & VF.BOOST), speedFrac: Math.min(1, speed / r.stats.topSpeed), dead });
+    poseObject(c.group, ribbon, pose.s, pose.t, pose.h, pose.yaw, c.visRoll, HOVER_HEIGHT + bob, c.visPitch);
+    animateCraft(c, { throttle: !!(bits & IN.THROTTLE), abL: !!(bits & IN.AIRBRAKE_L), abR: !!(bits & IN.AIRBRAKE_R), boost: !!(flags & VF.BOOST), speedFrac: Math.min(1, speed / r.stats.topSpeed), dead }, dt);
     c.shield.visible = !!(flags & VF.SHIELD) && !dead;
     return c;
   };

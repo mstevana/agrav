@@ -7,14 +7,27 @@
 // Touch: a steering zone on the left (drag left/right from where you touch,
 // or tilt the phone), fire and airbrake buttons on the right. Throttle is
 // automatic on touch unless the player turns it off.
+//
+// A key is a switch, so keyboard steering would otherwise slam from 0 to full
+// lock in one tick. It is ramped here, in the input, rather than in the sim:
+// the ramped value is what gets sent and what the local prediction steps, so
+// the server and the client still agree. Gamepad and touch are already analog
+// and pass through untouched. The result is quantised to the wire's own grid
+// for the same reason -- see read().
 // ============================================================================
 
 import { IN } from '../../shared/net/protocol.js';
 import { settings } from './settings.js';
+import { DT } from '../../shared/agrav/constants.js';
+
+const STEER_ON = 1 / 0.12;    // full lock in 0.12 s
+const STEER_OFF = 1 / 0.07;   // and back to centre a little faster, so it stops feeling soggy
+const STEER_STEP = 127;       // the wire quantises steer to an i8 at this scale
 
 export class Input {
   constructor(dom) {
     this.keys = new Set();
+    this.steerRamp = 0;    // the ramped keyboard steer, advanced once per input tick
     this.touchSteer = 0;
     this.touchBits = 0;
     this.tilt = 0;
@@ -101,17 +114,24 @@ export class Input {
     return null;
   }
 
-  /** @returns {{bits:number, steer:number}} */
+  /**
+   * One input tick. Called once per fixed 60 Hz step, so the steering ramp advances by DT.
+   * @returns {{bits:number, steer:number}}
+   */
   read() {
-    if (!this.enabled) return { bits: 0, steer: 0 };
+    if (!this.enabled) { this.steerRamp = 0; return { bits: 0, steer: 0 }; }
     const k = this.keys;
-    let bits = 0, steer = 0;
-    if (k.has('ArrowLeft') || k.has('KeyA')) steer -= 1;
-    if (k.has('ArrowRight') || k.has('KeyD')) steer += 1;
+    let bits = 0, want = 0;
+    if (k.has('ArrowLeft') || k.has('KeyA')) want -= 1;
+    if (k.has('ArrowRight') || k.has('KeyD')) want += 1;
+    // ease toward the key, faster when it is releasing or reversing than when it is winding on
+    const rate = (want === 0 || want * this.steerRamp < 0 ? STEER_OFF : STEER_ON) * DT;
+    this.steerRamp += Math.max(-rate, Math.min(rate, want - this.steerRamp));
+    let steer = this.steerRamp;
     if (k.has('ArrowUp') || k.has('KeyW')) bits |= IN.THROTTLE;
     if (k.has('ArrowDown') || k.has('KeyS')) bits |= IN.BRAKE;
-    if (k.has('KeyQ') || (k.has('ShiftLeft') && steer < 0)) bits |= IN.AIRBRAKE_L;
-    if (k.has('KeyE') || (k.has('ShiftRight') && steer > 0) || (k.has('ShiftLeft') && steer > 0)) bits |= IN.AIRBRAKE_R;
+    if (k.has('KeyQ') || (k.has('ShiftLeft') && want < 0)) bits |= IN.AIRBRAKE_L;
+    if (k.has('KeyE') || (k.has('ShiftRight') && want > 0) || (k.has('ShiftLeft') && want > 0)) bits |= IN.AIRBRAKE_R;
     if (k.has('Space') || k.has('ControlLeft') || k.has('KeyX') || k.has('Enter')) bits |= IN.FIRE;
 
     const gp = this._gamepad();
@@ -123,6 +143,9 @@ export class Input {
       if (ts) steer = ts;
       if (settings.autoThrottle && !(bits & IN.BRAKE)) bits |= IN.THROTTLE;
     }
-    return { bits, steer: Math.max(-1, Math.min(1, steer)) };
+    // Snap to the wire's grid before it leaves: the client predicts with this float while the
+    // server gets it through qi8(steer, 127), and anything off the grid is a standing divergence
+    // for reconciliation to chase.
+    return { bits, steer: Math.round(Math.max(-1, Math.min(1, steer)) * STEER_STEP) / STEER_STEP };
   }
 }

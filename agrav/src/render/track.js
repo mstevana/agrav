@@ -200,9 +200,10 @@ export function frameQuat(f) {
 
 /**
  * Place an object at ribbon coords with its -z toward the heading (three's
- * forward), leaning `roll` radians about that heading.
+ * forward), leaning `roll` radians about that heading and lifting the nose by
+ * `pitch` radians about its own right.
  */
-export function poseObject(obj, ribbon, s, t, h, yaw, roll = 0, hover = 0) {
+export function poseObject(obj, ribbon, s, t, h, yaw, roll = 0, hover = 0, pitch = 0) {
   const w = toWorld(ribbon, s, t, h + hover);
   const f = w.frame;
   const cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -214,6 +215,7 @@ export function poseObject(obj, ribbon, s, t, h, yaw, roll = 0, hover = 0) {
   _m.makeBasis(_x, _y, _z);
   obj.quaternion.setFromRotationMatrix(_m);
   if (roll) { _q.setFromAxisAngle(_z, roll); obj.quaternion.premultiply(_q); }
+  if (pitch) { _q.setFromAxisAngle(_x, pitch); obj.quaternion.premultiply(_q); }
   obj.position.set(w.x, w.y, w.z);
   return w;
 }

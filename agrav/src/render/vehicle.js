@@ -15,7 +15,7 @@ import { loft, displaceAlongNormal } from './props.js';
 import { metalPlateSet, standard } from './surfaces.js';
 import { liverySet, ATLAS } from './livery.js';
 import { fbm3 } from './noise.js';
-import { makePlume, animatePlume } from './exhaust.js';
+import { makePlume, animatePlume, plumeTip } from './exhaust.js';
 import { EngineTrail } from './trails.js';
 
 const protos = new Map();
@@ -167,30 +167,38 @@ export function buildCraft(vehicleId) {
   const light = new THREE.PointLight(def.colour, 0, 14, 2);
   light.position.set(0, -0.5, 0);
   group.add(light);
-  // world-space engine trails, one per nozzle; the scene owner adds their meshes beside the group
-  const trails = parts.nozzles.map(n => ({ trail: new EngineTrail(def.colour, 0.3 + n.r * 0.9), local: new THREE.Vector3(n.x, n.y, n.z + 0.3) }));
-  return { group, exhaust, flames, flapL, flapR, light, colour: def.colour, def, trails, thrust: 0 };
+  // World-space engine trails, one per nozzle; the scene owner adds their meshes beside the group.
+  // Each is paired with its plume and emitted from that plume's tip, so the ribbon starts where the
+  // fire ends instead of being born inside it — which also means it starts at the flame's thin end.
+  const trails = parts.nozzles.map((n, i) => ({ trail: new EngineTrail(def.colour, 0.22 + n.r * 0.7), plume: flames[i] }));
+  return { group, exhaust, flames, flapL, flapR, light, colour: def.colour, def, trails, thrust: null };
 }
 
-/** call once per frame after the craft is posed: grows the trails from the nozzles toward the camera's view */
+/** call once per frame after the craft is posed: grows the trails from the flame tips toward the camera's view */
 const _w = new THREE.Vector3();
 export function updateTrails(craft, camera, now) {
+  // the trails are grown before the renderer updates matrices, so bring the plumes' own up to date
+  craft.group.updateWorldMatrix(true, false);
   for (const t of craft.trails) {
-    _w.copy(t.local); craft.group.localToWorld(_w);
-    t.trail.update(_w, craft.group.visible ? craft.thrust : 0, camera, now);
+    t.plume.updateWorldMatrix(false, false);
+    plumeTip(t.plume, _w);
+    t.trail.update(_w, craft.group.visible ? (craft.thrust || 0) : 0, camera, now);
   }
 }
 export function disposeTrails(craft) { for (const t of craft.trails) t.trail.dispose(); }
 
-/** per-frame animation of a craft's dressing */
-export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead }) {
-  const e = throttle ? (boost ? 2.4 : 1.4 + speedFrac * 0.6) : 0.5;
+/** per-frame animation of a craft's dressing. Everything here eases: the throttle is a switch, the engine is not. */
+const THRUST_RATE = 9, FLAP_RATE = 18;
+export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead }, dt = 1 / 60) {
   const t = performance.now() * 0.001;
-  craft.thrust = dead ? 0 : throttle ? (boost ? 1.4 : 0.55 + speedFrac * 0.45) : 0.12;
+  const wantThrust = dead ? 0 : throttle ? (boost ? 1.4 : 0.55 + speedFrac * 0.45) : 0.12;
+  craft.thrust = craft.thrust === null ? wantThrust : craft.thrust + (wantThrust - craft.thrust) * (1 - Math.exp(-dt * THRUST_RATE));
+  const e = 0.5 + craft.thrust * 1.36;                      // the throat glow tracks the eased thrust
   for (const sp of craft.exhaust) { sp.scale.set(sp.userData.s ?? (sp.userData.s = sp.scale.x), sp.userData.s, 1); sp.scale.multiplyScalar(e / 1.4); sp.material.opacity = dead ? 0 : 0.7; }
-  for (const f of craft.flames || []) animatePlume(f, { throttle, boost, speedFrac, dead }, t);
-  craft.flapL.rotation.x = THREE.MathUtils.lerp(craft.flapL.rotation.x, abL ? -0.9 : 0, 0.3);
-  craft.flapR.rotation.x = THREE.MathUtils.lerp(craft.flapR.rotation.x, abR ? -0.9 : 0, 0.3);
+  for (const f of craft.flames || []) animatePlume(f, { throttle, boost, speedFrac, dead }, t, dt);
+  const fk = 1 - Math.exp(-dt * FLAP_RATE);                 // was a per-frame lerp, so it ran at the frame rate
+  craft.flapL.rotation.x += ((abL ? -0.9 : 0) - craft.flapL.rotation.x) * fk;
+  craft.flapR.rotation.x += ((abR ? -0.9 : 0) - craft.flapR.rotation.x) * fk;
   craft.light.intensity = dead ? 0 : (boost ? 3 : 1.2);
   craft.group.visible = !dead;
 }

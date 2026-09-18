@@ -20,8 +20,17 @@ driving a cool-down lap. Results rank finishers by time, then everyone else by d
 
 Airbrakes tighten a turn and bleed speed; you need them for the hairpins. Hands off the
 stick and the craft settles back along the track, but it never steers a bend for you.
+A key is a switch, so keyboard steering winds on over about a tenth of a second rather than
+snapping to full lock, and the hull rolls into the turn and pitches with the road behind it.
 Walls scrape health away; hit one hard and you lose speed and armour. A crest that falls
 away faster than gravity launches you.
+
+The bottom left corner is the damage readout: a plan view of your own craft that takes on
+scorch marks and turns from team colour through amber to red as the plating goes, beside a
+ten-segment armour bar whose white ghost marks where the hull was a moment ago, so you can
+see the size of the hit you just took. Below about a third the numbers go red and the screen
+edge reddens and pulses. Every hit also washes the edge it came from and swings a red arc
+onto that side of the silhouette.
 
 ## Craft
 
@@ -45,8 +54,9 @@ Zenith Fuel, Neo-Kyo Dynamics, Axiom Avionics, Pulse, Vanta Optics, Orbital Logi
 Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`): an open tube
 behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
 edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
-middle; throttle and boost set its length and heat, and a Homeworld-style ribbon trail hangs in the air
-behind each nozzle for a second, wide and bright at the engine and fading to nothing. Shields and weapons are shaders too
+middle; throttle and boost ease its length and heat, and a Homeworld-style ribbon trail hangs in the air
+for a second behind each engine. The trail is emitted from the tip of the plume, so it begins where the
+fire ends, then tapers gently and closes to a point rather than ending in a stub. Shields and weapons are shaders too
 (`src/render/fxshaders.js`): hex-cell shield skins with a fresnel rim, a scanning band and a ripple
 spreading from where a hit lands; rockets and missiles as white-cored bolts with streaks and fading
 ribbon trails (missiles carry a plume); mines that pulse red once armed; noise-eroded fireballs with
@@ -99,7 +109,12 @@ each one to a WAV so you can audition them without racing.
 ## Items
 
 Pads on the track hand out one item; drive over one while holding nothing. Trailing racers
-get better odds of missiles and shields, leaders of mines and the minigun.
+get better odds of missiles and shields, leaders of mines and the minigun. Bots go for them:
+with an empty slot a bot picks the nearest row ahead that still has a live pad and eases onto
+that lane over the whole approach, unless it is busy with a corner. It fires a rocket only
+when its nose is already on where the target will be, spends a minigun burst only on a victim
+inside the cone the hitscan actually scores with, and will burn a shield on an inbound rocket
+or a mine ahead as well as on a missile already locked on.
 
 | Item | |
 |---|---|
@@ -190,6 +205,15 @@ kept in `docs/screenshots/pass1/` for comparison.
 | ![](../docs/screenshots/craft-bulwark.png) | ![](../docs/screenshots/craft-reaper.png) | ![](../docs/screenshots/craft-corsair.png) |
 
 ![The grid](../docs/screenshots/craft-all.png)
+
+The damage readout with the hull intact and with it nearly gone, and the trails leaving the
+flame tips and tapering away behind a corsair:
+
+| Hull intact | Hull critical |
+|---|---|
+| ![](../docs/screenshots/hud-full.png) | ![](../docs/screenshots/hud-critical.png) |
+
+![Engine trails](../docs/screenshots/trails.png)
 
 ## Files
 
