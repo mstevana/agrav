@@ -64,6 +64,20 @@ export const WEAPON = Object.freeze({
 
 export const PAD = Object.freeze({ radiusS: 3.5, radiusT: 2.6, respawnSec: 6 });
 
+/** bot driving and gunnery. tools/balance.js is the gate on anything here that costs lap time. */
+export const BOT = Object.freeze({
+  padLook: 150,       // m ahead a bot will consider a weapon pad
+  padNear: 0,         // the seek holds until the pad is passed, not abandoned just short of it
+  padClose: 30,       // m: inside this the line commits fully to the pad lane
+  padCorner: 0.35,    // how much of the pull survives while an airbrake is down (none while braking)
+  gunRange: 150,      // m: the furthest a bot looks for something to shoot at
+  rocketRange: 120,   // m: beyond this an unguided bolt is a waste
+  rocketMargin: 1.6,  // m of slack on the lead-predicted lateral error before a rocket is worth it
+  aimBias: 2.5,       // m the line target is pulled toward a victim to line a shot up
+  dodgeRocket: 60,    // m: a rocket this close behind is worth a shield
+  dodgeMine: 25       // m: an armed mine this close ahead is worth a shield
+});
+
 export const HITSCAN_REWIND_TICKS = 6;   // ~100 ms: what the shooter saw when they pulled the trigger
 export const HISTORY_TICKS = 16;
 
