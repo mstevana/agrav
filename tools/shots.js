@@ -71,8 +71,10 @@ for (const track of TRACK_IDS.filter(t => !ONLY || ONLY.includes(t))) {
     await page.waitForTimeout(300);
     // pickup flashes and hit rings are not scenery: clear them right before the capture
     await page.evaluate((hide) => { const sc = window.__agrav.scene(); const fx = sc.fx; for (const e of fx.live) e.obj?.parent?.remove(e.obj); fx.live.length = 0;
-      // the photographer carries a permanent shield so it survives the race; hide the bubble, or it wraps the craft in every frame
-      for (const c of sc.crafts.values()) if (c.shield) c.shield.visible = false; sc.three.traverse(o => { if (hide.includes(o.name)) o.visible = false; }); const p = window.__agrav.client.myPose(); const { camera, THREE } = window.__agrav;
+      // The photographer carries a permanent shield so it survives the race, and the bubble wraps
+      // the craft in every frame. Taking it out of the scene graph is the only thing that sticks:
+      // renderRace sets shield.visible from the snapshot flags again on the very next frame.
+      for (const c of sc.crafts.values()) c.shield?.removeFromParent(); sc.three.traverse(o => { if (hide.includes(o.name)) o.visible = false; }); const p = window.__agrav.client.myPose(); const { camera, THREE } = window.__agrav;
       // what stands between the camera and the craft (diagnostics for furniture in the shot)
       const me = sc.crafts.get(window.__agrav.client.me); let hit = null;
       if (me) { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); const ray = new THREE.Raycaster(camera.position, dir, 0.1, 60); ray.camera = camera; const hits = ray.intersectObjects(sc.three.children, true).filter(h => !h.object.isSprite && h.object.geometry?.type !== 'SphereGeometry'); hit = hits[0] ? { name: hits[0].object.name || hits[0].object.type, d: +hits[0].distance.toFixed(1), geo: hits[0].object.geometry?.type } : null; }

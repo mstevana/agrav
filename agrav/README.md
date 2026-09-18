@@ -154,14 +154,25 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
 - **Inferno Basin** (`src/render/env/hell.js`): a red desert basin with lava basins carved under
   the causeway and the jump, the melt glowing through crust cracks on an emissive map that
   scrolls; seven volcanoes with ember columns that erupt every few seconds (a fireball and a
-  shower of lava bombs); a pool of meteors that streak in from a dome round the camera and burst
-  on the plain (never on the road), plus distant streaks; rising cinders, falling ash, red mist;
-  two flocks of black pterodactyls; the road material swapped for cooling lava.
+  shower of lava bombs), each crater carrying a glow that reads from the road four hundred metres
+  away; buttes, weathered slabs and spires filling the middle distance, obsidian shards nearer the
+  road, fissures with the melt showing through the plain, lava falling into the chasm and over the
+  lake wall, steam vents breathing beside the verge and pools of ember light along it; pylons under
+  the causeway where it flies over the melt; a pool of meteors that streak in from a dome round the
+  camera and burst on the plain (never on the road), plus distant streaks; rising cinders, falling
+  ash, red mist; two flocks of black pterodactyls; charred trees that stir in the heat; the road
+  material swapped for cooling lava.
 - **Mare Selene** (`src/render/env/moon.js`): a cratered mare (voronoi bowls with raised rims)
-  under a sky with the Milky Way and the Earth; near-zero fill light for hard shadows; angular
-  rock; four glass-domed base clusters lit from inside with airlocks, tubes, masts and solar
-  arrays; an Apollo lander with its flag, a parked rover and one driving a circuit; a crashed
-  saucer a third buried, its lamps still blinking and sparking. The **loop-the-loop** is a
+  under a sky with the Milky Way, the Earth and a station crossing overhead. The light is the
+  point: almost no fill, so shadows go near-black, while bright ejecta rays streak out of every
+  crater and the floors sink to almost nothing — one dim overhead fill keeps the road readable.
+  Angular rock near the road, a farther band breaking the skyline, and grit over the regolith;
+  four glass-domed base clusters lit from inside with airlocks, tubes, blinking masts, sweeping
+  dishes and arrays that tilt to follow the sun; an Apollo lander with a flag that ripples, a
+  parked rover and one driving a circuit, throwing up dust that arcs and drops straight back in the
+  vacuum; a crashed saucer a third buried, its lamps still blinking and sparking. The
+  **loop-the-loop** carries its own beacon rail and lamps, because `placeAlong` will not hang
+  scenery beside a loop and the hoop would otherwise be an unlit void. It is a
   one-turn helix: its control points carry `loop: 1`, which gives those frames a
   parallel-transported basis (see `shared/sim/spline.js`) so the road inverts cleanly, the
   physics holds the craft to the surface through it, and the chase camera rolls with the road.
@@ -169,9 +180,13 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   basin wherever the road dives; dense canopy, palms, mangroves on prop roots, ferns, macaws,
   parrots and toucans, sloths and monkeys in the trees, iguanas, crocodiles in the shallows, a
   tapir, blue morphos over the road. Under the sea the road runs in a ribbed glass tunnel: the
-  fog turns deep blue, caustics ripple on the sand, light shafts hang in the water, and around
-  you are corals and sea fans, kelp, four fish schools, a dolphin pod that breaches, manta rays,
-  two whales, turtles and the lit domes and towers of a sunken city.
+  fog turns deep blue, the sand darkens with depth, two caustic sheets crawl over it at different
+  scales, light shafts hang and sway in the water, silt drifts through it and bubbles rise off the
+  reef. Around you are corals and sea fans, kelp, four fish schools, a dolphin pod that breaches,
+  manta rays, two whales, turtles and the lit domes and towers of a sunken city; one dolphin and
+  one ray circle each tunnel closely enough to meet you at the glass. Above water, pollen hangs in
+  shafts of sun through the canopy and mist sits in the hollows, and the sloths, monkeys, iguanas
+  and tapirs all move.
 - **Track furniture** (`src/render/track.js`): a concrete deck under the road, rumble-strip
   curbs, barrier posts carrying the energy wall, light gantries, pad housings, skid marks at the
   braking zones.
@@ -195,6 +210,7 @@ kept in `docs/screenshots/pass1/` for comparison.
 |---|---|---|
 | ![](../docs/screenshots/inferno-1.png) | ![](../docs/screenshots/selene-1.png) | ![](../docs/screenshots/osa-1.png) |
 | ![](../docs/screenshots/inferno-2.png) | ![](../docs/screenshots/selene-2.png) | ![](../docs/screenshots/osa-2.png) |
+| ![](../docs/screenshots/inferno-3.png) | ![](../docs/screenshots/selene-3.png) | ![](../docs/screenshots/osa-3.png) |
 
 | Kestrel | Talon | Vantage |
 |---|---|---|
