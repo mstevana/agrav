@@ -7,7 +7,8 @@ import { BloomComposer } from '../../shared/gfx/bloom.js';
 import { TRACKS, TRACK_IDS } from '../../shared/agrav/tracks/index.js';
 import { VEHICLES } from '../../shared/agrav/vehicles.js';
 import { PHASE, TICK_RATE, DT, HOVER_HEIGHT, VF } from '../../shared/agrav/constants.js';
-import { toWorld, frameAt } from '../../shared/sim/spline.js';
+import { toWorld, frameAt, deltaS } from '../../shared/sim/spline.js';
+import { wrapAngle } from '../../shared/sim/vec.js';
 import { IN } from '../../shared/net/protocol.js';
 import { ribbonFor } from '../../shared/agrav/sim/race.js';
 import { Client } from './net.js';
@@ -295,6 +296,19 @@ function enterRace(room) {
 const poseOf = (id) => id === client.me ? client.myPose() : lastOthers.racers.find(r => r.id === id) || client.latest?.byId[id] || null;
 let lastOthers = { racers: [], projectiles: [] };
 const nameOf = (id) => client.race?.byId[id]?.name || `#${id}`;
+/**
+ * Which way a hit on me came from, in craft space: 0 dead ahead, + to the right. Attackers are
+ * placed from their pose relative to mine; a wall is simply whichever side of the road I am on.
+ */
+function hitBearing(e) {
+  const mine = client.myPose();
+  if (!mine) return null;
+  if (e.by < 0) return e.source === 'wall' ? (mine.t >= 0 ? Math.PI / 2 : -Math.PI / 2) : null;
+  const them = poseOf(e.by);
+  if (!them) return null;
+  const ds = deltaS(client.ribbon, mine.s, them.s);
+  return wrapAngle(Math.atan2(them.t - mine.t, ds) - mine.yaw);
+}
 function onEvent(e) {
   if (!scene.fx) return;
   scene.fx.onEvent(e, poseOf);
@@ -305,7 +319,7 @@ function onEvent(e) {
     case 'go': audio.play('go'); hud.say('GO', 'good'); break;
     case 'fire': audio.play(e.item === 'mine' ? 'mine' : e.item, pos); break;
     case 'shot': audio.play('minigun', pos); break;
-    case 'hit': if (e.dmg < 1) break; audio.play('hit', pos); if (e.id === me && (e.source !== 'wall' || e.dmg >= 4)) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); break;
+    case 'hit': if (e.dmg < 1) break; audio.play('hit', pos); if (e.id === me) { hud.hitFrom(hitBearing(e)); if (e.source !== 'wall' || e.dmg >= 4) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); } break;
     case 'absorb': audio.play('absorb', pos); break;
     case 'boom': audio.play('boom', scene.fx.world(e.s, e.tt, e.h)); break;
     case 'dead': audio.play('dead', pos); hud.say(e.by >= 0 && e.by !== e.id ? `${nameOf(e.by)} destroyed ${nameOf(e.id)}` : `${nameOf(e.id)} was destroyed`, 'kill'); if (e.id === me) hud.status('ELIMINATED — spectating'); break;
@@ -520,7 +534,7 @@ function renderRace(dt) {
   const raceTickNow = client.raceTickNow();
   const meRec = latest?.byId[client.me];
   hud.update({
-    me: me && meRec ? { ...meRec, id: me.id, maxHp: me.maxHp, vs: myPose?.vs ?? meRec.vs, vt: myPose?.vt ?? meRec.vt } : null,
+    me: me && meRec ? { ...meRec, id: me.id, maxHp: me.maxHp, vehicle: me.vehicle, dead: me.dead, vs: myPose?.vs ?? meRec.vs, vt: myPose?.vt ?? meRec.vt } : null,
     racers: race.racers, phase, raceTick: raceTickNow, tickRate: TICK_RATE, laps: race.opts.laps,
     rtt: client.rtt, fps, interp: `${client.clock.leadTicks}t`, elapsed: ui.elapsedAtFinish ?? Math.max(0, raceTickNow / TICK_RATE),
     spectating: null
@@ -534,4 +548,4 @@ function renderRace(dt) {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 requestAnimationFrame(frame);
 // expose for tools/racetest.js
-window.__agrav = { client, input, scene: () => scene, ui, settings, renderer, camera, THREE };
+window.__agrav = { client, input, hud, scene: () => scene, ui, settings, renderer, camera, THREE };
