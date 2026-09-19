@@ -11,6 +11,7 @@ Pick a mode on the menu:
 - **2 vs 2** — two Blue seats on the left, two Red on the right, each split into a back and a
   front zone (up to four players).
 - **1 vs 1** — one blob per side, each owning a whole half (up to two players).
+- **3 vs 3** — three blobs per side in back / mid / front zones (up to six players).
 
 Each player owns their zone and cannot leave it, so blobs never collide with each other or
 the net.

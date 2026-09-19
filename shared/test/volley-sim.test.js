@@ -16,7 +16,7 @@ function run(state, inputs, ticks) {
 }
 
 test('zones never overlap and stay clear of the net and walls', () => {
-  for (const teamSize of [1, 2]) {
+  for (const teamSize of [1, 2, 3]) {
     const zones = makeZones(teamSize);
     assert.equal(zones.length, teamSize * 2);
     for (let i = 0; i < zones.length; i++) {

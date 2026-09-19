@@ -7,7 +7,7 @@ export const FIELD_H = 600; // ceiling height above the ground
 
 export const NET_X = FIELD_W / 2;
 export const NET_HALF_W = 6;
-export const NET_HEIGHT = 300; // y of the rounded net top
+export const NET_HEIGHT = 270; // y of the rounded net top
 
 export const BALL_R = 24;
 export const BALL_GRAVITY = 720; // px/s^2

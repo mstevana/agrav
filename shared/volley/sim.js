@@ -24,11 +24,21 @@ export function makeZones(teamSize) {
   const zones = [];
   if (teamSize === 1) {
     zones.push({ min: leftEdge, max: netEdge });
-  } else {
+  } else if (teamSize === 2) {
     // back player gets the outer quarter, front player the inner quarter
     const split = NET_X / 2;
     zones.push({ min: leftEdge, max: split - BLOB_LOWER_R });
     zones.push({ min: split + BLOB_LOWER_R, max: netEdge });
+  } else {
+    // N players share the half in N equal zones separated by a blob's width (plus a
+    // 1px margin so mirrored coordinates stay clear of touching after rounding).
+    // Ordered back (near the wall) to front (near the net).
+    const gap = 2 * BLOB_LOWER_R + 1;
+    const zoneW = (netEdge - leftEdge - (teamSize - 1) * gap) / teamSize;
+    for (let i = 0; i < teamSize; i++) {
+      const min = leftEdge + i * (zoneW + gap);
+      zones.push({ min, max: min + zoneW });
+    }
   }
   // mirror for the right team, keeping slots ordered left to right
   const mirrored = zones.map((z) => ({ min: FIELD_W - z.max, max: FIELD_W - z.min })).reverse();
@@ -41,7 +51,7 @@ export function slotTeam(slot, teamSize) {
 
 export function createState(options = {}) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const teamSize = opts.teamSize === 1 ? 1 : 2;
+  const teamSize = Math.max(1, Math.min(4, opts.teamSize | 0)) || 2;
   const zones = makeZones(teamSize);
   const blobs = zones.map((zone, slot) => ({
     slot,

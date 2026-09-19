@@ -131,3 +131,24 @@ test('the 1v1 module is a two-seat variant sharing the same code', async () => {
   const d = m1.decodeSnapshot(m1.encodeSnapshot(s));
   assert.equal(d.blobs.length, 2);
 });
+
+test('the 3v3 module is a six-seat variant with back/mid/front zones', async () => {
+  const { default: m3 } = await import('../volley/module3.js');
+  assert.equal(m3.id, 'volley3');
+  assert.equal(m3.maxPlayers, 6);
+  assert.equal(m3.teamSize, 3);
+  const s = m3.createMatch({ pointsToWin: 2 }, 5);
+  assert.equal(s.blobs.length, 6);
+  const ps = m3.publicState(s);
+  assert.deepEqual(ps.slots.map((x) => x.team), [0, 0, 0, 1, 1, 1]);
+  assert.deepEqual(ps.slots.map((x) => x.role), ['back', 'mid', 'front', 'front', 'mid', 'back']);
+  // six non-overlapping zones with a blob's clearance between neighbours
+  for (let i = 1; i < s.blobs.length; i++) {
+    assert.ok(s.blobs[i].zone.min - s.blobs[i - 1].zone.max >= 2 * 33 - 1e-6, `zones ${i - 1}/${i} clear`);
+  }
+  m3.addPlayer(s, 0, {}, false);
+  for (let t = 1; t < 60 * 60 * 4 && !m3.isOver(s); t++) { m3.applyInput(s, 0, { bits: 0, steer: 0 }, t); m3.step(s, t, []); }
+  assert.ok(m3.isOver(s));
+  const d = m3.decodeSnapshot(m3.encodeSnapshot(s));
+  assert.equal(d.blobs.length, 6);
+});

@@ -19,7 +19,7 @@ const ui = {
   overtitle: $('overtitle'), overscore: $('overscore'),
 };
 
-const MODE_LABEL = { volley: '2v2', volley1: '1v1' };
+const MODE_LABEL = { volley: '2v2', volley1: '1v1', volley3: '3v3' };
 
 const app = {
   screen: 'menu',
@@ -122,7 +122,7 @@ async function quickPlay() {
   else net.createRoom(game, readOpts(), ui.optPublic.checked);
 }
 
-function readGame() { return ui.optMode.value === 'volley1' ? 'volley1' : 'volley'; }
+function readGame() { return MODE_LABEL[ui.optMode.value] ? ui.optMode.value : 'volley'; }
 function readOpts() {
   return { pointsToWin: Number(ui.optPoints.value), botDifficulty: ui.optBots.value };
 }

@@ -14,6 +14,7 @@
 
 import module2 from '../../shared/volley/module.js';
 import module1 from '../../shared/volley/module1.js';
+import module3 from '../../shared/volley/module3.js';
 import { WsChannel } from '../../shared/net/channel.js';
 import { NetClock } from '../../shared/net/clock.js';
 import { MSG, PROTOCOL_VERSION, encodeJson, decodeJson, messageType, isJsonType,
@@ -25,7 +26,7 @@ const TOKEN_KEY = 'volley_token';
 const INTERP_TICKS = 4;   // render others this many ticks behind the server clock
 
 const toMove = (i) => ({ left: i.steer < -0.3, right: i.steer > 0.3, jump: !!(i.bits & 1) });
-const moduleFor = (game) => (game === 'volley1' ? module1 : module2);
+const moduleFor = (game) => (game === 'volley1' ? module1 : game === 'volley3' ? module3 : module2);
 
 export class Client {
   constructor() {

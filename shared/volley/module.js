@@ -36,7 +36,12 @@ export function validateOpts(opts = {}) {
 /** Build a Volley module for a given team size (1 => 1v1, 2 => 2v2). */
 export function createVolleyModule({ id, name, teamSize }) {
   const SLOTS = teamSize * 2;
-  const role = (slot) => (teamSize === 1 ? 'solo' : (slot === 0 || slot === SLOTS - 1) ? 'back' : 'front');
+  // depth 0 is the seat by the back wall, teamSize-1 is nearest the net
+  const role = (slot) => {
+    if (teamSize === 1) return 'solo';
+    const depth = slot < teamSize ? slot : SLOTS - 1 - slot;
+    return depth === 0 ? 'back' : depth === teamSize - 1 ? 'front' : 'mid';
+  };
 
   function makeBrain(state, slot) {
     return createBot(slot, {

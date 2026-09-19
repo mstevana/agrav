@@ -8,6 +8,7 @@ snapshot decoding). It implements the contract in
 ```
 module.js      the game-module contract via createVolleyModule({id,name,teamSize}); default = 2v2 'volley'
 module1.js     the 1v1 variant ('volley1', teamSize 1) — same code, two seats
+module3.js     the 3v3 variant ('volley3', teamSize 3) — same code, six seats
 sim.js         the physics: createState(opts), step(state, inputs), stepBlob(blob, input)
 bot.js         createBot(slot,{difficulty,seed}) -> {think(state)}; predicts the ball and jumps to it
 constants.js   field geometry, physics tuning, tick/snapshot rates, the phase enum
@@ -21,12 +22,15 @@ Two modes, each its own game id so the room caps at the right size:
 ```
 2 vs 2 ('volley',  maxPlayers 4):  | 0 Blue back | 1 Blue front |net| 2 Red front | 3 Red back |
 1 vs 1 ('volley1', maxPlayers 2):  |       0 Blue whole half     |net|     1 Red whole half     |
+3 vs 3 ('volley3', maxPlayers 6):  | 0 back | 1 mid | 2 front |net| 3 front | 4 mid | 5 back |
                                    0            200            400            600            800   (field units, y up)
 ```
 
 Each seat owns a movement zone and cannot leave it, so blobs never touch each other or the net.
-The server assigns ids in join order and passes them to `addPlayer`; a player's id is its slot.
-Both modes are one factory (`createVolleyModule`) over the same simulation, bots and wire format.
+`makeZones(teamSize)` splits each half into that many equal zones with a blob's width of
+clearance between neighbours. The server assigns ids in join order and passes them to
+`addPlayer`; a player's id is its slot. All modes are one factory (`createVolleyModule`) over
+the same simulation, bots and wire format.
 
 ## How it drives
 

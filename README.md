@@ -9,8 +9,8 @@ Two games ship today:
 
 - **[AGRAV](agrav/README.md)** — a 12-player anti-gravity combat racer in the spirit of the
   original Wipeout.
-- **[Volley](volley/README.md)** — blobby beach volleyball, 2-on-2 or 1-on-1, for up to four
-  players, bots filling any empty seat.
+- **[Volley](volley/README.md)** — blobby beach volleyball in 1-on-1, 2-on-2 or 3-on-3, for up
+  to six players, bots filling any empty seat.
 
 ```
 server/     Node 22 · rooms, sessions, lobby, static files, /api, /ws · one dependency (ws)
@@ -58,7 +58,7 @@ The room, lobby, sessions, reconnect, snapshots and bots-in-the-lobby all come f
 ## Tools
 
 ```sh
-npm test                       # node --test: shared sim + server (54 tests, AGRAV + Volley)
+npm test                       # node --test: shared sim + server (69 tests, AGRAV + Volley)
 node tools/tracklint.js        # every track: width, radius, overlap, banking, pads, jumps
 node tools/balance.js          # each craft solo on each track; lap times within ±3 %
 node tools/netsim.js --players 12 --rtt 80 --jitter 20 --loss 0.02
