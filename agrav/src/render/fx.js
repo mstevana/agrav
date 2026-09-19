@@ -17,7 +17,6 @@ export class Fx {
     this.ribbon = ribbon;
     this.enabled = true;
     this.projectiles = new Map();   // id -> mesh
-    this.live = [];                 // short-lived effects {obj, t, life, update}
     this.glow = glowSprite();
     this.time = 0;
     this.geo = {
@@ -33,7 +32,60 @@ export class Fx {
     this.shieldGeo = new THREE.SphereGeometry(1, 32, 20);
     this.shields = new Map();       // racer id → shield mesh (for hit ripples)
     this.uniformed = new Set();     // materials whose `time` ticks
+
+    // Every short-lived effect used to build its materials and geometry and throw them away when it
+    // finished. Disposing a material releases its compiled shader program, so the next explosion
+    // compiled the same shaders over again -- a stall on every blast, and sparks fire on every
+    // minigun hit. Effects now animate a slot from a pool that stays in the scene for good: during
+    // a race nothing is created or disposed, and these programs compile once with the rest of the
+    // scene, in the lobby. A pool is sized for the overlap its effect can reach, and when it does
+    // run out the oldest slot restarts rather than a blast being dropped.
+    this.SPARK_MAX = 96;            // a craft dying throws about eighty
+    this.slots = [];
+    const mk = (n, make, life, step) => {
+      const a = [];
+      for (let i = 0; i < n; i++) {
+        const s = { o: make(i), t: 1, life, step, size: 1, n: 0 };
+        s.o.visible = false; s.o.userData.noShadow = true;
+        this.scene.add(s.o); this.slots.push(s); a.push(s);
+      }
+      return a;
+    };
+    const sprite = (colour) => new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: colour, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const flat = (colour) => { const o = new THREE.Mesh(this.geo.plane, ringMaterial(colour)); o.rotation.x = -Math.PI / 2; return o; };
+    this.pool = {
+      balls: mk(5, (i) => new THREE.Mesh(this.geo.sphere, fireballMaterial(i * 2.1)), 0.6,
+        (s, k) => { const v = s.size * (1.2 + Math.sqrt(k) * 5); s.o.scale.set(v, v, v); s.o.material.uniforms.t.value = k; }),
+      rings: mk(5, () => flat(0xffc070), 0.5,
+        (s, k) => { const v = s.size * (2 + k * 12); s.o.scale.set(v, v, 1); s.o.material.uniforms.t.value = k; }),
+      flares: mk(5, () => sprite(0xffffff), 0.3,
+        (s, k) => { const v = s.size * (6 + k * 14); s.o.scale.set(v, v, 1); s.o.material.opacity = 1 - k; }),
+      sparks: mk(10, () => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.SPARK_MAX * 3), 3));
+        // the points travel far from where they started, so the bounding sphere three computes once
+        // would cull them wrongly part way through
+        const o = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffb060, size: 0.35, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
+        o.frustumCulled = false;
+        return o;
+      }, 0.7, (s, k, dt) => {
+        const a = s.o.geometry.attributes.position.array;
+        for (let i = 0; i < s.n; i++) { s.vel[i].y -= 30 * dt; a[i * 3] += s.vel[i].x * dt; a[i * 3 + 1] += s.vel[i].y * dt; a[i * 3 + 2] += s.vel[i].z * dt; }
+        s.o.geometry.attributes.position.needsUpdate = true; s.o.material.opacity = 1 - k;
+      }),
+      tracers: mk(8, () => new THREE.Mesh(this.tracerGeo, boltMaterial(0xfff1a0)), 0.1,
+        (s, k) => { s.o.material.uniforms.fade.value = 1 - k; s.o.material.uniforms.time.value = this.time; }),
+      pickups: mk(4, () => flat(0x2df1ff), 0.5,
+        (s, k) => { const v = 2 + k * 10; s.o.scale.set(v, v, 1); s.o.material.uniforms.t.value = k; })
+    };
+    for (const s of this.pool.sparks) s.vel = Array.from({ length: this.SPARK_MAX }, () => new THREE.Vector3());
+    this.spent = { rocket: [], missile: [], mine: [] };   // projectile meshes kept back for the next shot
   }
+
+  /** the slot furthest through its life: an idle one if there is one, else the oldest still running */
+  _take(list) { const s = list.reduce((a, b) => (b.t > a.t ? b : a)); s.t = 0; s.o.visible = true; return s; }
+  /** retire every running effect at once (the screenshot tool wants a clean frame) */
+  clearEffects() { for (const s of this.slots) { s.t = 1; s.o.visible = false; } }
 
   /** a shield bubble to parent under a craft; toggled with .visible. `id` lets hits ripple on the right one. */
   makeShield(id = -1) {
@@ -57,6 +109,8 @@ export class Fx {
     for (const p of list) {
       seen.add(p.id);
       let m = this.projectiles.get(p.id);
+      if (!m) m = this.spent[p.kind]?.pop();
+      if (m) { m.visible = true; this.projectiles.set(p.id, m); }
       if (!m) {
         m = new THREE.Group();
         const mats = [];
@@ -74,7 +128,7 @@ export class Fx {
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: p.kind === 'missile' ? 0xff2d95 : p.kind === 'mine' ? 0xff3030 : 0xffa030, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         sp.scale.set(p.kind === 'mine' ? 1.6 : 2.4, p.kind === 'mine' ? 1.6 : 2.4, 1); sp.position.z = p.kind === 'mine' ? 0 : 0.3;
         m.add(sp);
-        m.userData.sprite = sp; m.userData.mats = mats;
+        m.userData.sprite = sp; m.userData.mats = mats; m.userData.kind = p.kind;
         for (const mt of mats) this.uniformed.add(mt);
         this.scene.add(m);
         this.projectiles.set(p.id, m);
@@ -82,57 +136,47 @@ export class Fx {
       poseObject(m, this.ribbon, p.s, p.t, p.h, p.yaw, 0, p.kind === 'mine' ? 0.7 : 0.9);
       if (p.kind === 'mine') { m.rotation.y += 0.05; m.userData.shell.material.uniforms.armed.value = p.armed ? 1 : 0; m.userData.sprite.material.opacity = p.armed ? 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8)) : 0.15; }
     }
-    for (const [id, m] of this.projectiles) if (!seen.has(id)) { this.scene.remove(m); m.userData.sprite.material.dispose(); for (const mt of m.userData.mats) { this.uniformed.delete(mt); mt.dispose(); } this.projectiles.delete(id); }
+    // A spent rocket is parked, not destroyed: disposing its materials would release their compiled
+    // shader programs, so the very next shot of the same kind would compile them again.
+    for (const [id, m] of this.projectiles) if (!seen.has(id)) { m.visible = false; this.spent[m.userData.kind]?.push(m); this.projectiles.delete(id); }
   }
-
-  _spawn(obj, life, update) { this.scene.add(obj); this.live.push({ obj, t: 0, life, update }); }
 
   explosion(pos, size = 1, colour = 0xffc070) {
     if (!this.enabled && size < 2) return;
     // fireball: a noise-eroded ball that swells and tears apart
-    const ball = new THREE.Mesh(this.geo.sphere, fireballMaterial(Math.random() * 10));
-    ball.position.copy(pos); ball.rotation.set(Math.random() * 3, Math.random() * 3, 0);
-    this._spawn(ball, 0.6, (o, k) => { const s = size * (1.2 + Math.pow(k, 0.5) * 5); o.scale.set(s, s, s); o.material.uniforms.t.value = k; });
-    this.live[this.live.length - 1].dispose = () => ball.material.dispose();
+    const b = this._take(this.pool.balls);
+    b.size = size; b.o.position.copy(pos); b.o.rotation.set(Math.random() * 3, Math.random() * 3, 0);
     // shock ring on the road plane
-    const ring = new THREE.Mesh(this.geo.plane, ringMaterial(colour));
-    ring.position.copy(pos); ring.position.y += 0.2; ring.rotation.x = -Math.PI / 2;
-    this._spawn(ring, 0.5, (o, k) => { const s = size * (2 + k * 12); o.scale.set(s, s, 1); o.material.uniforms.t.value = k; });
-    this.live[this.live.length - 1].dispose = () => ring.material.dispose();
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    sp.position.copy(pos);
-    this._spawn(sp, 0.3, (o, k) => { const s = size * (6 + k * 14); o.scale.set(s, s, 1); o.material.opacity = 1 - k; });
+    const r = this._take(this.pool.rings);
+    r.size = size; r.o.position.copy(pos); r.o.position.y += 0.2; r.o.material.uniforms.color.value.set(colour);
+    const f = this._take(this.pool.flares);
+    f.size = size; f.o.position.copy(pos); f.o.material.opacity = 1;
     if (this.enabled) this.sparks(pos, Math.round(24 * size), colour, 14 * size);
   }
 
   sparks(pos, n, colour, speed) {
-    const pts = new Float32Array(n * 3), vel = [];
-    for (let i = 0; i < n; i++) { pts[i * 3] = pos.x; pts[i * 3 + 1] = pos.y; pts[i * 3 + 2] = pos.z; vel.push(new THREE.Vector3((Math.random() - 0.5), Math.random() * 0.8, (Math.random() - 0.5)).multiplyScalar(speed * (0.5 + Math.random()))); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-    const p = new THREE.Points(g, new THREE.PointsMaterial({ color: colour, size: 0.35, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
-    this._spawn(p, 0.7, (o, k, dt) => {
-      const a = o.geometry.attributes.position.array;
-      for (let i = 0; i < n; i++) { vel[i].y -= 30 * dt; a[i * 3] += vel[i].x * dt; a[i * 3 + 1] += vel[i].y * dt; a[i * 3 + 2] += vel[i].z * dt; }
-      o.geometry.attributes.position.needsUpdate = true; o.material.opacity = 1 - k;
-    }, );
-    this.live[this.live.length - 1].dispose = () => { g.dispose(); p.material.dispose(); };
+    const s = this._take(this.pool.sparks);
+    s.n = Math.min(n, this.SPARK_MAX);
+    const a = s.o.geometry.attributes.position.array;
+    for (let i = 0; i < s.n; i++) {
+      a[i * 3] = pos.x; a[i * 3 + 1] = pos.y; a[i * 3 + 2] = pos.z;
+      s.vel[i].set(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).multiplyScalar(speed * (0.5 + Math.random()));
+    }
+    s.o.geometry.attributes.position.needsUpdate = true;
+    s.o.geometry.setDrawRange(0, s.n);          // the buffer is sized for the worst case, not this blast
+    s.o.material.color.set(colour); s.o.material.opacity = 1;
   }
 
   tracer(from, to) {
     if (!this.enabled) return;
     // a bolt stretched from muzzle to impact, fading fast
-    const len = from.distanceTo(to);
-    const b = new THREE.Mesh(this.tracerGeo, this.mat.tracer.clone());
-    b.position.copy(from).lerp(to, 0.5); b.lookAt(to); b.scale.set(1, 1, len);
-    this._spawn(b, 0.1, (o, k) => { o.material.uniforms.fade.value = 1 - k; o.material.uniforms.time.value = this.time; });
-    this.live[this.live.length - 1].dispose = () => b.material.dispose();
+    const s = this._take(this.pool.tracers);
+    s.o.position.copy(from).lerp(to, 0.5); s.o.lookAt(to); s.o.scale.set(1, 1, from.distanceTo(to));
   }
 
   pickupFlash(pos, colour = 0x2df1ff) {
-    const m = new THREE.Mesh(this.geo.plane, ringMaterial(colour));
-    m.position.copy(pos); m.position.y += 0.3; m.rotation.x = -Math.PI / 2;
-    this._spawn(m, 0.5, (o, k) => { const s = 2 + k * 10; o.scale.set(s, s, 1); o.material.uniforms.t.value = k; });
-    this.live[this.live.length - 1].dispose = () => m.material.dispose();
+    const s = this._take(this.pool.pickups);
+    s.o.position.copy(pos); s.o.position.y += 0.3; s.o.material.uniforms.color.value.set(colour);
   }
 
   /** world position of a ribbon point */
@@ -160,19 +204,19 @@ export class Fx {
       if (m.uniforms.time) m.uniforms.time.value = this.time;
       if (m.uniforms.hitT && m.uniforms.hitT.value > 0) { m.uniforms.hitT.value += dt * 2.2; if (m.uniforms.hitT.value >= 1) m.uniforms.hitT.value = 0; }
     }
-    for (let i = this.live.length - 1; i >= 0; i--) {
-      const L = this.live[i];
-      L.t += dt;
-      const k = Math.min(1, L.t / L.life);
-      L.update(L.obj, k, dt);
-      if (k >= 1) { this.scene.remove(L.obj); if (L.dispose) L.dispose(); else L.obj.material?.dispose?.(); this.live.splice(i, 1); }
+    for (const s of this.slots) {
+      if (s.t >= 1) continue;
+      s.t = Math.min(1, s.t + dt / s.life);
+      s.step(s, s.t, dt);
+      if (s.t >= 1) s.o.visible = false;
     }
   }
 
   dispose() {
     for (const m of this.projectiles.values()) this.scene.remove(m);
+    for (const list of Object.values(this.spent)) { for (const m of list) this.scene.remove(m); list.length = 0; }
     this.projectiles.clear(); this.shields.clear(); this.uniformed.clear();
-    for (const L of this.live) this.scene.remove(L.obj);
-    this.live.length = 0;
+    for (const s of this.slots) this.scene.remove(s.o);
+    this.slots.length = 0;
   }
 }

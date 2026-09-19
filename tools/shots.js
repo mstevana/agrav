@@ -70,7 +70,7 @@ for (const track of TRACK_IDS.filter(t => !ONLY || ONLY.includes(t))) {
     else await page.waitForFunction((frac) => { const c = window.__agrav.client; const p = c.myPose(); if (!p || c.raceTickNow() < 300) return false; const L = c.ribbon.length, s0 = frac * L; const d = ((p.s - s0) % L + L) % L; return d < 160; }, AT[i], { timeout: 240000 });
     await page.waitForTimeout(300);
     // pickup flashes and hit rings are not scenery: clear them right before the capture
-    await page.evaluate((hide) => { const sc = window.__agrav.scene(); const fx = sc.fx; for (const e of fx.live) e.obj?.parent?.remove(e.obj); fx.live.length = 0;
+    await page.evaluate((hide) => { const sc = window.__agrav.scene(); const fx = sc.fx; fx.clearEffects();
       // The photographer carries a permanent shield so it survives the race, and the bubble wraps
       // the craft in every frame. Taking it out of the scene graph is the only thing that sticks:
       // renderRace sets shield.visible from the snapshot flags again on the very next frame.
