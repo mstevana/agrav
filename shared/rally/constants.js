@@ -79,11 +79,19 @@ export const HIT_SLOW = Object.freeze({
   wall: 0.82, ram: 0.9, bullet: 0.995, pellet: 0.99, mine: 0.6
 });
 
-/** money, before the track and bot-difficulty multipliers */
+/**
+ * Money, before the track and bot-difficulty multipliers.
+ *
+ * The scale is set by the ladder the brief describes: a driver reaches the
+ * elite car after about five wins, ten second places, or fifteen starts without
+ * one. That is a target for these numbers and the prices in cars.js, not a rule
+ * anywhere in the code — tools/rallysim.js --career walks all three paths and
+ * says where they end up.
+ */
 export const PRIZE = Object.freeze({
-  place: [600, 350, 200, 60, 60, 60],   // by finishing position, 1st first
-  kill: 75,
-  cashMin: 50, cashMax: 150
+  place: [4400, 2500, 2100, 1900, 1800, 1700],   // by finishing position, 1st first
+  kill: 175,
+  cashMin: 80, cashMax: 220
 });
 
 /**
@@ -139,12 +147,12 @@ export const WEAPONS = Object.freeze({
     blurb: 'Accurate, endless and unexciting. It will get the job done from anywhere.'
   },
   shotgun: {
-    id: 'shotgun', name: 'Shotgun', price: 2400,
+    id: 'shotgun', name: 'Shotgun', price: 1600,
     ammo: 44, rate: 1.5, damage: 2.0, range: 34, spread: 0.13, pellets: 6,
     blurb: 'Six pellets and a very short conversation. Useless past a car length or three.'
   },
   minigun: {
-    id: 'minigun', name: 'Minigun', price: 5200,
+    id: 'minigun', name: 'Minigun', price: 3400,
     ammo: 640, rate: 19, damage: 1.15, range: 78, spread: 0.055, pellets: 1, spinUp: 0.4,
     blurb: 'Takes a moment to wind up, then removes an entire car if you can hold it on one.'
   }
@@ -164,7 +172,7 @@ export const MINE = Object.freeze({
 export const NITRO = Object.freeze({ duration: 2.5, boost: 1.4, maxCharges: 3 });
 
 /** the spiked bumper, bought per car */
-export const BUMPER = Object.freeze({ price: 1800, dealt: 3, taken: 0.5 });
+export const BUMPER = Object.freeze({ price: 1400, dealt: 3, taken: 0.5 });
 
 /** what a shot is scored against: where everyone was when the trigger came down */
 export const HITSCAN_REWIND_TICKS = 6;      // about 100 ms

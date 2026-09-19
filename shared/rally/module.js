@@ -10,6 +10,7 @@ import { encodeRallySnapshot, decodeRallySnapshot } from './sim/snapshot.js';
 import { botFor, botInput } from './bot.js';
 import { CAR_IDS, isCarId } from './cars.js';
 import { isWeaponId } from './weapons.js';
+import career from './career.js';
 import { TRACK_IDS } from './tracks/index.js';
 
 /** a bot's car: the average of the humans in the room, so nobody is fed to a Valkyrie */
@@ -62,13 +63,14 @@ export default {
   },
 
   /** the server seats a player from their durable record; nothing here is client-supplied */
-  setCareer(state, id, career) {
+  setCareer(state, id, record) {
     const c = state.byId[id];
     if (!c) return null;
-    (state.owned || (state.owned = {}))[id] = { car: career.car, weapons: career.weapons || ['machinegun'] };
+    const r = career.normalize(record);
+    (state.owned || (state.owned = {}))[id] = { car: r.car, weapons: r.weapons };
     return setCarProfile(state, id, {
-      car: career.car, upgrades: career.upgrades, bumper: career.bumper,
-      hull: career.hull, weapon: career.weapon, name: c.name
+      car: r.car, upgrades: r.upgrades, bumper: r.bumper,
+      hull: r.hull, weapon: r.weapon, name: c.name
     });
   },
 
@@ -99,6 +101,9 @@ export default {
     c.abandoned = true; c.disconnected = true;
     if (!c.finished) { c.dead = true; c.deathTick = state.tick; }
   },
+
+  /** the durable record behind a seat; every rule in it is a pure function */
+  career,
 
   encodeSnapshot: encodeRallySnapshot,
   decodeSnapshot: decodeRallySnapshot,

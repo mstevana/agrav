@@ -13,6 +13,8 @@ import { buildTrackScene, animatePads } from './render/track.js';
 import { makeCarMesh, makeWreckMesh, setDamage, TEAM_COLOURS } from './render/car.js';
 import { Fx } from './render/fx.js';
 import { Audio } from './audio.js';
+import { Garage } from './garage.js';
+import { prizeFor } from '../../shared/rally/career.js';
 import { TRACKS } from '../../shared/rally/tracks/index.js';
 import { WEAPONS } from '../../shared/rally/constants.js';
 import { DT, PHASE } from '../../shared/rally/constants.js';
@@ -50,6 +52,7 @@ const input = new Input();
 const scene = new Scene($('scene'));
 const hud = new Hud($('hud'));
 const audio = new Audio();
+const garage = new Garage($('garage-body'), (action) => net.careerAction(action.action, action));
 let fx = null;
 window.__rally = { app, net, scene, input, audio, fx: () => fx, THREE };
 // browsers will not make a sound until the player has touched the page
@@ -67,7 +70,11 @@ net.onError = (m) => flash(m.message || 'error', 1800);
 net.onRoom = (room) => onRoom(room);
 net.onEvents = (m) => onEvents(m);
 net.onResults = (r) => onResults(r);
-net.onCareer = (m) => { if (m.error && m.error !== 'no-key') flash(m.error, 1600); renderGarage(); };
+net.onCareer = (m) => {
+  if (m.error && m.error !== 'no-key') garage.say(m.error);
+  renderGarage();
+  if (app.screen === 'lobby' && net.room) onRoom(net.room);   // the weapon list may have changed
+};
 
 let connectedName = null;
 async function ensureConnected() {
@@ -137,26 +144,17 @@ $('quick').onclick = async () => {
   if (open) net.joinRoom(open.code);
   else net.createRoom(menuOpts(), OPT.public.checked);
 };
-$('open-garage').onclick = async () => { await ensureConnected(); show('garage'); renderGarage(); };
+$('open-garage').onclick = async () => { await ensureConnected(); net.requestCareer(); show('garage'); renderGarage(); };
 $('garage-close').onclick = () => show(net.room ? 'lobby' : 'menu');
-$('to-garage').onclick = () => { show('garage'); renderGarage(); };
+$('to-garage').onclick = () => { net.requestCareer(); show('garage'); renderGarage(); };
 
-// The garage proper arrives with the career; until then it says what it knows.
 function renderGarage() {
-  const body = $('garage-body');
+  if (app.screen !== 'garage') return;
+  garage.render(net.career, net.careerKey);
   const c = net.career;
-  if (!net.careerKey) {
-    body.innerHTML = '<p class="muted">This browser will not let the game store anything, so there is no record to keep. ' +
-      'You can still race: every start is a stock Vagabond with a machine gun.</p>';
-    return;
-  }
-  if (!c) { body.innerHTML = '<p class="muted">Loading your record…</p>'; return; }
-  body.innerHTML =
-    `<div class="seat"><span class="who">Money</span><span class="money">${c.money ?? 0}</span></div>` +
-    `<div class="seat"><span class="who">Car</span><span class="tag">${c.car ?? 'vagabond'}</span></div>` +
-    `<div class="seat"><span class="who">Hull</span><span class="tag">${Math.round(c.hull ?? 0)} / ${c.maxHull ?? '—'}</span></div>` +
-    `<div class="seat"><span class="who">Races</span><span class="tag">${c.races ?? 0} · ${c.wins ?? 0} wins</span></div>` +
-    '<p class="muted" style="margin-top:14px">Repairs, upgrades, weapons and the rest of the ladder open up shortly.</p>';
+  $('garage-sub').textContent = c
+    ? `${(c.money ?? 0).toLocaleString()} in hand · ${c.races ?? 0} races`
+    : 'repairs first, then anything else';
 }
 
 // ------------------------------------------------------------------- lobby --
@@ -334,24 +332,36 @@ function nameOf(id) { return app.room?.players.find(p => p.id === id)?.name || `
 
 function onResults(r) {
   stopRace();
+  app.lastResults = r;
   const mine = r.order.find(o => o.id === net.me);
   ui.overtitle.textContent = mine && mine.place === 1 ? 'YOU WIN' : 'RESULTS';
   ui.oversub.textContent = r.byElimination ? 'won by being the last car still running' : `${r.laps} laps`;
   ui.overrows.innerHTML = '';
   for (const o of r.order) {
     const tr = document.createElement('tr');
-    const prize = o.eliminated && !o.finished ? '—' : Math.round((PRIZES[o.place - 1] ?? 0) * (r.prizeMultiplier || 1));
+    const prize = prizeFor(o, r.prizeMultiplier).total || '—';
     tr.innerHTML = `<td>${o.place}</td><td class="${o.id === net.me ? 'me' : ''}">${escapeHtml(o.name || nameOf(o.id))}</td>` +
       `<td class="muted">${o.car}</td><td>${o.time ? o.time.toFixed(2) + 's' : o.eliminated ? 'wrecked' : '—'}</td>` +
       `<td>${o.kills || 0}</td><td class="money">${prize}</td>`;
     ui.overrows.appendChild(tr);
   }
-  ui.overmoney.textContent = mine
-    ? `You came home with ${Math.round(mine.hull)} of ${mine.maxHull} hull. Repairs come out of the prize money.`
-    : '';
+  if (mine) {
+    const prize = prizeFor(mine, r.prizeMultiplier);
+    const bits = [];
+    if (prize.place) bits.push(`${prize.place.toLocaleString()} for ${ordinal(mine.place)}`);
+    else bits.push('no place money — you did not come home');
+    if (prize.kills) bits.push(`${prize.kills.toLocaleString()} for ${mine.kills} kill${mine.kills === 1 ? '' : 's'}`);
+    if (prize.cash) bits.push(`${prize.cash.toLocaleString()} picked up`);
+    const hull = `You came home with ${Math.round(mine.hull)} of ${mine.maxHull} hull, and the mechanic wants paying before anything else.`;
+    ui.overmoney.textContent = `${bits.join(' · ')}. ${hull}`;
+  } else ui.overmoney.textContent = '';
   show('over');
 }
-const PRIZES = [600, 350, 200, 60, 60, 60];
+function ordinal(n) {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
+  return `${n}${suffix}`;
+}
 
 // ------------------------------------------------------------------- loop --
 function frame(now) {

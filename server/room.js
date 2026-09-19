@@ -116,6 +116,8 @@ export class Room {
     const out = await this.lobby.career(this.game.id, p.careerKey, null).catch(() => null);
     if (!out?.career || this.destroyed || !this.players.has(p.id) || p.session?.closed) return;
     p.career = out.career;
+    // the lobby wants to show what this player owns, so hand them the record too
+    p.session?.sendJson(MSG.CAREER, { game: this.game.id, career: out.career });
     if (this.phase === 'running') return;   // the seat is already racing on what it had
     p.profile = this.game.setCareer?.(this.state, p.id, out.career) || p.profile;
     this.broadcastRoomState();
@@ -275,10 +277,15 @@ export class Room {
 
   start() {
     if (this.raced) {
-      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since)
+      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since).
+      // A player with a durable record is seated from the record rather than from the
+      // profile they had last time, because the last race is exactly what changed it.
       this.seed = (Math.random() * 0xffffffff) >>> 0;
       this.state = this.game.createMatch(this.opts, this.seed);
-      for (const p of this.players.values()) this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+      for (const p of this.players.values()) {
+        this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+        if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
+      }
       this.raced = false;
     }
     this.phase = 'running';

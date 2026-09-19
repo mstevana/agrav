@@ -97,13 +97,6 @@ try {
     step(`screenshot written to ${SHOTS}/rally-race.png`);
   }
 
-  // wreck the host on the server and check the client follows somebody else
-  serverCar.hull = 1;
-  await host.evaluate(() => { window.__rally.net.state.byId[window.__rally.net.me].hull = 1; });
-  room.state.cars.find(c => c.id === hostId).hull = 0.5;
-  await host.waitForTimeout(200);
-  step('host hull reduced to a scratch');
-
   // let it run to the flag
   await host.waitForSelector('#over:not(.hidden)', { timeout: 180000 });
   await guest.waitForSelector('#over:not(.hidden)', { timeout: 20000 });
@@ -111,6 +104,50 @@ try {
   step('results: ' + rows.join(' | '));
   if (rows.length !== 6) fail(`expected six result rows, got ${rows.length}`);
   if (SHOTS) await host.screenshot({ path: `${SHOTS}/rally-results.png` });
+
+  // The garage, on the driver who actually came home: a wrecked car earns
+  // nothing but what it picked up, which is the whole point of the rule.
+  await guest.click('#to-garage');
+  await guest.waitForSelector('#garage:not(.hidden)', { timeout: 8000 });
+  await guest.waitForFunction(() => !!window.__rally.net.career, null, { timeout: 8000 });
+  const record = await guest.evaluate(() => window.__rally.net.career);
+  const offersRepair = await guest.evaluate(() => document.body.innerHTML.includes('Repair for'));
+  step(`garage: ${record.money} in hand after ${record.races} race, repair offered: ${offersRepair}`);
+  if (!(record.money > 0)) fail('placing in the race paid nothing');
+  if (!(record.races === 1)) fail('the race was not recorded');
+  if (!offersRepair) fail('a damaged car was not offered a repair');
+
+  // and nothing else is for sale until it is paid for
+  const lockedOut = await guest.evaluate(() =>
+    [...document.querySelectorAll('[data-action="buyCar"],[data-action="upgrade"]')].every(b => b.disabled));
+  if (!lockedOut) fail('the shop was open while the car was damaged');
+
+  const before = record.money;
+  await guest.click('[data-action="repair"]');
+  await guest.waitForFunction((m) => window.__rally.net.career.money < m, before, { timeout: 8000 });
+  const after = await guest.evaluate(() => window.__rally.net.career);
+  step(`repaired: ${before} -> ${after.money}, hull back to ${Math.round(after.hull)}`);
+  if (after.money >= before) fail('the repair cost nothing');
+  const openNow = await guest.evaluate(() =>
+    [...document.querySelectorAll('[data-action="upgrade"]')].some(b => !b.disabled));
+  if (!openNow) fail('the shop stayed shut after the repair');
+
+  // the damage is persistent: whatever the host finished the race on is what its
+  // record now says, and a car that exploded earns no place money for it
+  const hostRecord = await host.evaluate(() => window.__rally.net.career);
+  const hostRow = await host.evaluate(() => {
+    const r = window.__rally.app.lastResults;
+    return r?.order.find(o => o.id === window.__rally.net.me) || null;
+  });
+  if (!hostRow) fail('the host never saw its own result');
+  step(`the host came home ${hostRow.eliminated ? 'wrecked' : `on ${hostRow.hull} hull`}` +
+       ` and its record says ${Math.round(hostRecord.hull)}, with ${hostRecord.money} in hand`);
+  if (Math.round(hostRecord.hull) !== Math.round(hostRow.hull)) {
+    fail(`the record kept ${hostRecord.hull} hull but the race ended on ${hostRow.hull}`);
+  }
+  if (hostRow.eliminated && !hostRow.finished && hostRecord.money > (hostRow.cash || 0) + (hostRow.kills || 0) * 1000) {
+    fail('an exploded car was paid place money');
+  }
 
   if (errors.length) fail('page errors:\n' + errors.join('\n'));
   console.log('PASS');

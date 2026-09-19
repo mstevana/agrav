@@ -10,12 +10,15 @@
 //   node tools/rallysim.js --track scrapyard --difficulty hard --cars 6
 //   node tools/rallysim.js --ladder               every car, alone, on every track
 //   node tools/rallysim.js --sweep                how races end at each difficulty
+//   node tools/rallysim.js --career               the three paths up the ladder
 // ============================================================================
 
 import rally from '../shared/rally/module.js';
 import { TRACK_IDS, getTrack } from '../shared/rally/tracks/index.js';
 import { CAR_IDS } from '../shared/rally/cars.js';
 import { buildTrack } from '../shared/rally/sim/track.js';
+import career from '../shared/rally/career.js';
+import { CARS as LADDER } from '../shared/rally/cars.js';
 
 const arg = (name, d) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : d; };
 const has = (name) => process.argv.includes(name);
@@ -144,6 +147,61 @@ function sweepRun() {
   }
 }
 
-if (has('--sweep')) sweepRun();
-else if (has('--ladder')) ladderRun();
-else fieldRun();
+/**
+ * The brief's ladder, walked. A driver reaches the elite car after about five
+ * wins, ten second places or fifteen starts without one — so race a real car
+ * against real bots, settle the record the way the server would, buy whatever
+ * the shop will sell, and see where each path actually ends up.
+ */
+function careerRun() {
+  const top = LADDER[LADDER.length - 1];
+  console.log(`\n=== the ladder · every path buys up as soon as it can, and repairs first ===`);
+  console.log(`    the elite car is the ${top.name} at ${top.price}\n`);
+  for (const path of ['wins', 'seconds', 'starts']) {
+    let record = career.create();
+    const log = [];
+    let raceNo = 0;
+    let reached = null;
+    while (raceNo < 40 && !reached) {
+      raceNo++;
+      // race the car the record actually owns, against a full grid
+      const me = () => ({ car: record.car, upgrades: record.upgrades, bumper: record.bumper,
+                          hull: record.hull, weapon: record.weapon });
+      const r = runRace({
+        track: TRACKS[0], laps: LAPS, cars: CARS, difficulty: DIFF, seed: 700 + raceNo * 131,
+        profiles: (i) => (i === 0 ? me() : {})
+      });
+      // force the placing this path is meant to represent, so each one is the
+      // pure case rather than whatever the bots happened to allow
+      // the placing is the point of the walk, so it is imposed rather than
+      // whatever the bots happened to allow; the damage the car came home with
+      // is real, and so is the repair bill that follows
+      const row = { ...r.results.order.find(o => o.id === 0) };
+      row.place = path === 'wins' ? 1 : path === 'seconds' ? 2 : 2 + (raceNo % 5);
+      row.eliminated = false;
+      row.finished = true;
+      record = career.settle(record, { ...r.results, order: [row] }, 0, {});
+      // spend: repair, then buy the best car the money will reach
+      let out = career.apply(record, { action: 'repair' });
+      if (out.career) record = out.career;
+      for (let i = LADDER.length - 1; i > 0; i--) {
+        const want = LADDER[i];
+        if (want.id === record.car) break;
+        const bought = career.apply(record, { action: 'buyCar', car: want.id });
+        if (bought.career) { record = bought.career; log.push(`  race ${String(raceNo).padStart(2)}: bought the ${want.name} (${record.money} left)`); break; }
+      }
+      if (record.car === top.id) reached = raceNo;
+    }
+    console.log(`  ${path.padEnd(8)} ${reached ? `reached the ${top.name} after ${reached} races` : `did not reach it in ${raceNo} races (money ${record.money}, in a ${record.car})`}`);
+    for (const line of log) console.log(line);
+  }
+}
+// importable: `runRace` is used by the tests and by the career walk, so nothing
+// runs on import unless this file is what was asked for
+const invoked = process.argv[1] && process.argv[1].endsWith('rallysim.js');
+if (invoked) {
+  if (has('--career')) careerRun();
+  else if (has('--sweep')) sweepRun();
+  else if (has('--ladder')) ladderRun();
+  else fieldRun();
+}

@@ -29,31 +29,31 @@ export const CARS = Object.freeze([
     upgradePrice: [260, 420, 640, 920]
   },
   {
-    id: 'mongrel', name: 'Mongrel', tier: 1, price: 1500, repairRate: 1.15,
+    id: 'mongrel', name: 'Mongrel', tier: 1, price: 1100, repairRate: 1.15,
     blurb: 'A flatbed pickup with plate over the doors. Slow to turn, hard to stop.',
     topSpeed: 47, accel: 10.4, grip: 6.0, yawRate: 1.62, hull: 350, mass: 1.22,
     upgradePrice: [380, 600, 900, 1300]
   },
   {
-    id: 'stiletto', name: 'Stiletto', tier: 2, price: 4000, repairRate: 1.60,
+    id: 'stiletto', name: 'Stiletto', tier: 2, price: 2800, repairRate: 1.60,
     blurb: 'A stripped coupe. Quick and sharp, and made of paper.',
     topSpeed: 56, accel: 13.2, grip: 7.4, yawRate: 2.05, hull: 310, mass: 1.05,
     upgradePrice: [560, 880, 1320, 1900]
   },
   {
-    id: 'warden', name: 'Warden', tier: 3, price: 7000, repairRate: 1.90,
+    id: 'warden', name: 'Warden', tier: 3, price: 4600, repairRate: 1.90,
     blurb: 'An armoured saloon that does nothing badly and one thing well: survive.',
     topSpeed: 52, accel: 11.8, grip: 7.6, yawRate: 1.92, hull: 470, mass: 1.45,
     upgradePrice: [720, 1120, 1680, 2400]
   },
   {
-    id: 'behemoth', name: 'Behemoth', tier: 4, price: 11000, repairRate: 2.45,
+    id: 'behemoth', name: 'Behemoth', tier: 4, price: 7500, repairRate: 2.45,
     blurb: 'A truck cab with a blade on the front. It does not go round things.',
     topSpeed: 50, accel: 10.6, grip: 6.4, yawRate: 1.56, hull: 680, mass: 1.95,
     upgradePrice: [900, 1400, 2100, 3000]
   },
   {
-    id: 'valkyrie', name: 'Valkyrie', tier: 5, price: 18000, repairRate: 3.05,
+    id: 'valkyrie', name: 'Valkyrie', tier: 5, price: 12500, repairRate: 3.05,
     blurb: 'The prototype nobody admits to building. Fast, planted and armoured.',
     topSpeed: 66, accel: 16.0, grip: 9.4, yawRate: 2.30, hull: 550, mass: 1.50,
     upgradePrice: [1300, 2000, 3000, 4300]
