@@ -22,7 +22,8 @@ const RULES = {
   padSpacing: 40,       // metres between pads, so a lap is not one long buffet
   gridClearance: 1.5,   // every grid slot this far inside the barrier
   minCornerSpeed: 12,   // the slowest car must still be able to take the tightest bend this fast
-  crossClearance: 3     // two parts of the road this far apart in s must not come closer than this
+  crossClearance: 3,    // two parts of the road this far apart in s must not come closer than this
+  trapMargin: 1.6       // clearance a car needs beyond its own width to take a gap at speed
 };
 
 const targets = process.argv.slice(2).filter(a => !a.startsWith('-'));
@@ -67,15 +68,23 @@ for (const id of ids) {
     }
   }
 
-  // --- obstacles must leave a lane
+  // --- obstacles must leave a lane, and must not leave a trap
+  const carWidth = slowRadius * 2;
   for (const o of track.obstacles) {
     const left = (o.t - o.r) + o.halfWidth;
     const right = o.halfWidth - (o.t + o.r);
     const widest = Math.max(left, right);
+    const narrowest = Math.min(left, right);
     if (widest < RULES.minPassage) {
       problems.push(`the ${o.kind} at s=${o.s.toFixed(0)} leaves only ${widest.toFixed(1)} m to get past ` +
         `(left ${left.toFixed(1)}, right ${right.toFixed(1)}); ${RULES.minPassage} m is the floor`);
-    } else if (Math.min(left, right) > RULES.minPassage) {
+    } else if (narrowest > 0 && narrowest < carWidth + RULES.trapMargin) {
+      // the far side of this one is wide enough to aim at and too narrow to fit
+      // through, which is not a chicane, it is somewhere cars get wedged
+      problems.push(`the ${o.kind} at s=${o.s.toFixed(0)} leaves a ${narrowest.toFixed(1)} m slot on one side: ` +
+        `too narrow for a car ${carWidth.toFixed(1)} m wide, wide enough to try. Close it against the barrier ` +
+        `(push it out past t=${(o.t >= 0 ? o.halfWidth - o.r : -(o.halfWidth - o.r)).toFixed(1)}) or open it to ${(carWidth + RULES.trapMargin).toFixed(1)} m`);
+    } else if (narrowest > RULES.minPassage) {
       notes.push(`the ${o.kind} at s=${o.s.toFixed(0)} can be passed on either side`);
     }
     const placed = nearestOnRibbon(ribbon, o.x, o.z, o.s);

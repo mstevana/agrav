@@ -71,7 +71,9 @@ export const CONTACT = Object.freeze({
   wallHardSpeed: 10,       // hitting a wall this hard costs hull in one go
   wallDamagePerSpeed: 1.3,
   /** a wreck is a burnt shell: it blocks the road, but takes less of it */
-  wreckRadiusFactor: 0.6
+  wreckRadiusFactor: 0.6,
+  /** and it settles aside until at least this much road is open past everything */
+  wreckMinLane: 6.5
 });
 
 /** how much of a nudge is a hit: the share of speed a car keeps after taking one */
@@ -125,7 +127,9 @@ export const BOT = Object.freeze({
   watchTicks: 120,         // the stuck watchdog looks at how far it got in this many ticks
   watchProgress: 6,        // fewer metres of lap than this means it is wedged on something
   reverseTicks: 120,
-  avoidLook: 26,           // metres ahead it watches for a wreck or an obstacle
+  avoidLook: 26,           // metres ahead it watches for a wreck or another car
+  obstacleLook: 55,        // metres ahead it starts choosing its way past what is parked there
+  blockerFade: 0.06,       // how much less a blocker matters per metre of distance
   avoidGain: 1.5,
   avoidMax: 5.5,           // metres the aim point may be shoved aside, however crowded it gets
   padNear: 12,             // a pad nearer than this is already behind the decision

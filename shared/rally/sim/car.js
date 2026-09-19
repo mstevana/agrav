@@ -130,6 +130,10 @@ export function stepCar(track, c, input, dt, frozen = false) {
 
   settle(track, c);
   hitObstacles(track, c);
+  // An obstacle set into the barrier can push a car straight back through it, so
+  // the barrier gets the last word: a car never ends a step inside one, however
+  // tight the pocket it has driven into.
+  settle(track, c);
   return c;
 }
 

@@ -36,7 +36,7 @@ export function botFor(difficulty, id, seedMix = 0) {
     noise: 0.14 - d.skill * 0.06,
     lane: ((id % 5) - 2) * BOT.laneSpread * 0.5,
     phase: (id * 0.37) % 1,
-    aggression: 0.25 + d.skill * 0.40
+    aggression: 0.18 + d.skill * 0.28
   });
 }
 
@@ -98,6 +98,13 @@ export function botInput(race, car, bot, tick) {
   // the private lane and the racing line can both want the same edge; together they
   // never get closer to a barrier than BOT.laneLimit of the room going spare
   let lane = clamp(bot.lane + wobble + inside, -BOT.laneLimit, BOT.laneLimit) * room;
+  // Something parked in the road is not a nudge, it is a decision, and it has to
+  // be one decision about all of it: a chicane with a wreck dropped in it is two
+  // blockers at once, and picking the open side of whichever is nearest makes the
+  // car swap its mind every few metres and wedge between them.
+  const thread = threadable(race, car, room);
+  if (thread) lane = lane * (1 - thread.urgency) + thread.lane * thread.urgency;
+
   // and whatever line it wanted, get off the barrier it is already touching
   const hereRoom = Math.max(1.5, hereFrame(ribbon, c).width / 2 - c.radius - 0.8);
   if (Math.abs(c.t) > hereRoom * BOT.wallNear) {
@@ -146,6 +153,9 @@ export function botInput(race, car, bot, tick) {
   else if (bot.reverseFor <= 0) {
     if (bot.lastProgress === null) { bot.lastProgress = car.progress; bot.watchTick = tick; }
     else if (tick - bot.watchTick >= BOT.watchTicks) {
+      // A longer reverse was tried here and measured worse: seven seconds of
+      // backing up puts a car into whoever is behind it, and on the dock circuit
+      // that cost more races than the pocket it was meant to escape.
       if (car.progress - bot.lastProgress < BOT.watchProgress) bot.reverseFor = BOT.reverseTicks;
       bot.lastProgress = car.progress;
       bot.watchTick = tick;
@@ -247,6 +257,47 @@ function closestBehind(race, car) {
     if (!best || dist < best.dist) best = { car: other, dist };
   }
   return best;
+}
+
+/**
+ * The line through everything parked on the road ahead.
+ *
+ * Every blocker within the lookahead — the track's own obstacles and any burnt
+ * shells, both of which know where they are on the ribbon — is scored against a
+ * fan of candidate lanes, and the lane with the most clearance wins. Blockers
+ * further ahead count for less, so a car threads the thing in front of it first
+ * and still leans toward the side the next one leaves open.
+ */
+function threadable(race, car, room) {
+  const c = car.c;
+  const blockers = [];
+  let nearest = Infinity;
+  const consider = (o) => {
+    if (!Number.isFinite(o.s)) return;        // a wreck the client only knows in world space
+    if (o.id === car.id) return;
+    const ds = deltaS(race.ribbon, c.s, o.s);
+    if (ds < -4 || ds > BOT.obstacleLook) return;
+    blockers.push({ ds: Math.max(0, ds), t: o.t, r: o.r });
+    nearest = Math.min(nearest, Math.max(0, ds));
+  };
+  for (const o of race.track.obstacles) consider(o);
+  for (const w of race.wrecks) consider(w);
+  if (!blockers.length) return null;
+
+  let bestLane = 0, bestScore = -Infinity;
+  const steps = 8;
+  for (let i = -steps; i <= steps; i++) {
+    const lane = (i / steps) * room;
+    let worst = Infinity;
+    for (const b of blockers) {
+      const clearance = Math.abs(lane - b.t) - b.r - c.radius;
+      worst = Math.min(worst, clearance + b.ds * BOT.blockerFade);
+    }
+    // all else equal, stay near the middle rather than hugging a barrier
+    const score = worst - Math.abs(lane) * 0.04;
+    if (score > bestScore) { bestScore = score; bestLane = lane; }
+  }
+  return { lane: bestLane, urgency: clamp(1 - nearest / BOT.obstacleLook, 0, 1) };
 }
 
 /** a push away from the nearest wreck, obstacle or car in the way */

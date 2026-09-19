@@ -49,14 +49,16 @@ export default {
   /**
    * Static circles the cars bounce off, placed along the road like the pads:
    * s is metres round the centreline, t is metres to the driver's right. Each
-   * one eats a chunk of one side and leaves the other side open — tools/rallylint.js
-   * refuses a track where an obstacle leaves no lane worth the name.
+   * one is set into the barrier on its own side and leaves the other side open.
+   * tools/rallylint.js refuses a track where an obstacle leaves no lane worth the
+   * name, and also one that leaves a slot too narrow to drive through but wide
+   * enough to aim at, which is where cars get wedged rather than raced.
    */
   obstacles: [
-    { s:  310, t: -7.0, r: 3.2, kind: 'stack' },    // a car stack on the outside of turn 1's exit
-    { s:  755, t:  6.0, r: 3.0, kind: 'crusher' },  // the crusher, tightening the chicane
-    { s: 1210, t: -8.0, r: 3.0, kind: 'drums' },    // drums on the inside of the hairpin
-    { s: 1414, t:  7.0, r: 2.6, kind: 'stack' }     // one more on the run home
+    { s:  310, t: -8.6, r: 3.2, kind: 'stack' },    // a car stack on the outside of turn 1's exit
+    { s:  755, t:  7.8, r: 3.0, kind: 'crusher' },  // the crusher, tightening the chicane
+    { s: 1210, t: -9.9, r: 3.0, kind: 'drums' },    // drums on the inside of the hairpin
+    { s: 1414, t:  9.2, r: 2.6, kind: 'stack' }     // one more on the run home
   ],
 
   /** pickup pads: s is metres along the centreline, t is metres right of it */

@@ -49,9 +49,23 @@ function carStack(rng, THREE, colours) {
   return g;
 }
 
+/** a rough box with its top pushed about, for rocks and rubble */
+function chunk(rng, THREE, size, colour) {
+  const g = new THREE.BoxGeometry(size, size * (0.7 + rng() * 0.6), size * (0.8 + rng() * 0.5), 2, 2, 2);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setXYZ(i, pos.getX(i) * (0.75 + rng() * 0.5), pos.getY(i) * (0.75 + rng() * 0.5), pos.getZ(i) * (0.75 + rng() * 0.5));
+  }
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat(THREE, colour));
+  m.position.y = size * 0.35;
+  return m;
+}
+
 export const THEMES = {
   scrapyard: {
     sky: 0x9a8d78, skyLight: 0xd8cfb6, groundLight: 0x4a3f33, sunColour: 0xfff0d4,
+    fill: 1.0, sun: 1.45,
     ground: 0x7a6b55, road: 0x4b4540, wall: 0x8c7855, kerbA: 0xd44b3a, kerbB: 0xe8e2d6,
 
     obstacle(o, THREE) {
@@ -110,5 +124,160 @@ export const THEMES = {
       group.add(crane);
       return group;
     }
+  },
+
+  // -------------------------------------------------------------- harbour --
+  harbour: {
+    sky: 0x121c2e, skyLight: 0x6d8ec2, groundLight: 0x1a2130, sunColour: 0xc8d8ff,
+    fill: 3.2, sun: 0.7,
+    ground: 0x2e3541, road: 0x5b6472, wall: 0x78818f, kerbA: 0xe8e2d6, kerbB: 0x39424f,
+
+    obstacle(o, THREE) {
+      const g = new THREE.Group();
+      if (o.kind === 'bollard') {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(o.r * 0.55, o.r * 0.75, 1.5, 10), mat(THREE, 0xd8c23a, { metalness: 0.4 }));
+        post.position.y = 0.75;
+        g.add(post);
+        const chain = new THREE.Mesh(new THREE.TorusGeometry(o.r * 0.8, 0.12, 6, 14), mat(THREE, 0x6a6f78, { metalness: 0.6 }));
+        chain.rotation.x = Math.PI / 2;
+        chain.position.y = 1.1;
+        g.add(chain);
+      } else {
+        const colours = [0xc2542f, 0x2f7ac2, 0x3f9a5a, 0xd0b03a, 0x8a4a9a];
+        for (let i = 0; i < 2; i++) {
+          const box = new THREE.Mesh(new THREE.BoxGeometry(o.r * 2.1, 2.7, o.r * 1.5),
+            mat(THREE, colours[(i * 3 + Math.round(o.s)) % colours.length], { metalness: 0.25 }));
+          box.position.set((i % 2) * 0.4 - 0.2, 1.35 + i * 2.7, 0);
+          box.rotation.y = (i - 0.5) * 0.08;
+          g.add(box);
+        }
+      }
+      return g;
+    },
+
+    scenery(track, rng, THREE) {
+      const group = new THREE.Group();
+      const colours = [0xc2542f, 0x2f7ac2, 0x3f9a5a, 0xd0b03a, 0x8a4a9a, 0x9a3a3a];
+      // stacks of containers, the taller the further back: the parallax is the point
+      group.add(alongside(track, rng, THREE, 17, (r, T) => {
+        const stack = new T.Group();
+        const high = 1 + Math.floor(r() * 4);
+        for (let i = 0; i < high; i++) {
+          const box = new T.Mesh(new T.BoxGeometry(12.2, 2.9, 2.6),
+            mat(T, colours[Math.floor(r() * colours.length)], { metalness: 0.25 }));
+          box.position.set((r() - 0.5) * 1.2, 1.45 + i * 2.95, (r() - 0.5) * 0.8);
+          stack.add(box);
+        }
+        stack.rotation.y = r() < 0.5 ? 0 : Math.PI / 2;
+        return stack;
+      }, { minOffset: 5, maxOffset: 70 }));
+      // gantry cranes striding over the stacks
+      const { ribbon } = track;
+      for (let i = 0; i < 5; i++) {
+        const f = frameAt(ribbon, ribbon.length * (0.08 + i * 0.19));
+        const side = i % 2 ? 1 : -1;
+        const crane = new THREE.Group();
+        const legMat = mat(THREE, 0xd8d2c4, { metalness: 0.35 });
+        for (const dx of [-16, 16]) {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(2.4, 46, 2.4), legMat);
+          leg.position.set(dx, 23, 0);
+          crane.add(leg);
+        }
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(46, 3.2, 3.2), legMat);
+        beam.position.y = 46;
+        crane.add(beam);
+        const boom = new THREE.Mesh(new THREE.BoxGeometry(3, 2.4, 54), legMat);
+        boom.position.set(0, 50, -12);
+        crane.add(boom);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffd98a }));
+        lamp.position.set(0, 52, -34);
+        crane.add(lamp);
+        crane.position.set(f.pos.x + f.right.x * (f.width / 2 + 46) * side, 0, f.pos.z + f.right.z * (f.width / 2 + 46) * side);
+        crane.rotation.y = Math.atan2(f.tangent.x, f.tangent.z);
+        group.add(crane);
+      }
+      // dock lamps close in, so something bright passes the eye every few seconds
+      group.add(alongside(track, rng, THREE, 46, (r, T) => {
+        const post = new T.Group();
+        const mast = new T.Mesh(new T.CylinderGeometry(0.28, 0.4, 13, 7), mat(T, 0x4a505c, { metalness: 0.5 }));
+        mast.position.y = 6.5;
+        const head = new T.Mesh(new T.BoxGeometry(2.2, 0.6, 1.2), new T.MeshBasicMaterial({ color: 0xffe7b0 }));
+        head.position.y = 13;
+        post.add(mast); post.add(head);
+        return post;
+      }, { minOffset: 3, maxOffset: 7 }));
+      return group;
+    }
+  },
+
+  // ---------------------------------------------------------------- ridge --
+  ridge: {
+    sky: 0x9fb6cf, skyLight: 0xd6e4f2, groundLight: 0x3a3a30, sunColour: 0xfff4e0,
+    fill: 1.15, sun: 1.3,
+    ground: 0x5f6b4e, road: 0x54514d, wall: 0x7d7364, kerbA: 0xd44b3a, kerbB: 0xe8e2d6,
+
+    obstacle(o, THREE) {
+      const g = new THREE.Group();
+      const rng = seeded(Math.round(o.s));
+      for (let i = 0; i < 3; i++) {
+        const c = chunk(rng, THREE, o.r * (0.7 + rng() * 0.5), 0x7a7266);
+        c.position.set((rng() - 0.5) * o.r, c.position.y, (rng() - 0.5) * o.r);
+        c.rotation.y = rng() * Math.PI;
+        g.add(c);
+      }
+      return g;
+    },
+
+    scenery(track, rng, THREE) {
+      const group = new THREE.Group();
+      // the cliff face on the inside, boulders and pines on the outside
+      group.add(alongside(track, rng, THREE, 12, (r, T) => {
+        const slab = new T.Mesh(new T.BoxGeometry(14 + r() * 10, 18 + r() * 34, 12 + r() * 10), mat(T, 0x6e6455));
+        slab.position.y = (9 + r() * 17) - 2;
+        slab.rotation.z = (r() - 0.5) * 0.14;
+        return slab;
+      }, { minOffset: 6, maxOffset: 34, sides: [-1] }));
+      group.add(alongside(track, rng, THREE, 15, (r, T) => chunk(r, T, 2 + r() * 5, 0x7a7266),
+        { minOffset: 3, maxOffset: 26, sides: [1] }));
+      // pines, thinning with height
+      group.add(alongside(track, rng, THREE, 11, (r, T) => {
+        const tree = new T.Group();
+        const h = 7 + r() * 9;
+        const trunk = new T.Mesh(new T.CylinderGeometry(0.28, 0.44, h * 0.35, 6), mat(T, 0x4a3a2a));
+        trunk.position.y = h * 0.175;
+        const crown = new T.Mesh(new T.ConeGeometry(1.5 + r() * 1.3, h * 0.85, 7), mat(T, 0x2f4a2a));
+        crown.position.y = h * 0.6;
+        tree.add(trunk); tree.add(crown);
+        return tree;
+      }, { minOffset: 8, maxOffset: 80, sides: [1] }));
+      // and one arch of rock the road runs under
+      const f = frameAt(track.ribbon, track.ribbon.length * 0.63);
+      const arch = new THREE.Group();
+      for (const side of [-1, 1]) {
+        const pier = new THREE.Mesh(new THREE.BoxGeometry(9, 26, 13), mat(THREE, 0x6e6455));
+        pier.position.set(side * (f.width / 2 + 5.5), 13, 0);
+        arch.add(pier);
+      }
+      const span = new THREE.Mesh(new THREE.BoxGeometry(f.width + 24, 8, 13), mat(THREE, 0x6e6455));
+      span.position.y = 28;
+      arch.add(span);
+      arch.position.set(f.pos.x, 0, f.pos.z);
+      arch.rotation.y = Math.atan2(f.tangent.x, f.tangent.z);
+      group.add(arch);
+      return group;
+    }
   }
 };
+
+/** a small deterministic generator, so a given obstacle always looks the same */
+function seeded(a) {
+  a = (a * 2654435761) >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

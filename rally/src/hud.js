@@ -74,13 +74,20 @@ export class Hud {
     g.textAlign = 'right';
     g.fillText(`${Math.round(me.hull)} / ${me.maxHull}`, x + w, y - 10);
     g.textAlign = 'left';
+    // laid out by measuring rather than by guessed offsets: a full magazine is
+    // three digits and used to run straight into the mine count
     g.font = '600 11px system-ui, sans-serif';
-    g.fillStyle = me.ammo > 0 ? '#8b95b4' : '#ff6a5a';
-    g.fillText(`${(me.weapon || 'machinegun').toUpperCase()}  ${me.ammo ?? 0}`, x, y + h + 14);
-    g.fillStyle = '#8b95b4';
-    g.fillText(`MINES ${me.mines ?? 0}`, x + 108, y + h + 14);
-    g.fillStyle = (me.nitroCharges || 0) > 0 ? '#4ad6ff' : '#4a5168';
-    g.fillText(`NOS ${me.nitroCharges ?? 0}`, x + 168, y + h + 14);
+    const row = [
+      { text: `${(me.weapon || 'machinegun').toUpperCase()} ${me.ammo ?? 0}`, colour: me.ammo > 0 ? '#8b95b4' : '#ff6a5a' },
+      { text: `MINES ${me.mines ?? 0}`, colour: (me.mines || 0) > 0 ? '#8b95b4' : '#4a5168' },
+      { text: `NOS ${me.nitroCharges ?? 0}`, colour: (me.nitroCharges || 0) > 0 ? '#4ad6ff' : '#4a5168' }
+    ];
+    let rx = x;
+    for (const item of row) {
+      g.fillStyle = item.colour;
+      g.fillText(item.text, rx, y + h + 14);
+      rx += g.measureText(item.text).width + 12;
+    }
     g.restore();
   }
 

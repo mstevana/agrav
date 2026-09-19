@@ -13,7 +13,7 @@
 // prediction.
 // ============================================================================
 
-import { deltaS } from '../../sim/spline.js';
+import { deltaS, frameAt } from '../../sim/spline.js';
 import { makeRng } from '../../sim/rng.js';
 import { RingBuffer } from '../../sim/ring-buffer.js';
 import { carStats } from '../cars.js';
@@ -177,13 +177,67 @@ export function makeDamage(race, tick) {
     victim.deathTick = tick;
     victim.killer = by;
     victim.c.vx = 0; victim.c.vz = 0; victim.c.fwd = 0; victim.c.lat = 0;
-    // the shell stays where it died and blocks the road for the rest of the race
-    race.wrecks.push({ id: victim.id, x: victim.c.x, z: victim.c.z, yaw: victim.c.yaw,
-                       r: victim.c.radius * CONTACT.wreckRadiusFactor, tick });
+    // a dead car is never stepped again, so anything the last step left set would
+    // stay set: the shell would go on scraping a barrier for the rest of the race
+    victim.c.scraping = false; victim.c.wallHit = 0; victim.c.obstacleHit = 0; victim.c.sliding = false;
+    // The shell stays where it died and blocks the road for the rest of the race.
+    // It keeps its place on the ribbon as well as in the world, because that is
+    // what lets a driver — or a bot — see which side of it the road is still open
+    // from far enough back to do something about it. And it settles toward the
+    // side rather than sitting exactly where the car stopped: three wrecks and a
+    // crusher can otherwise close a chicane into a pocket that nothing gets out of.
+    const r = victim.c.radius * CONTACT.wreckRadiusFactor;
+    const t = settleWreck(race, victim.c.s, victim.c.t, r);
+    const w = frameAt(race.ribbon, victim.c.s);
+    race.wrecks.push({
+      id: victim.id, yaw: victim.c.yaw, s: victim.c.s, t, r, tick,
+      x: w.pos.x + w.right.x * t, z: w.pos.z + w.right.z * t
+    });
     const killer = by >= 0 ? race.byId[by] : null;
     if (killer && killer.id !== victim.id) killer.kills++;
     events.push({ t: 'dead', id: victim.id, by, source });
   };
+}
+
+/** every fixed thing parked within a car's length or two of this point on the road */
+function parkedNear(race, s, span = 12) {
+  const out = [];
+  for (const o of race.track.obstacles) if (Math.abs(deltaS(race.ribbon, o.s, s)) < span) out.push(o);
+  for (const w of race.wrecks) if (Math.abs(deltaS(race.ribbon, w.s, s)) < span) out.push(w);
+  return out;
+}
+
+/** the widest stretch of road left open once everything in `blockers` is on it */
+function widestLane(blockers, half) {
+  const spans = blockers
+    .map(b => [b.t - b.r, b.t + b.r])
+    .sort((a, b) => a[0] - b[0]);
+  let widest = 0, edge = -half;
+  for (const [lo, hi] of spans) {
+    if (lo > edge) widest = Math.max(widest, lo - edge);
+    edge = Math.max(edge, hi);
+  }
+  return Math.max(widest, half - edge);
+}
+
+/**
+ * Where a burnt-out shell comes to rest. It slides toward whichever side of the
+ * road it died on until either it is against the barrier or the rest of the road
+ * is open again, so a wreck narrows a corner but never seals it.
+ */
+export function settleWreck(race, s, t, r) {
+  const half = frameAt(race.ribbon, s).width / 2;
+  const others = parkedNear(race, s);
+  const side = t >= 0 ? 1 : -1;
+  let best = t, bestLane = -Infinity;
+  for (let step = 0; step <= 24; step++) {
+    const cand = t + side * step * 0.5;
+    if (Math.abs(cand) + r > half + r * 0.5) break;          // as far into the barrier as it will go
+    const lane = widestLane([...others, { t: cand, r }], half);
+    if (lane > bestLane) { bestLane = lane; best = cand; }
+    if (lane >= CONTACT.wreckMinLane) return cand;
+  }
+  return best;
 }
 
 export function stepRace(race, tick, events) {

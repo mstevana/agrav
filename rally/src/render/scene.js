@@ -58,9 +58,11 @@ export class Scene {
     this.three.background = new THREE.Color(theme.sky);
     this.three.fog = LITE ? null : new THREE.Fog(theme.sky, 260, 900);
 
-    const hemi = new THREE.HemisphereLight(theme.skyLight, theme.groundLight, 1.0);
+    // each theme says how bright its own sky is: a night dock needs far more
+    // fill and far less sun than a scrapyard at noon, or the road goes black
+    const hemi = new THREE.HemisphereLight(theme.skyLight, theme.groundLight, theme.fill ?? 1.0);
     this.three.add(hemi);
-    const sun = new THREE.DirectionalLight(theme.sunColour, 1.45);
+    const sun = new THREE.DirectionalLight(theme.sunColour, theme.sun ?? 1.45);
     sun.position.set(-160, 260, -120);
     if (!LITE) {
       sun.castShadow = true;
