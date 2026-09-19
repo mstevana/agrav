@@ -80,6 +80,7 @@ export class Fx {
     };
     for (const s of this.pool.sparks) s.vel = Array.from({ length: this.SPARK_MAX }, () => new THREE.Vector3());
     this.spent = { rocket: [], missile: [], mine: [] };   // projectile meshes kept back for the next shot
+    for (const kind of Object.keys(this.spent)) { const m = this._buildProjectile(kind); m.visible = false; this.spent[kind].push(m); }
   }
 
   /** the slot furthest through its life: an idle one if there is one, else the oldest still running */
@@ -103,6 +104,34 @@ export class Fx {
     m.material.uniforms.hit.value.copy(local.normalize()); m.material.uniforms.hitT.value = 0.001;
   }
 
+  /**
+   * One projectile of a kind. Building one compiles its shaders, so the pool is seeded at
+   * construction and these compile in the lobby with the rest of the scene rather than when the
+   * first rocket of the race is fired.
+   */
+  _buildProjectile(kind) {
+    const m = new THREE.Group();
+    const mats = [];
+    if (kind === 'mine') {
+      const shell = new THREE.Mesh(this.geo.mine, mineMaterial()); mats.push(shell.material);
+      const core = new THREE.Mesh(this.geo.mineCore, this.mat.mineCore);
+      m.add(shell, core); m.userData.shell = shell;
+    } else {
+      const c = this.colour[kind];
+      const body = new THREE.Mesh(this.geo[kind], boltMaterial(c)); mats.push(body.material);
+      const trail = new THREE.Mesh(this.geo[kind + 'Trail'], trailMaterial(c)); mats.push(trail.material);
+      m.add(body, trail);
+      if (kind === 'missile') { const plume = makePlume(0xffb060, 0.2, 7); plume.position.z = 0.8; plume.scale.set(1, 1, 2.2); plume.material.uniforms.heat.value = 1.1; m.add(plume); mats.push(plume.material); }
+    }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: kind === 'missile' ? 0xff2d95 : kind === 'mine' ? 0xff3030 : 0xffa030, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.scale.set(kind === 'mine' ? 1.6 : 2.4, kind === 'mine' ? 1.6 : 2.4, 1); sp.position.z = kind === 'mine' ? 0 : 0.3;
+    m.add(sp);
+    m.userData.sprite = sp; m.userData.mats = mats; m.userData.kind = kind;
+    for (const mt of mats) this.uniformed.add(mt);
+    this.scene.add(m);
+    return m;
+  }
+
   /** sync projectile meshes to the interpolated list */
   setProjectiles(list) {
     const seen = new Set();
@@ -111,28 +140,7 @@ export class Fx {
       let m = this.projectiles.get(p.id);
       if (!m) m = this.spent[p.kind]?.pop();
       if (m) { m.visible = true; this.projectiles.set(p.id, m); }
-      if (!m) {
-        m = new THREE.Group();
-        const mats = [];
-        if (p.kind === 'mine') {
-          const shell = new THREE.Mesh(this.geo.mine, mineMaterial()); mats.push(shell.material);
-          const core = new THREE.Mesh(this.geo.mineCore, this.mat.mineCore);
-          m.add(shell, core); m.userData.shell = shell;
-        } else {
-          const c = this.colour[p.kind];
-          const body = new THREE.Mesh(this.geo[p.kind], boltMaterial(c)); mats.push(body.material);
-          const trail = new THREE.Mesh(this.geo[p.kind + 'Trail'], trailMaterial(c)); mats.push(trail.material);
-          m.add(body, trail);
-          if (p.kind === 'missile') { const plume = makePlume(0xffb060, 0.2, p.id); plume.position.z = 0.8; plume.scale.set(1, 1, 2.2); plume.material.uniforms.heat.value = 1.1; m.add(plume); mats.push(plume.material); }
-        }
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: p.kind === 'missile' ? 0xff2d95 : p.kind === 'mine' ? 0xff3030 : 0xffa030, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-        sp.scale.set(p.kind === 'mine' ? 1.6 : 2.4, p.kind === 'mine' ? 1.6 : 2.4, 1); sp.position.z = p.kind === 'mine' ? 0 : 0.3;
-        m.add(sp);
-        m.userData.sprite = sp; m.userData.mats = mats; m.userData.kind = p.kind;
-        for (const mt of mats) this.uniformed.add(mt);
-        this.scene.add(m);
-        this.projectiles.set(p.id, m);
-      }
+      if (!m) { m = this._buildProjectile(p.kind); this.projectiles.set(p.id, m); }
       poseObject(m, this.ribbon, p.s, p.t, p.h, p.yaw, 0, p.kind === 'mine' ? 0.7 : 0.9);
       if (p.kind === 'mine') { m.rotation.y += 0.05; m.userData.shell.material.uniforms.armed.value = p.armed ? 1 : 0; m.userData.sprite.material.opacity = p.armed ? 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8)) : 0.15; }
     }
