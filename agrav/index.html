@@ -85,6 +85,10 @@ label.opt { display: flex; align-items: center; justify-content: space-between; 
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .stepper button { border: 0; background: rgba(255,255,255,0.06); width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
 .stepper span { width: 3em; text-align: center; font-weight: 800; }
+#prep { gap: 6px; }
+#prep[hidden] { display: none; }
+#prep-bar { height: 6px; border: 1px solid var(--line); border-radius: 3px; background: rgba(0,0,0,0.5); overflow: hidden; }
+#prep-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.18s ease-out; }
 #fullscreen { justify-content: space-between; }
 #fullscreen[hidden], #fullscreen-tip[hidden], #btn-fullscreen[hidden] { display: none; }
 
@@ -233,6 +237,12 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
           <div id="lobby-track-name" class="muted"></div>
           <div class="row"><button id="btn-leave" class="btn small danger">Leave</button></div>
         </div>
+      </div>
+      <div id="prep" class="col" hidden>
+        <div class="row" style="justify-content: space-between">
+          <span id="prep-label" class="muted">Preparing the track</span><span id="prep-pct" class="muted"></span>
+        </div>
+        <div id="prep-bar"><i id="prep-fill"></i></div>
       </div>
       <div id="fullscreen" class="row">
         <span id="fullscreen-tip" class="muted" style="flex:1">Press <kbd id="fullscreen-key">F11</kbd> for fullscreen</span>

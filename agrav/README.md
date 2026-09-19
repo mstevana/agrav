@@ -12,6 +12,9 @@ surviving craft has finished, or 45 seconds after the first one did. Finished cr
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.
 The room offers fullscreen while you wait for the start, both as the browser's own shortcut
 (F11, or ⌃⌘F on a Mac, which a page cannot press for you) and as a button, which can.
+Choosing a track prepares it there and then, behind a progress bar: terrain and texture sets, the
+scene itself, and every shader it will need. That last part is the long one and it is sliced across
+frames, so the lobby keeps painting -- and the backdrop becomes the track you are about to race.
 
 | Keyboard | Gamepad | Touch |
 |---|---|---|

@@ -97,29 +97,74 @@ function buildScene(trackId, ribbon) {
 // The heavy procedural work -- texture sets, terrain, then the scene itself and its shaders --
 // happens here, in the lobby, off the race start. Debounced, because a host reading down the track
 // list should not build a scene for every card it touches on the way.
-let prewarmed = null, prewarmTimer = 0;
+let prewarmed = null, prewarmTimer = 0, prewarmGen = 0;
 function prewarm(trackId) {
   if (prewarmed === trackId || !TRACKS[trackId]) return;
   prewarmed = trackId;
   clearTimeout(prewarmTimer);
-  prewarmTimer = setTimeout(() => {
-    try {
-      prewarmTrack(TRACKS[trackId].env);
-      if (LITE) return;
-      prewarmEnvironment(ribbonFor(trackId), TRACKS[trackId]);
-      // Build the real scene here and compile its shaders here. Every material variant costs a
-      // compile the first time it is drawn and this scene carries over a hundred, which is far too
-      // much to spend on the start line -- so it is spent in the lobby, where the player is only
-      // waiting anyway, and enterRace finds the scene already standing. Only start while there is
-      // still a lobby to wait in; if the race has already begun, enterRace has built it and the
-      // programs compile as they did before, lazily, rather than stalling the grid.
-      if (ui.screen !== 'lobby') return;
-      buildScene(trackId, ribbonFor(trackId));
-      // compileAsync yields between programs where the driver supports it; compile() blocks.
-      if (renderer.compileAsync) renderer.compileAsync(scene.three, camera);
-      else renderer.compile(scene.three, camera);
-    } catch (e) { console.warn('prewarm', e); }
-  }, 400);
+  const gen = ++prewarmGen;
+  prewarmTimer = setTimeout(() => prewarmRun(trackId, gen).catch(e => console.warn('prewarm', e)), 400);
+}
+/** wait for a painted frame, so the progress bar the player is watching actually moves */
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+function prewarmProgress(frac, label) {
+  const el = $('prep');
+  if (frac == null) { el.hidden = true; return; }
+  el.hidden = false;
+  if (label) $('prep-label').textContent = label;
+  const pct = Math.round(frac * 100);
+  $('prep-fill').style.width = pct + '%';
+  $('prep-pct').textContent = pct + '%';
+}
+/**
+ * Prepare a track while the player waits in the lobby. The two procedural steps are single
+ * synchronous blocks and can only move the bar either side of themselves; the shader compile is the
+ * long pole and it is sliced across frames, so that part genuinely animates. The slice is by
+ * elapsed time rather than a fixed count, so a slow machine yields just as often as a fast one.
+ */
+async function prewarmRun(trackId, gen) {
+  const live = () => gen === prewarmGen && ui.screen === 'lobby';
+  const name = TRACKS[trackId].name || 'the track';
+  try {
+    prewarmProgress(0.02, `Preparing ${name}`);
+    await nextFrame();
+    if (!live()) return;
+    prewarmTrack(TRACKS[trackId].env);
+    if (LITE || !live()) return;
+    prewarmProgress(0.12, 'Raising the terrain');
+    await nextFrame();
+    prewarmEnvironment(ribbonFor(trackId), TRACKS[trackId]);
+    if (!live()) return;
+    prewarmProgress(0.4, `Building ${name}`);
+    await nextFrame();
+    buildScene(trackId, ribbonFor(trackId));
+    if (!live()) return;
+    // One object per distinct material: compiling them is what used to happen lazily over the
+    // opening frames of the race. renderer.compile takes any object and, given the real scene as
+    // its third argument, compiles against that scene's lighting -- so a subtree at a time still
+    // produces exactly the programs the race will ask for.
+    prewarmProgress(0.5, 'Compiling shaders');
+    await nextFrame();
+    const owners = new Map();
+    scene.three.traverse(o => {
+      const m = o.material;
+      if (m) for (const x of (Array.isArray(m) ? m : [m])) if (x && !owners.has(x.uuid)) owners.set(x.uuid, o);
+    });
+    const items = [...owners.values()];
+    let t0 = performance.now();
+    for (let i = 0; i < items.length; i++) {
+      renderer.compile(items[i], camera, scene.three);
+      if (performance.now() - t0 < 12) continue;
+      prewarmProgress(0.5 + 0.5 * (i + 1) / items.length, 'Compiling shaders');
+      await nextFrame();
+      if (!live()) return;
+      t0 = performance.now();
+    }
+    prewarmProgress(1, `${name} ready`);
+    await nextFrame();
+  } finally {
+    prewarmProgress(null);
+  }
 }
 const _sunTarget = new THREE.Vector3(), _fwd = new THREE.Vector3();
 function followSun(camera) {
