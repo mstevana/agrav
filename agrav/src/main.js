@@ -94,12 +94,32 @@ function buildScene(trackId, ribbon) {
   scene = { three, trackId, env, track: t, crafts: new Map(), fx, ribbon, trackDef: track };
   hud.setTrackMap(ribbon);
 }
-// the heavy procedural work (texture sets, terrain) happens here, off the race start
-let prewarmed = null;
+// The heavy procedural work -- texture sets, terrain, then the scene itself and its shaders --
+// happens here, in the lobby, off the race start. Debounced, because a host reading down the track
+// list should not build a scene for every card it touches on the way.
+let prewarmed = null, prewarmTimer = 0;
 function prewarm(trackId) {
   if (prewarmed === trackId || !TRACKS[trackId]) return;
   prewarmed = trackId;
-  setTimeout(() => { try { prewarmTrack(TRACKS[trackId].env); if (!LITE) prewarmEnvironment(ribbonFor(trackId), TRACKS[trackId]); } catch (e) { console.warn('prewarm', e); } }, 60);
+  clearTimeout(prewarmTimer);
+  prewarmTimer = setTimeout(() => {
+    try {
+      prewarmTrack(TRACKS[trackId].env);
+      if (LITE) return;
+      prewarmEnvironment(ribbonFor(trackId), TRACKS[trackId]);
+      // Build the real scene here and compile its shaders here. Every material variant costs a
+      // compile the first time it is drawn and this scene carries over a hundred, which is far too
+      // much to spend on the start line -- so it is spent in the lobby, where the player is only
+      // waiting anyway, and enterRace finds the scene already standing. Only start while there is
+      // still a lobby to wait in; if the race has already begun, enterRace has built it and the
+      // programs compile as they did before, lazily, rather than stalling the grid.
+      if (ui.screen !== 'lobby') return;
+      buildScene(trackId, ribbonFor(trackId));
+      // compileAsync yields between programs where the driver supports it; compile() blocks.
+      if (renderer.compileAsync) renderer.compileAsync(scene.three, camera);
+      else renderer.compile(scene.three, camera);
+    } catch (e) { console.warn('prewarm', e); }
+  }, 400);
 }
 const _sunTarget = new THREE.Vector3(), _fwd = new THREE.Vector3();
 function followSun(camera) {

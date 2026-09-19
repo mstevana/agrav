@@ -250,18 +250,50 @@ export function buildHell(scene, ribbon, track) {
   const spawn = (obj, life, update, dispose) => { scene.add(obj); live.push({ obj, t: 0, life, update, dispose }); };
   const coarse = []; for (let i = 0; i < ribbon.count; i += 3) coarse.push(ribbon.frames[i]);
   const nearRoad = (x, z) => { for (const q of coarse) { const dx = q.pos.x - x, dz = q.pos.z - z, need = q.width / 2 + 22; if (dx * dx + dz * dz < need * need) return true; } return false; };
+  // Impacts used to build their materials and geometry fresh each time and dispose them after, which
+  // meant a shader program compiled and thrown away per explosion -- about one a second here -- and
+  // a light added to and removed from the scene, which recompiles EVERY material in the scene
+  // against the new light count. That pair was the first-load hitch. So an impact now animates a
+  // slot from fixed pools that live in the scene from the start: nothing is created, disposed, or
+  // added mid-race, and the light count never moves. Each slot owns its object outright and is
+  // driven from update(), so reusing one that is still running simply restarts it rather than
+  // leaving two animations fighting over the same buffer.
+  const SPARKS = 30, BALL_LIFE = 0.75, RING_LIFE = 0.6, SPARK_LIFE = 1.4, FLASH_LIFE = 0.5;
+  const oldest = (a) => a.reduce((x, y) => (y.t > x.t ? y : x));
+  const ringGeo = new THREE.PlaneGeometry(1, 1);
+  const balls = [], rings = [], sparks = [], flashes = [];
+  for (let i = 0; i < 4; i++) {
+    const ball = new THREE.Mesh(fireGeo, fireballMaterial(i * 2.5));
+    const ring = new THREE.Mesh(ringGeo, ringMaterial(0xff8a30)); ring.rotation.x = -Math.PI / 2;
+    const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARKS * 3), 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffb060, size: 0.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
+    for (const o of [ball, ring, pts]) { o.visible = false; o.frustumCulled = false; o.userData.noShadow = true; scene.add(o); }
+    balls.push({ o: ball, t: 1 }); rings.push({ o: ring, t: 1 });
+    sparks.push({ o: pts, vel: Array.from({ length: SPARKS }, () => new THREE.Vector3()), t: 1 });
+  }
+  // three lights is well clear of the overlap: about one impact a second, each lit for half of one
+  for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xffa050, 0, 200, 1.5); scene.add(l); flashes.push({ l, t: 1 }); }
+
   const impact = (p, size) => {
-    const ball = new THREE.Mesh(fireGeo, fireballMaterial(rng() * 10)); ball.position.copy(p); ball.rotation.set(rng() * 3, rng() * 3, 0);
-    spawn(ball, 0.75, (o, k) => { const s = size * (1 + Math.sqrt(k) * 4); o.scale.set(s, s, s); o.material.uniforms.t.value = k; }, () => ball.material.dispose());
-    const ring = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ringMaterial(0xff8a30)); ring.position.copy(p); ring.position.y += 0.4; ring.rotation.x = -Math.PI / 2;
-    spawn(ring, 0.6, (o, k) => { const s = size * (3 + k * 14); o.scale.set(s, s, 1); o.material.uniforms.t.value = k; }, () => { ring.material.dispose(); ring.geometry.dispose(); });
-    const flash = new THREE.PointLight(0xffa050, 90, size * 40, 1.5); flash.position.copy(p); flash.position.y += 4;
-    spawn(flash, 0.5, (o, k) => { o.intensity = 90 * (1 - k); }, () => {});
-    const n = 30, pts = new Float32Array(n * 3), vel = [];
-    for (let i = 0; i < n; i++) { pts[i * 3] = p.x; pts[i * 3 + 1] = p.y; pts[i * 3 + 2] = p.z; vel.push(new THREE.Vector3(rng() - 0.5, rng() * 0.9, rng() - 0.5).multiplyScalar(size * 12 * (0.5 + rng()))); }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-    const sp = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffb060, size: 0.6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true }));
-    spawn(sp, 1.4, (o, k, dt) => { const a = o.geometry.attributes.position.array; for (let i = 0; i < n; i++) { vel[i].y -= 30 * dt; a[i * 3] += vel[i].x * dt; a[i * 3 + 1] += vel[i].y * dt; a[i * 3 + 2] += vel[i].z * dt; } o.geometry.attributes.position.needsUpdate = true; o.material.opacity = 1 - k; }, () => { g.dispose(); sp.material.dispose(); });
+    const b = oldest(balls); b.t = 0; b.size = size; b.o.visible = true; b.o.position.copy(p); b.o.rotation.set(rng() * 3, rng() * 3, 0);
+    const r = oldest(rings); r.t = 0; r.size = size; r.o.visible = true; r.o.position.copy(p); r.o.position.y += 0.4;
+    const f = oldest(flashes); f.t = 0; f.l.distance = size * 40; f.l.position.copy(p); f.l.position.y += 4;
+    const s = oldest(sparks), a = s.o.geometry.attributes.position.array;
+    for (let i = 0; i < SPARKS; i++) { a[i * 3] = p.x; a[i * 3 + 1] = p.y; a[i * 3 + 2] = p.z; s.vel[i].set(rng() - 0.5, rng() * 0.9, rng() - 0.5).multiplyScalar(size * 12 * (0.5 + rng())); }
+    s.o.geometry.attributes.position.needsUpdate = true; s.t = 0; s.o.visible = true;
+  };
+  /** drive every impact pool; each slot retires itself by hiding when its life is spent */
+  const stepImpacts = (dt) => {
+    for (const b of balls) if (b.t < 1) { b.t = Math.min(1, b.t + dt / BALL_LIFE); const k = b.size * (1 + Math.sqrt(b.t) * 4); b.o.scale.set(k, k, k); b.o.material.uniforms.t.value = b.t; if (b.t >= 1) b.o.visible = false; }
+    for (const r of rings) if (r.t < 1) { r.t = Math.min(1, r.t + dt / RING_LIFE); const k = r.size * (3 + r.t * 14); r.o.scale.set(k, k, 1); r.o.material.uniforms.t.value = r.t; if (r.t >= 1) r.o.visible = false; }
+    for (const f of flashes) if (f.t < 1) { f.t = Math.min(1, f.t + dt / FLASH_LIFE); f.l.intensity = 90 * (1 - f.t); }
+    for (const s of sparks) if (s.t < 1) {
+      s.t = Math.min(1, s.t + dt / SPARK_LIFE);
+      const a = s.o.geometry.attributes.position.array;
+      for (let i = 0; i < SPARKS; i++) { s.vel[i].y -= 30 * dt; a[i * 3] += s.vel[i].x * dt; a[i * 3 + 1] += s.vel[i].y * dt; a[i * 3 + 2] += s.vel[i].z * dt; }
+      s.o.geometry.attributes.position.needsUpdate = true; s.o.material.opacity = 1 - s.t;
+      if (s.t >= 1) s.o.visible = false;
+    }
   };
   const meteors = [];
   const trailGeo = trailGeometry(3.2, 70);
@@ -300,6 +332,7 @@ export function buildHell(scene, ribbon, track) {
       heat.value = t;
       lavaMat.userData.time.value = t; roadMat.userData.time.value = t; fallMat.userData.time.value = t;
       ash.tick(dt, camera);
+      stepImpacts(dt);
       for (const { l, ph } of lakeLights) l.intensity = 40 + Math.sin(t * 1.9 + ph) * 9 + Math.sin(t * 5.3 + ph * 2) * 5;
       // the fine tier is hidden when the governor sheds detail, so do not pay to simulate it
       if (detail) {
