@@ -16,6 +16,9 @@ Environment=HOST=127.0.0.1
 Environment=PORT=8080
 Environment=MAX_ROOMS=64
 Environment=LOG_LEVEL=info
+Environment=DATA_DIR=/var/lib/agrav
+# careers and other durable records; created and owned by the service user
+StateDirectory=agrav
 ExecStart=/usr/bin/node server/index.js
 Restart=always
 RestartSec=2

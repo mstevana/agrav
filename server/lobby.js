@@ -6,6 +6,7 @@
 import { MSG } from '../shared/net/protocol.js';
 import { Room } from './room.js';
 import { loadGame, listGames } from './games.js';
+import { createStore } from './store.js';
 import { config } from './config.js';
 import { log } from './log.js';
 
@@ -16,6 +17,8 @@ export class Lobby {
     this.rooms = new Map();          // code -> Room
     this.tokens = new Map();         // token -> { session|null, room, playerId, expires }
     this.opts = opts;
+    /** durable player records (careers); games that keep none never touch it */
+    this.store = opts.store || createStore();
     this.reaper = setInterval(() => this.reap(), 10000);
     if (this.reaper.unref) this.reaper.unref();
   }
@@ -115,8 +118,26 @@ export class Lobby {
     return { rooms: this.rooms.size, players, tickP95Ms: +ticksP95.toFixed(2), games: this.games() };
   }
 
+  /**
+   * Read (creating on first sight) a caller's persistent record for a game, and
+   * optionally spend in its shop. All career rules are the module's pure functions;
+   * the lobby only moves records between the store and the module.
+   */
+  async career(gameId, key, action) {
+    const game = await loadGame(gameId);
+    if (!game?.career) return { error: 'game' };
+    let career = await this.store.get(gameId, key);
+    if (!career) { career = game.career.create(); this.store.set(gameId, key, career); }
+    if (!action || action === 'get') return { career };
+    const out = game.career.apply(career, action);
+    if (out.error) return { error: out.error, career };
+    this.store.set(gameId, key, out.career);
+    return { career: out.career };
+  }
+
   close() {
     clearInterval(this.reaper);
     for (const r of [...this.rooms.values()]) this.destroyRoom(r);
+    this.store.close?.();
   }
 }

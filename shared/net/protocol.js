@@ -12,7 +12,7 @@
 import { ByteWriter, ByteReader } from './bytes.js';
 
 /** bump whenever a binary layout or a control message shape changes */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const MSG = Object.freeze({
   // control (JSON)
@@ -34,11 +34,14 @@ export const MSG = Object.freeze({
   RESULTS: 16,     // s->c {results}
   LIST_ROOMS: 17,  // c->s {} -> s->c {rooms:[...]}
   LOADED: 18,      // c->s {}   the client has built the race scene; the grid holds until everyone has (or a timeout)
-  // hot path (binary)
-  PING: 20,        // c->s  u32 clientTimeMs
-  PONG: 21,        // s->c  u32 clientTimeMs, u32 serverTick, u16 tickMs*100
-  INPUT: 22,       // c->s  u8 count, then count × input record (newest last)
-  SNAPSHOT: 23     // s->c  u32 tick, u16 lastInputSeq, i8 margin, u8 phase, then game payload
+  CAREER: 19,      // s->c {game, career} | {game, error}   the caller's persistent record for a game
+  CAREER_ACTION: 20, // c->s {game, action, ...}            read it ('get') or spend in the shop
+  // hot path (binary). Control types stay below HOT so a new control message
+  // never has to renumber the binary ones.
+  PING: 32,        // c->s  u32 clientTimeMs
+  PONG: 33,        // s->c  u32 clientTimeMs, u32 serverTick, u16 tickMs*100
+  INPUT: 34,       // c->s  u8 count, then count × input record (newest last)
+  SNAPSHOT: 35     // s->c  u32 tick, u16 lastInputSeq, i8 margin, u8 phase, then game payload
 });
 
 const enc = new TextEncoder();
@@ -61,7 +64,8 @@ export function decodeJson(u8) {
 
 export function messageType(u8) { return u8[0]; }
 
-export const isJsonType = (t) => t < 20;
+export const HOT = 32;
+export const isJsonType = (t) => t < HOT;
 
 // -------------------------------------------------------------- inputs ----
 
@@ -132,7 +136,10 @@ export const IN = Object.freeze({
   BRAKE: 2,
   AIRBRAKE_L: 4,
   AIRBRAKE_R: 8,
-  FIRE: 16
+  FIRE: 16,
+  // a car has no airbrakes; it reuses those two bits for its support weapons
+  MINE: 4,
+  NITRO: 8
 });
 
 /** u16 seq comparison that survives wrap */

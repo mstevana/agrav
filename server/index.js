@@ -22,7 +22,7 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.wasm': 'application/wasm', '.woff2': 'font/woff2'
 };
-const HIDDEN = new Set(['node_modules', 'server', 'deploy', 'package.json', 'package-lock.json']);
+const HIDDEN = new Set(['node_modules', 'server', 'deploy', 'data', 'package.json', 'package-lock.json']);
 
 export function createServer(lobby = new Lobby()) {
   const root = path.resolve(config.staticRoot);
