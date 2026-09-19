@@ -43,6 +43,11 @@ forward part of its velocity and the tyres scrub the sideways part; how fast
 they scrub it is the Handling stat. Let go of enough of it and the car is
 sliding, with less grip and less steering, and the barrier is right there.
 
+Anything you are pressed against — a barrier, a container, a burnt-out shell —
+takes speed off along it in proportion to how hard you are leaning on it, and
+pushes you out of it in proportion to how far in you are. Leaning on a wall is
+expensive and getting shunted into one is worse, but neither of them parks you.
+
 | | Speed | Handling | Armour | |
 |---|---|---|---|---|
 | **Vagabond** | − | − | − | a rounded little beetle with a roll cage bolted through the roof |

@@ -359,12 +359,13 @@ function hitWrecks(race, car) {
     const nx = dx / d, nz = dz / d, pen = min - d;
     c.x += nx * pen; c.z += nz * pen;
     const into = -(c.vx * nx + c.vz * nz);
-    if (into <= 0) continue;
-    c.vx += nx * into * (1 + CONTACT.restitution);
-    c.vz += nz * into * (1 + CONTACT.restitution);
-    const keep = 1 - CONTACT.wallFriction * Math.min(1, into / 20);
-    c.vx *= keep; c.vz *= keep;
-    if (into > CONTACT.wallHardSpeed) c.obstacleHit = Math.max(c.obstacleHit, into);
+    if (into > 0) {
+      c.vx += nx * into * (1 + CONTACT.restitution);
+      c.vz += nz * into * (1 + CONTACT.restitution);
+      if (into > CONTACT.wallHardSpeed) c.obstacleHit = Math.max(c.obstacleHit, into);
+    }
+    const bias = Math.min(CONTACT.separate, pen * CONTACT.separateGain);
+    c.vx += nx * bias; c.vz += nz * bias;
   }
 }
 
@@ -387,6 +388,16 @@ function resolveContacts(race, events, applyDamage) {
       const wa = mb / (ma + mb), wb = ma / (ma + mb);   // the heavier hull gives way less
       a.x -= nx * pen * wa; a.z -= nz * pen * wa;
       b.x += nx * pen * wb; b.z += nz * pen * wb;
+
+      // Two cars that end up overlapping with no closing speed between them —
+      // side by side into a corner, one of them held on a barrier — used to stay
+      // glued, because only a closing impulse ever pushed anything apart and
+      // there was none. A small separation that grows with the overlap comes out
+      // of the same place a solver's bias term does, and it is what lets a
+      // pinned car squirt free instead of grinding to a halt against the wall.
+      const bias = Math.min(CONTACT.separate, pen * CONTACT.separateGain);
+      a.vx -= nx * bias * wa; a.vz -= nz * bias * wa;
+      b.vx += nx * bias * wb; b.vz += nz * bias * wb;
 
       const relx = b.vx - a.vx, relz = b.vz - a.vz;
       const closing = -(relx * nx + relz * nz);

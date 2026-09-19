@@ -61,7 +61,12 @@ export const CONTACT = Object.freeze({
   friction: 0.22,          // share of the relative tangential speed scrubbed off in a swipe
   loss: 0.16,              // share of speed lost in a hard bump
   wallRestitution: 0.42,
-  wallFriction: 0.55,      // a wall scrubs far more speed than another car does
+  /** how hard a surface a car is pressed against takes its speed away, in m/s^2 */
+  scrubRate: 34,
+  scrubFullPress: 9,       // the press, in m/s, at which that is applied in full
+  /** and the nudge out of anything a car has ended up inside */
+  separate: 2.6,           // m/s, at most
+  separateGain: 7,         // per metre of overlap
   hardHit: 16,             // closing speed (m/s) above which a bump is a ram, not a nudge
   cooldownTicks: 30,       // two cars pressed together hurt each other at most this often
   ramDamage: 11,            // hull off each car in a ram, before bumpers and mass
@@ -116,6 +121,9 @@ export const BOT = Object.freeze({
   lookaheadBase: 22,       // metres ahead the bot aims, at rest
   lookaheadPerSpeed: 0.95, // plus this many metres per m/s
   steerGain: 1.9,
+  crossGain: 2.2,          // how urgently it closes on the lane it wants
+  crossScale: 1.0,
+  crossFloor: 6,           // the speed the cross-track term is divided by, at least
   cornerLook: 70,          // metres of track it reads ahead when deciding to brake
   brakeMargin: 1.0,        // how far over the corner's speed limit it will still carry
   gripUse: 0.5,            // the share of the tyres' lateral limit it plans to use
@@ -127,9 +135,20 @@ export const BOT = Object.freeze({
   watchTicks: 120,         // the stuck watchdog looks at how far it got in this many ticks
   watchProgress: 6,        // fewer metres of lap than this means it is wedged on something
   reverseTicks: 120,
+  reverseClear: 1.4,       // metres of daylight that count as free of a blocker
+  reverseHold: 180,        // ticks the reverse clock can be held while still touching one
   avoidLook: 26,           // metres ahead it watches for a wreck or another car
   obstacleLook: 55,        // metres ahead it starts choosing its way past what is parked there
-  blockerFade: 0.06,       // how much less a blocker matters per metre of distance
+  behindClear: 9,          // metres back at which something stops being in the way
+  clusterSpan: 22,         // blockers within this of the nearest are one decision
+  gapMargin: 0.9,          // how far inside the edges of a gap it will actually go
+  gapReach: 0.15,          // a mild preference for the gap nearest the car
+  gapCross: 3.0,           // and a strong dislike of one on the far side of a wreck
+  yieldFrom: 0.45,         // how close the narrowing has to be before it will give way
+  yieldAlong: 7,           // metres of overlap that count as level with somebody
+  yieldAcross: 4.4,        // and how far to the side still counts as in the way
+  yieldSpeed: 16,          // above this it brakes to drop back; below it just lifts
+  yieldMinSpeed: 9,        // and below this it does not give way at all, it drives
   avoidGain: 1.5,
   avoidMax: 5.5,           // metres the aim point may be shoved aside, however crowded it gets
   padNear: 12,             // a pad nearer than this is already behind the decision

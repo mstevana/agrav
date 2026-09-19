@@ -22,8 +22,9 @@ export function makeBot(opts = {}) {
     skill,
     noise: opts.noise ?? 0.1,
     lane: opts.lane ?? 0,          // its private line, as a share of the half-width
+    gapSlot: opts.gapSlot ?? 0.5,  // and where across a narrow gap it belongs, 0 left to 1 right
     phase: (opts.phase ?? 0) * 100,
-    reverseFor: 0, lastProgress: null, watchTick: 0,
+    reverseFor: 0, reverseHeld: 0, lastProgress: null, watchTick: 0,
     aggression: opts.aggression ?? 0.8, wantPad: -1, lastMineTick: -999
   };
 }
@@ -35,8 +36,11 @@ export function botFor(difficulty, id, seedMix = 0) {
     skill: d.skill * (0.94 + jitter * 0.12),
     noise: 0.14 - d.skill * 0.06,
     lane: ((id % 5) - 2) * BOT.laneSpread * 0.5,
+    // six cars will not fit across a chicane, but they should at least start
+    // from six different places across it rather than all from the middle
+    gapSlot: ((id * 2 + 1) % 6) / 5,
     phase: (id * 0.37) % 1,
-    aggression: 0.18 + d.skill * 0.28
+    aggression: 0.34 + d.skill * 0.60
   });
 }
 
@@ -98,12 +102,17 @@ export function botInput(race, car, bot, tick) {
   // the private lane and the racing line can both want the same edge; together they
   // never get closer to a barrier than BOT.laneLimit of the room going spare
   let lane = clamp(bot.lane + wobble + inside, -BOT.laneLimit, BOT.laneLimit) * room;
-  // Something parked in the road is not a nudge, it is a decision, and it has to
+  // Something parked in the road is a decision about where to be, and it has to
   // be one decision about all of it: a chicane with a wreck dropped in it is two
   // blockers at once, and picking the open side of whichever is nearest makes the
   // car swap its mind every few metres and wedge between them.
-  const thread = threadable(race, car, room);
-  if (thread) lane = lane * (1 - thread.urgency) + thread.lane * thread.urgency;
+  //
+  // What comes back is the gap, not a line. Handing every bot the single best
+  // line is what used to put one of them in the barrier: six cars all aiming at
+  // the same metre of road arrive there together, and the outermost is the one
+  // that runs out of room. Each keeps its own place across the gap instead.
+  const gap = openGap(race, car, room);
+  if (gap) lane = lane * (1 - gap.urgency) + placeInGap(gap, bot.gapSlot) * gap.urgency;
 
   // and whatever line it wanted, get off the barrier it is already touching
   const hereRoom = Math.max(1.5, hereFrame(ribbon, c).width / 2 - c.radius - 0.8);
@@ -135,6 +144,15 @@ export function botInput(race, car, bot, tick) {
   const here = frameAt(ribbon, c.s);
   const give = Math.max(0.15, stats.yawRate * steerAuthority(speed, stats, c.sliding));
   steer += (here.curvature * speed) / give;
+
+  // Then close the gap to the lane it actually wants to be in. Aiming at a point
+  // sixty metres up the road turns a six-metre lane change into a tenth of a
+  // radian, which the feed-forward for the bend the car is already in swamps
+  // completely — a bot on the outside of a corner would hold that line straight
+  // into a container it had seen coming for fifty metres. This is the same
+  // cross-track term a Stanley controller uses, and it is the one that makes the
+  // difference between wanting a lane and taking it.
+  steer += Math.atan2(BOT.crossGain * (lane - c.t), Math.max(BOT.crossFloor, speed)) * BOT.crossScale;
   steer = clamp(steer, -1, 1);
 
   // --- throttle and brakes
@@ -144,6 +162,20 @@ export function botInput(race, car, bot, tick) {
   let bits = 0;
   if (speed > limit * 1.04) bits |= IN.BRAKE;
   else bits |= IN.THROTTLE;
+
+  // Racecraft: nobody goes three wide into a chicane. Six cars are twenty-odd
+  // metres of car and a gap between two rocks is a dozen, so a car that is
+  // level with somebody where the road is about to close has to decide whether
+  // it is the one going through. If the other car has the line, lift and take
+  // the place behind rather than leaning on it until one of you is in the wall.
+  // ...and only ever by lifting. A car that is already crawling has nothing left
+  // to give up, and a yield that can hold the throttle shut at a standstill is
+  // not racecraft, it is a car parked in the middle of the road waiting for
+  // somebody who is themselves waiting.
+  if (speed > BOT.yieldMinSpeed && gap && gap.urgency > BOT.yieldFrom && yieldTo(race, car, gap, lane)) {
+    bits &= ~IN.THROTTLE;
+    if (speed > BOT.yieldSpeed) bits |= IN.BRAKE;
+  }
 
   // --- unstick. The only honest test of stuck is distance: a car that has not
   // got meaningfully further round the lap in a second and a half is wedged,
@@ -156,18 +188,25 @@ export function botInput(race, car, bot, tick) {
       // A longer reverse was tried here and measured worse: seven seconds of
       // backing up puts a car into whoever is behind it, and on the dock circuit
       // that cost more races than the pocket it was meant to escape.
-      if (car.progress - bot.lastProgress < BOT.watchProgress) bot.reverseFor = BOT.reverseTicks;
+      if (car.progress - bot.lastProgress < BOT.watchProgress) { bot.reverseFor = BOT.reverseTicks; bot.reverseHeld = 0; }
       bot.lastProgress = car.progress;
       bot.watchTick = tick;
     }
   }
   if (bot.reverseFor > 0) {
-    bot.reverseFor--;
+    // Backing out has to last until the car is actually out. A fixed count is
+    // enough to break contact with a wreck and no more, so the car rolls forward
+    // a metre and jams on the same shell again — which is where the last of the
+    // lost races went. While something is still within touching distance the
+    // clock is held, up to a limit, so the manoeuvre finishes what it started.
+    const jammed = touching(race, car, BOT.reverseClear);
+    if (jammed && bot.reverseHeld < BOT.reverseHold) bot.reverseHeld++;
+    else bot.reverseFor--;
     // Back out until there is room again. It has to be a committed manoeuvre: a
     // car leaning on a barrier at walking pace has almost no steering to turn
     // with, and only gets any back once it is properly moving, so a brief dab of
     // reverse just puts it back into the same wall.
-    const clear = Math.abs(c.t) < hereRoom * 0.7 && speed > 3;
+    const clear = !jammed && Math.abs(c.t) < hereRoom * 0.7 && speed > 3;
     if (clear || bot.reverseFor === 0) {
       bot.reverseFor = 0;
       bot.lastProgress = car.progress;
@@ -242,6 +281,46 @@ function combat(race, car, bot, tick, worstAhead, speed) {
   return bits;
 }
 
+/**
+ * Whether somebody else has more claim to the gap than this car does.
+ *
+ * Only cars actually level with it count — one behind is not in the way and one
+ * clear ahead has already gone. Of those, the car nearer the middle of what is
+ * still open has the line, and the one being squeezed toward the edge is the
+ * one that has to lift.
+ */
+function yieldTo(race, car, gap, lane) {
+  const c = car.c;
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+  const rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
+  const middle = (gap.lo + gap.hi) / 2;
+  const mine = Math.abs(lane - middle);
+  for (const other of race.cars) {
+    if (other.id === car.id || other.dead || other.finished) continue;
+    const dx = other.c.x - c.x, dz = other.c.z - c.z;
+    const along = dx * fx + dz * fz;
+    const across = dx * rx + dz * rz;
+    if (Math.abs(along) > BOT.yieldAlong || Math.abs(across) > BOT.yieldAcross) continue;
+    // a car already past its own nose has the corner; otherwise the inside line wins
+    if (along > 1.5) return true;
+    if (Math.abs(other.c.t - middle) < mine - 0.4) return true;
+  }
+  return false;
+}
+
+/** is the car still within touching distance of anything parked in the road? */
+function touching(race, car, margin) {
+  const c = car.c;
+  for (const o of race.track.obstacles) {
+    if (Math.hypot(c.x - o.x, c.z - o.z) < c.radius + o.r + margin) return true;
+  }
+  for (const w of race.wrecks) {
+    if (w.id === car.id) continue;
+    if (Math.hypot(c.x - w.x, c.z - w.z) < c.radius + w.r + margin) return true;
+  }
+  return false;
+}
+
 /** the nearest car sitting behind this one, close enough to be a nuisance */
 function closestBehind(race, car) {
   const fx = Math.sin(car.c.yaw), fz = Math.cos(car.c.yaw);
@@ -260,15 +339,14 @@ function closestBehind(race, car) {
 }
 
 /**
- * The line through everything parked on the road ahead.
+ * The stretch of road still open past whatever is parked just ahead.
  *
- * Every blocker within the lookahead — the track's own obstacles and any burnt
- * shells, both of which know where they are on the ribbon — is scored against a
- * fan of candidate lanes, and the lane with the most clearance wins. Blockers
- * further ahead count for less, so a car threads the thing in front of it first
- * and still leans toward the side the next one leaves open.
+ * Only the cluster around the nearest blocker counts: the far half of a chicane
+ * is a separate decision, taken once this one is behind. The gap comes back
+ * already narrowed by the car's own width, so anywhere inside it is somewhere
+ * the car fits.
  */
-function threadable(race, car, room) {
+function openGap(race, car, room) {
   const c = car.c;
   const blockers = [];
   let nearest = Infinity;
@@ -276,28 +354,68 @@ function threadable(race, car, room) {
     if (!Number.isFinite(o.s)) return;        // a wreck the client only knows in world space
     if (o.id === car.id) return;
     const ds = deltaS(race.ribbon, c.s, o.s);
-    if (ds < -4 || ds > BOT.obstacleLook) return;
-    blockers.push({ ds: Math.max(0, ds), t: o.t, r: o.r });
-    nearest = Math.min(nearest, Math.max(0, ds));
+    if (ds > BOT.obstacleLook || ds < -BOT.behindClear) return;
+    // Something level with the car, or just behind its middle, is still very
+    // much in the way — a car jammed on a wreck that sits four metres back used
+    // to ignore it completely and keep aiming a lane straight through it, which
+    // is how a bot lost a minute and a half in one place. It stops mattering
+    // quickly once the car is actually past, hence the sharper scale behind.
+    const near = ds >= 0 ? ds : -ds * (BOT.obstacleLook / BOT.behindClear);
+    blockers.push({ near, t: o.t, r: o.r });
+    nearest = Math.min(nearest, near);
   };
   for (const o of race.track.obstacles) consider(o);
   for (const w of race.wrecks) consider(w);
   if (!blockers.length) return null;
 
-  let bestLane = 0, bestScore = -Infinity;
-  const steps = 8;
-  for (let i = -steps; i <= steps; i++) {
-    const lane = (i / steps) * room;
-    let worst = Infinity;
-    for (const b of blockers) {
-      const clearance = Math.abs(lane - b.t) - b.r - c.radius;
-      worst = Math.min(worst, clearance + b.ds * BOT.blockerFade);
-    }
-    // all else equal, stay near the middle rather than hugging a barrier
-    const score = worst - Math.abs(lane) * 0.04;
-    if (score > bestScore) { bestScore = score; bestLane = lane; }
+  const spans = blockers
+    .filter(b => b.near <= nearest + BOT.clusterSpan)
+    .map(b => [b.t - b.r - c.radius, b.t + b.r + c.radius])
+    .sort((a, b) => a[0] - b[0]);
+
+  // what is left of the road, as intervals a car centre can sit in
+  const free = [];
+  let edge = -room;
+  for (const [a, b] of spans) {
+    if (a > edge) free.push([edge, a]);
+    edge = Math.max(edge, b);
   }
-  return { lane: bestLane, urgency: clamp(1 - nearest / BOT.obstacleLook, 0, 1) };
+  if (edge < room) free.push([edge, room]);
+  if (!free.length) return null;
+
+  // The widest gap is not always the right one. A car jammed between two wrecks
+  // with clear road beyond them cannot get to it without driving through them,
+  // and aiming at it anyway is how a bot sits against the same shell for a
+  // minute. So a gap is worth what it is wide, less what it costs to reach —
+  // and crossing something to get there costs a great deal.
+  let best = null, bestScore = -Infinity;
+  for (const [lo, hi] of free) {
+    const width = hi - lo;
+    if (width <= 0) continue;
+    const aim = clamp(c.t, lo, hi);
+    const reach = Math.abs(aim - c.t);
+    let crossed = 0;
+    const from = Math.min(c.t, aim), to = Math.max(c.t, aim);
+    for (const [a, b] of spans) crossed += Math.max(0, Math.min(b, to) - Math.max(a, from));
+    const score = width - reach * BOT.gapReach - crossed * BOT.gapCross;
+    if (score > bestScore) { bestScore = score; best = [lo, hi]; }
+  }
+  if (!best) return null;
+  return { lo: best[0], hi: best[1], width: best[1] - best[0], urgency: clamp(1 - nearest / BOT.obstacleLook, 0, 1) };
+}
+
+/**
+ * Where in that gap this particular car belongs: the same place across it that
+ * it wanted across the road, so a field spreads through a gap in the order it
+ * arrived rather than converging on the middle of it.
+ */
+function placeInGap(gap, slot) {
+  const middle = (gap.lo + gap.hi) / 2;
+  if (gap.width <= 0) return middle;
+  const margin = Math.min(BOT.gapMargin, gap.width * 0.2);
+  const lo = gap.lo + margin, hi = gap.hi - margin;
+  if (hi <= lo) return middle;
+  return lo + clamp(slot, 0, 1) * (hi - lo);
 }
 
 /** a push away from the nearest wreck, obstacle or car in the way */

@@ -15,10 +15,12 @@ function race({ track, laps = 1, cars = 1, difficulty = 'normal', seed = 99, pro
   rally.start(state, 0);
   const events = [];
   let wall = 0, ticks = 0;
-  // how much of its own racing life each car spent crawling: the honest test of
-  // whether a bot is wedged on something, and one that does not care how the
-  // race happened to end
-  const alive = new Map(), crawling = new Map();
+  // Two measures of whether a bot is stuck rather than racing. The share of its
+  // own racing life spent crawling catches a field that is generally bogged
+  // down; the longest single unbroken crawl catches the thing that actually
+  // ruins a race, which is one car parked against a wreck for a minute while
+  // everybody else laps it.
+  const alive = new Map(), crawling = new Map(), run = new Map(), longest = new Map();
   while (!rally.isOver(state) && ticks < maxSeconds * 60) {
     ticks++;
     for (const c of state.cars) rally.applyInput(state, c.id, rally.botInput(state, c.id, ticks));
@@ -27,11 +29,17 @@ function race({ track, laps = 1, cars = 1, difficulty = 'normal', seed = 99, pro
       if (c.c.scraping || c.c.wallHit) wall++;
       if (c.dead || c.finished || state.phase !== PHASE.RACING) continue;
       alive.set(c.id, (alive.get(c.id) || 0) + 1);
-      if (Math.abs(c.c.fwd) < 5) crawling.set(c.id, (crawling.get(c.id) || 0) + 1);
+      if (Math.abs(c.c.fwd) < 5) {
+        crawling.set(c.id, (crawling.get(c.id) || 0) + 1);
+        const r = (run.get(c.id) || 0) + 1;
+        run.set(c.id, r);
+        if (r > (longest.get(c.id) || 0)) longest.set(c.id, r);
+      } else run.set(c.id, 0);
     }
   }
   const stuckShare = (id) => (crawling.get(id) || 0) / Math.max(1, alive.get(id) || 0);
-  return { state, results: rally.results(state), ticks, stuckShare,
+  const longestStall = (id) => (longest.get(id) || 0) / 60;
+  return { state, results: rally.results(state), ticks, stuckShare, longestStall,
            wallShare: wall / Math.max(1, ticks * cars) };
 }
 
@@ -57,26 +65,20 @@ for (const track of TRACK_IDS) {
     // Finishing is not the measure once there are weapons on the grid: plenty of
     // races end with cars wrecked, and one that ends because a single car is left
     // standing stops wherever that car happened to be. What is measured is that
-    // the field raced — most of it moving most of the time, and nobody parked
-    // against something from early on and never seen again.
-    //
-    // A single bot on the narrow circuits can still lose a lot of a race to a
-    // pocket of wrecks in a chicane; getting that number down is the balance and
-    // hardening pass, not a reason to let a silent pile-up through here.
+    // the field raced, and that nobody spent the race parked on something.
     for (const seed of [11, 2027, 55555]) {
       const r = race({ track, laps: 2, cars: 6, seed });
       assert.equal(r.state.phase, PHASE.FINISHED, 'the race reached an ending');
       const shares = r.state.cars.map(c => r.stuckShare(c.id));
       const average = shares.reduce((a, b) => a + b, 0) / shares.length;
-      assert.ok(average < 0.32,
+      assert.ok(average < 0.12,
         `the field spent ${(average * 100).toFixed(0)}% of the race crawling on average (seed ${seed})`);
-      const distance = r.state.ribbon.length * 2;
       for (const car of r.state.cars) {
-        const went = car.progress / distance;
-        assert.ok(car.dead || car.finished || car.id === r.state.lastAlive || went > 0.08,
-          `car ${car.id} covered ${(went * 100).toFixed(0)}% of the race, still running and not the survivor (seed ${seed})`);
+        const stall = r.longestStall(car.id);
+        assert.ok(stall < 15,
+          `car ${car.id} sat in one place for ${stall.toFixed(0)}s, which is wedged, not racing (seed ${seed})`);
       }
-      assert.ok(r.wallShare < 0.14, `the field spent ${(r.wallShare * 100).toFixed(0)}% of its time against barriers`);
+      assert.ok(r.wallShare < 0.09, `the field spent ${(r.wallShare * 100).toFixed(0)}% of its time against barriers`);
     }
   });
 }

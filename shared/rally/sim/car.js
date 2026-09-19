@@ -77,7 +77,7 @@ export function stepCar(track, c, input, dt, frozen = false) {
 
   if (frozen) {
     c.vx = 0; c.vz = 0; c.fwd = 0; c.lat = 0; c.sliding = false;
-    settle(track, c);
+    settle(track, c, dt);
     return c;
   }
 
@@ -128,17 +128,17 @@ export function stepCar(track, c, input, dt, frozen = false) {
   c.x += c.vx * dt;
   c.z += c.vz * dt;
 
-  settle(track, c);
-  hitObstacles(track, c);
+  settle(track, c, dt);
+  hitObstacles(track, c, dt);
   // An obstacle set into the barrier can push a car straight back through it, so
   // the barrier gets the last word: a car never ends a step inside one, however
   // tight the pocket it has driven into.
-  settle(track, c);
+  settle(track, c, dt);
   return c;
 }
 
 /** find the road under the car, and push it off the barrier if it is through one */
-function settle(track, c) {
+function settle(track, c, dt) {
   const near = nearestOnRibbon(track.ribbon, c.x, c.z, c.s);
   c.s = near.s; c.t = near.t;
   c.frameYaw = Math.atan2(near.frame.tangent.x, near.frame.tangent.z);
@@ -155,16 +155,30 @@ function settle(track, c) {
     c.vx += nx * into * (1 + CONTACT.wallRestitution);
     c.vz += nz * into * (1 + CONTACT.wallRestitution);
     if (into > CONTACT.wallHardSpeed) c.wallHit = into;
-    // scrub speed along the wall as well: hitting one is never free
-    const keep = 1 - CONTACT.wallFriction * Math.min(1, into / 20);
-    c.vx *= keep; c.vz *= keep;
   }
-  const along = Math.hypot(c.vx, c.vz);
-  if (along > CONTACT.scrapeSpeed && !c.wallHit) c.scraping = true;
+  // Scrub along the wall in proportion to how hard the car is pressed into it,
+  // as a deceleration rather than a fraction of everything it is doing. Taking a
+  // share of the whole velocity every step meant a car held against a barrier by
+  // somebody alongside lost almost all its speed within a second and then sat
+  // there, which is where most of a bot's wasted race used to go.
+  scrubAlong(c, nx, nz, Math.max(into, pen * 20), dt);
+  const speed = Math.hypot(c.vx, c.vz);
+  if (speed > CONTACT.scrapeSpeed && !c.wallHit) c.scraping = true;
+}
+
+/** take speed off along a surface the car is pressed against, never across it */
+function scrubAlong(c, nx, nz, press, dt) {
+  const tx = -nz, tz = nx;
+  const along = c.vx * tx + c.vz * tz;
+  if (!along) return;
+  const scrub = CONTACT.scrubRate * Math.min(1, press / CONTACT.scrubFullPress) * dt;
+  const after = Math.sign(along) * Math.max(0, Math.abs(along) - scrub);
+  c.vx += tx * (after - along);
+  c.vz += tz * (after - along);
 }
 
 /** the dead cars, the crusher and the drums that live inside the corridor */
-function hitObstacles(track, c) {
+function hitObstacles(track, c, dt) {
   for (const o of track.obstacles) {
     const dx = c.x - o.x, dz = c.z - o.z;
     const d = Math.hypot(dx, dz), min = c.radius + o.r;
@@ -176,9 +190,12 @@ function hitObstacles(track, c) {
       c.vx += nx * into * (1 + CONTACT.restitution);
       c.vz += nz * into * (1 + CONTACT.restitution);
       if (into > CONTACT.wallHardSpeed) c.obstacleHit = Math.max(c.obstacleHit, into);
-      const keep = 1 - CONTACT.wallFriction * Math.min(1, into / 20);
-      c.vx *= keep; c.vz *= keep;
     }
+    // and a small push out of it, so a car wedged against one is not relying on
+    // steering it does not have at walking pace to get itself free
+    const bias = Math.min(CONTACT.separate, pen * CONTACT.separateGain);
+    c.vx += nx * bias; c.vz += nz * bias;
+    scrubAlong(c, nx, nz, Math.max(into, pen * 20), dt);
   }
 }
 

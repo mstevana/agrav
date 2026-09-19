@@ -647,9 +647,34 @@ paths landed near their stated counts. Bot difficulty was recalibrated after "ha
 out to be *slower* than "easy": skill above one told the bot to carry more speed than the
 car can hold, so it simply arrived at the barrier sooner.
 
-**Still open, for the next pass.** A bot on the two narrow circuits can still lose a large
-part of a race to a pocket of wrecks in a chicane; the field average is fine and the tests
-watch it, but the worst case is a car that spends half a race reversing and re-entering the
-same trap. A longer, straighter recovery was tried and measured worse. The likely answer is
-for the bot to treat "I have been rescued here before" as a reason to pick a different line
-on the approach, rather than a reason to reverse further.
+**The wedging on the narrow circuits is fixed**, and it took five things rather than one.
+Measured over a hundred and forty-four three-lap races of six bots, the longest a car spends
+sitting in one place went from a hundred and one seconds to nine, and the share of its race
+an average bot spends going nowhere went from fifteen per cent to three.
+
+  · A car pressed against a barrier used to lose almost all its speed within a
+    second, because the wall took a share of everything it was doing on every
+    step rather than scrubbing along the surface it was against. It now slows at
+    a rate set by how hard it is pressed, which a car can drive out of.
+  · Two cars touching with no closing speed between them stayed glued, since only
+    a closing impulse ever pushed anything apart. They now separate in proportion
+    to how far they overlap.
+  · A bot could want a lane and not take it: aiming at a point sixty metres ahead
+    turns a six-metre lane change into a tenth of a radian, which the feed-forward
+    for the bend it was already in swamped completely. A cross-track term, the
+    one a Stanley controller uses, closes the gap to the lane it has chosen.
+  · Anything the car was jammed against but slightly behind its own middle was
+    invisible to the gap search, so a bot would aim a lane straight back through
+    the wreck it was stuck on. Things level with or just behind the car now count.
+  · The widest gap is not always the right one. A car boxed in with clear road on
+    the far side of a wreck cannot reach it, and aiming there anyway is how a bot
+    sat in one place for a minute and a half. A gap is now worth what it is wide,
+    less what it costs to reach, and crossing something to get there costs a lot.
+
+Backing out also holds its clock while the car is still within touching distance of
+whatever it is on, because a fixed count was exactly enough to break contact and no more:
+the car would roll forward a metre and jam on the same shell again.
+
+With the bots no longer losing races to the scenery, the aggression that had been turned
+down while they were sitting still being shot at went back up, and five per cent of races
+now end with one car left standing rather than none.
