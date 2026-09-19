@@ -352,9 +352,10 @@ toolkit, which now lives in `shared/gfx/` (`surfaces.js`, `noise.js`, `geom.js`,
 because two games use it.
 
 The camera follows the own car with a look-ahead along its velocity and zooms out with speed.
-It never rotates, so the minimap and the track read the same all race. Cars are low-poly
-meshes with a painted livery atlas (the AGRAV livery generator, scaled down) that takes scorch
-marks as hull drops, and a burnt wreck mesh on death.
+It never rotates, so the minimap and the track read the same all race. Cars are bodies lofted
+from a per-model plan outline, wearing a livery painted in plan on a canvas and projected
+straight down; the paint takes scorch marks as hull drops, and death leaves a burnt-out shell
+of the same body.
 
 `?lite=1` (weak devices, headless tests): flat colours, no props, no bloom, the AGRAV quality
 governor for everything in between.
@@ -710,3 +711,34 @@ a height function, and the simulation never hears about any of it.
     are a few thousand little props now, and a few thousand draw calls is how a
     scene like this stops being sixty frames a second: on the software renderer
     the screenshot tool uses, merging took a frame from 3.6 s to 0.45 s.
+
+**The cars were rebuilt** for the same reason the maps were: a box with a smaller
+box on top is a car only if you already know it is one.
+
+  · The body is lofted along stations from nose to tail, three levels to a
+    section — sill, belt line, then deck or roof — and the plan half-width down
+    the length is what makes a Vagabond a beetle, a Stiletto a coupe and a
+    Behemoth a slab. At racing zoom the outline is most of what the eye gets,
+    so the outline is where the shape lives.
+  · The paint is a canvas drawn in plan and projected straight down, which puts
+    the windscreen, the roof, the panel lines, the rust and a race number
+    exactly where they belong, and hands the flanks the smeared edge of it —
+    which is what a flank should show. It carries its own height and roughness
+    maps, so the glass is glass and the rust is rust.
+  · Headlamps and tail lamps are unlit meshes set into the leading and trailing
+    edges of the deck. On a real car they live on the front face, where from
+    directly above they are one pixel of nothing; where they are now they are
+    the first thing you can see of a car at any distance. The tail lamps
+    brighten under braking and the headlamps go out below a third of a hull.
+  · What the driver bought is on the car: the machine gun, shotgun or minigun
+    on the bonnet, the spiked bumper, and a plate of armour for each upgrade.
+    A minigun's barrels spin while it fires.
+  · The wheels roll at road speed and the front pair steers, the body leans
+    into a slide and pitches under the brakes. None of it is simulated — it is
+    read back out of what the snapshot already said, so it costs nothing and
+    the server never hears about it.
+  · A wreck is the same body sat down on its rims with the roof gone, in
+    scorched metal rather than black, with the cabin a soot-filled hole, ribs
+    where the pillars were, a door off its hinges and panels thrown clear.
+  · `tools/rallycars.js` photographs the whole showroom, from the angle the
+    game uses and from one low enough to see what the shapes are.

@@ -148,6 +148,16 @@ prediction of your own car is bit for bit the server's simulation. See
 [`../shared/net/module-contract.md`](../shared/net/module-contract.md) for how a
 game plugs into the platform.
 
+Every car is a body lofted from its own plan outline — a beetle's wings, a
+coupe's waist, a truck's slab sides — wearing a livery painted in plan on a
+canvas and projected straight down, so the windscreen, the roof, the number and
+the rust all land where they belong. Headlamps and tail lamps are real unlit
+meshes, since at racing zoom they are the first thing you can see of a car.
+What the driver bought shows: the weapon on the bonnet, the spiked bumper, a
+plate of armour for each upgrade.
+
+![The showroom](../docs/screenshots/rally/cars.png)
+
 Every material on a circuit is computed on the client from a height function —
 albedo, normal, bump and roughness — so nothing is downloaded and the server
 knows about none of it. The ground mixes two of them by a vertex attribute, the
@@ -168,4 +178,6 @@ node tools/rallysim.js --ladder          # every car, alone, on every circuit
 node tools/rallynet.js --players 6       # synthetic clients over a lossy socket
 node tools/rallytest.js                  # two headless browsers, a whole race, then the garage
 node tools/rallyshots.js                 # screenshots of every circuit
+node tools/rallycars.js                  # a contact sheet of the showroom
+node tools/rallycars.js --angle 0.42     # the same, from low enough to see the shapes
 ```

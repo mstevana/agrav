@@ -10,7 +10,7 @@ import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Scene, isLite } from './render/scene.js';
 import { buildTrackScene, animatePads, animateOverhead } from './render/track.js';
-import { makeCarMesh, makeWreckMesh, setDamage, TEAM_COLOURS } from './render/car.js';
+import { makeCarMesh, makeWreckMesh, setDamage, animateCar, TEAM_COLOURS } from './render/car.js';
 import { Fx } from './render/fx.js';
 import { Audio } from './audio.js';
 import { Garage } from './garage.js';
@@ -258,11 +258,16 @@ function buildScene(room) {
   app.built = buildTrackScene(scene, track, room.seed);
   fx?.dispose();
   fx = new Fx(scene, track);
-  for (const seat of net.state.cars) {
-    const mesh = makeCarMesh(seat.stats.id, TEAM_COLOURS[seat.id % TEAM_COLOURS.length], { bumper: seat.stats.bumper });
+  net.state.cars.forEach((seat, i) => {
+    const mesh = makeCarMesh(seat.stats.id, TEAM_COLOURS[seat.id % TEAM_COLOURS.length], {
+      bumper: seat.stats.bumper,
+      weapon: seat.weapon,
+      armour: seat.stats.upgrades?.armour ?? 0,
+      number: i + 1
+    });
     scene.three.add(mesh);
     app.meshes.set(seat.id, mesh);
-  }
+  });
   const me = net.state.byId[net.me];
   if (me) scene.follow({ x: me.c.x, z: me.c.z, vx: 0, vz: 0 }, 1, true);
 }
@@ -393,6 +398,7 @@ function drawWorld(view, dt, time) {
     if (car.dead) continue;
     mesh.position.set(car.x, 0, car.z);
     mesh.rotation.y = car.yaw;
+    animateCar(mesh, car, dt);
     setDamage(mesh, car.hull / Math.max(1, car.maxHull));
   }
   for (const w of view.wrecks || []) {
