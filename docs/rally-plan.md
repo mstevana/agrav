@@ -1,4 +1,4 @@
-# RALLY — development plan
+# SCRAP RALLY — development plan
 
 A top-down, parallax, car-combat racer in the spirit of *Death Rally*, as the third game on
 the AGRAV games platform. Up to six drivers on three closed circuits, bots filling every
@@ -6,129 +6,191 @@ empty seat, a race won either by crossing the line first after the required laps
 blowing up everyone else, and a persistent career: money, mandatory repairs, upgrades and a
 ladder of cars from a weak beetle to elite hulls.
 
-Working id: `rally` (folders `shared/rally/` and `rally/`). The display name is a
-placeholder to be picked before the launcher card ships.
+Id: `rally` (folders `shared/rally/` and `rally/`). Display name: **Scrap Rally**.
 
-This document is the plan; it names the pieces, the order to build them in, what each
-milestone must prove, and the decisions still open. It is meant to be revised as the work
-lands.
+This document is the plan: the pieces, the order to build them in, what each milestone must
+prove, and the decisions taken. Every decision below was reviewed one by one; the plan is
+meant to be revised as the work lands, but the decisions stand unless revisited explicitly.
 
 ---
 
-## 1. What the platform already gives, and what it needs
+## 1. Decisions
+
+The resolved decision tree, in dependency order. Sections 2 onward describe how each is
+built.
+
+| # | Decision | Chosen |
+|---|---|---|
+| 1 | Primary device | desktop first, phone supported |
+| 2 | Renderer | three.js, straight-down perspective camera (real parallax), lite mode for weak devices |
+| 3 | Camera | north-up, never rotates; follows the car with look-ahead, zooms out with speed |
+| 4 | Car physics space | free 2D body (x, y, heading); the ribbon is a reference only |
+| 5 | Track boundaries | corridor walls from the ribbon plus authored static circle obstacles |
+| 6 | Death | the wreck stays for the race with a 60 % collision circle; a driver who drops out vanishes |
+| 7 | Elimination win | the race ends immediately when one car is left alive |
+| 8 | Finish | 20-second grace after the first finisher; finished cars take and deal no damage |
+| 9 | Primaries | permanent career purchases, equipped free each race; machine gun owned from the start |
+| 10 | Guns | hitscan with rewind, drawn as tracers; mines are the only simulated entity |
+| 11 | Missiles | not in the first release; the snapshot carries a generic entity list so they can be added |
+| 12 | Laser sight | cosmetic only: shows the target in the cone, never bends the ray |
+| 13 | Mines | 3 per race, free for everyone, hurt the owner too, not refilled by ammo pickups |
+| 14 | Spiked bumper and upgrades | bought per car; a new car starts at level 0 without a bumper |
+| 15 | Career identity | a random key held in the browser, shown once as a transfer code; no accounts |
+| 16 | Store | JSON files on disk behind a three-method `Store` interface |
+| 17 | Entry cost | racing is free; exploded cars earn no place money, only cash pickups and kill bonuses |
+| 18 | Car unlocks | money alone; no reputation gate |
+| 19 | "5 wins / 10 seconds / 15 races" | a balance target for prizes and prices, tested by `rallysim`; wins and places are statistics only |
+| 20 | Buying a car | trade-in: 50 % of the old car's price plus 25 % of what was spent on its upgrades |
+| 21 | Mixed-tier lobbies | allowed; bots take the average human tier; tiers shown in the room list and lobby |
+| 22 | Auto-filled bots | room-level players via a `fillBots` hook; visible, kickable, named in results |
+| 23 | Bot difficulty | host option easy / normal / hard; prizes scale 60 / 100 / 130 % |
+| 24 | Road elevation | flat road; parallax from props, walls and overhead decoration only |
+| 25 | Track selection | host choice, all three from the start; prize multiplier per track |
+| 26 | Steering | car-relative; reverse on brake when stopped |
+| 27 | Input | digital throttle and brake, analog steer; the existing input record is unchanged |
+| 28 | Pickups | fixed authored pads with fixed item types, 20 s respawn; cash spawns randomly |
+| 29 | Milestone order | sim core, client, combat, career, tracks and look, balance |
+| 30 | Delivery | one pull request per milestone; the launcher card ships with M2 |
+| 31 | Name | Scrap Rally |
+
+---
+
+## 2. What the platform already gives, and what it needs
 
 The server (`server/room.js`, `lobby.js`, `session.js`) is game-agnostic: rooms, four-letter
 codes, the public list, host/ready/start, lobby bots, reconnect with a grace period, the
 60 Hz fixed step, 30 Hz binary snapshots, reliable events, results. A game is one module in
 `shared/<game>/module.js` (contract in `shared/net/module-contract.md`), one client folder,
-and one line in `server/games.js`. RALLY reuses all of that unchanged and adds two small,
-generic platform features that neither existing game needed:
+and one line in `server/games.js`. Scrap Rally reuses all of that unchanged and adds two
+small, generic platform features that neither existing game needed:
 
-| Need | Why RALLY needs it | Change |
+| Need | Why | Change |
 |---|---|---|
-| **Auto-fill bots at start** | "bots fill the slots if players are not present" without the host clicking Add bot five times | `Room.requestStart`: if `game.fillBots?.(state)` returns true, add lobby bots up to `maxPlayers` before `start()`. Opt-in per module, so AGRAV and Volley keep their behaviour. |
-| **Per-player persistent data** | money, car damage, upgrades and unlocks must survive the session token, which expires after a reconnect grace | a `server/store.js` (JSON files under `DATA_DIR`, atomic write, in-memory cache) and an optional module `career` hook set (§5). Namespaced by game id, so any future game can keep progression. |
+| **Auto-fill bots at start** | empty seats become bots without the host clicking Add bot five times | `Room.requestStart`: if `game.fillBots?.(state, opts)` returns true, add lobby bots up to `maxPlayers` before `start()`. Opt-in per module, so AGRAV and Volley keep their behaviour. The lobby shows unfilled seats as "empty → bot", the Volley wording. |
+| **Per-player persistent data** | money, car damage, upgrades and ownership must survive the session token, which expires after a reconnect grace | `server/store.js` (JSON files under `DATA_DIR`, atomic write, in-memory cache) and an optional module `career` hook set (§6). Namespaced by game id, so any future game can keep progression. |
 
 Everything else the design needs (weapon choice before the race, mines, pickups, win by
 elimination, lag-compensated guns, bots that shoot) has a working precedent in
 `shared/agrav/` and is ported to a free 2D world rather than invented.
 
 Protocol: two new JSON control messages (`CAREER` s→c, `CAREER_ACTION` c→s) and an optional
-`careerKey` field on HELLO. `PROTOCOL_VERSION` goes to 2, as the comment in
-`shared/net/protocol.js` asks whenever a control shape changes; the existing clients are
-served from the same checkout so they move together.
+`careerKey` field on HELLO. The binary input and snapshot layouts do not change.
+`PROTOCOL_VERSION` goes to 2, as the comment in `shared/net/protocol.js` asks whenever a
+control shape changes; the existing clients are served from the same checkout so they move
+together.
+
+The platform work lands first, as its own pull request (M0), so the two existing games are
+proven unaffected before any game code depends on it.
 
 ---
 
-## 2. Design, resolved into rules
+## 3. Design, resolved into rules
 
-The brief, turned into the numbers and rules the simulation will implement. Every value
-here is a starting point for `shared/rally/constants.js` and is expected to move during the
-balance pass (M6).
+Every value here is a starting point for `shared/rally/constants.js` and is expected to move
+during the balance pass (M6).
 
 ### Race
 
-- Closed circuits seen from above. Three tracks (§7). Lap count is a host option, default 3,
-  range 1–9 like AGRAV.
+- Closed circuits seen from above, north-up. Three tracks (§8). Lap count is a host option,
+  default 3, range 1–9 like AGRAV. The host picks the track.
 - Up to 6 drivers, `minPlayers: 1`. Empty seats fill with bots at start (host option
   `fillBots`, default on). The host can still add or kick bots by hand.
 - **Two ways to win**: cross the line first after the required laps, or be the last car alive.
-  When the alive count drops to one before anyone has finished, that car wins on the spot and
-  the race ends. When the first car finishes, the others get a grace window (20 s) to finish
-  for placing, exactly the AGRAV `FINISH_GRACE_SEC` pattern; an exploded car is placed by the
+  When the alive count drops to one before anyone has finished, that car wins on the spot: a
+  "last driver standing" banner, then results. When the first car finishes, the others get
+  20 seconds to finish for placing (the AGRAV `FINISH_GRACE_SEC` pattern); during the grace a
+  finished car keeps driving but takes no damage and deals none, so a winner cannot camp the
+  line and shoot the second-place car out of its prize. An exploded car is placed by the
   distance it covered.
 - Results: place, finished or eliminated, time, best lap, kills, money earned.
 
 ### Cars are light tanks
 
 - Hull points (armour) come from the car and its Armour upgrade level. Zero hull explodes the
-  car; the wreck stays on the track as an obstacle for the rest of the race, and the driver
-  spectates (tap to follow another car, as in AGRAV).
-- Walls scrape hull away when sliding along them and take a chunk on a hard hit. Manoeuvrability
-  is what keeps you off them (§3, physics).
+  car; the wreck stays on the track for the rest of the race as a burnt shell with a collision
+  circle 60 % of a live car's, so a lane always stays open on the narrowest track. The driver
+  spectates (tap to follow another car, as in AGRAV). A driver who disconnects and runs out
+  the reconnect grace vanishes without a wreck.
+- Walls scrape hull away when sliding along them and take a chunk on a hard hit. Handling is
+  what keeps you off them (§4, physics).
 - Car-to-car contact is mass-weighted (heavier hull gives way less); a hard ram hurts both, a
-  **spiked bumper** makes the rammer's side of the exchange free and the victim's much worse.
+  **spiked bumper** makes the rammer's side of the exchange cheap and the victim's much worse.
 
 ### Weapons
 
 | | Type | Ammo | Notes |
 |---|---|---|---|
-| **Machine gun** | primary, fixed forward, hitscan | 300 rounds | default; low damage, high rate, accurate |
+| **Machine gun** | primary, fixed forward, hitscan | 300 rounds | owned from the start; low damage, high rate, accurate |
 | **Shotgun** | primary, fixed forward, 6-pellet cone hitscan | 40 shells | huge close damage, useless at range, slow refire |
 | **Minigun** | primary, fixed forward, hitscan | 600 rounds | spins up for 0.4 s, then the highest damage per second, strong spread |
-| **Mines** | support, dropped behind | 3 per race | arm after 0.5 s, live for the race, hurt anyone including the owner |
-| **Spiked bumper** | support, passive | owned upgrade | ram damage ×3 dealt, ×0.5 received |
+| **Mines** | support, dropped behind | 3 per race | arm after 0.5 s, live for the race, hurt anyone including the owner; free for everyone; ammo pickups do not refill them |
+| **Spiked bumper** | support, passive | per-car purchase | ram damage ×3 dealt, ×0.5 received |
 
-- The primary weapon is **picked in the lobby** (a profile field, validated by `setProfile`) and
-  costs nothing per race. Owning a weapon is a career purchase (§5); the machine gun is free.
-- **Laser sight / auto-lock**: while a car is inside the gun's cone and within range, the sim
-  marks it as the shooter's lock (nearest by angle, then distance); the client draws the laser
-  line to it and the server applies a small aim assist (rounds curve toward the lock by up to a
-  few degrees). Lock selection runs in the shared sim, so the client's laser line agrees with
-  what the server will hit.
-- Guns are **lag-compensated** with the pose-history rewind already used by the AGRAV
-  minigun (`HISTORY_TICKS`, `HITSCAN_REWIND_TICKS`), rewound to what the shooter saw.
-- Input bits: throttle, brake, fire, mine, nitro. Five bits in the existing `u8`.
+- The primary is a **permanent career purchase** (§6) and is **picked in the lobby** among the
+  weapons the driver owns (a profile field validated by `setProfile`). Ammo is full at every
+  race start.
+- Guns are hitscan: an instant ray (or six rays in a cone for the shotgun) from the muzzle,
+  **lag-compensated** with the pose-history rewind the AGRAV minigun uses (`HISTORY_TICKS`,
+  `HITSCAN_REWIND_TICKS`), so a hit is scored against what the shooter saw. The client draws
+  each shot as a fast tracer streak from the muzzle to the impact point, so it reads as a
+  bullet crossing the screen.
+- **Laser sight**: while a car is inside the gun's cone and range, the shared sim marks it as
+  the shooter's lock (nearest by angle, then distance) and the client draws the laser line to
+  it. The lock is **cosmetic**: the ray goes where the car points. Selecting the lock in the
+  shared sim keeps the client's line honest about what the cone covers.
+- Missiles are out of scope for the first release. The snapshot's entity list is generic
+  (`kind` byte, owner, position, heading, speed, flags), so a rocket is a new kind, not a new
+  format.
+- Input bits: throttle, brake, fire, mine, nitro. Five bits in the existing `u8`; steer stays
+  the one analog value. Throttle and brake are digital.
 
 ### Pickups on the track
 
-Spawn points are authored per track (a list of `{s, t}` in ribbon coordinates, like AGRAV pads).
-A seeded schedule puts one of four items on a random free point every few seconds, so a race
-never has more than a handful live at once. Driving over one takes it.
+Pads are authored per track as `{s, t, item}` in ribbon coordinates, each with a fixed item
+type, so the track is learnable and the bots can plan for them. A taken pad respawns after
+20 seconds. The snapshot carries one availability bit per pad, as AGRAV's does. Cash is the
+exception: it spawns on a seeded random schedule at a random free pad, so it is a bonus and
+not a farm.
 
-| Pickup | Effect | Weight |
-|---|---|---|
-| Ammo | +25 % of the equipped primary's capacity | 4 |
-| Nitro | one charge, 2.5 s of +40 % top speed and accel, fired with the nitro bit | 3 |
-| Repair kit | +30 hull, capped at max | 2 |
-| Cash | money added to the career purse on settlement | 2 |
+| Pickup | Effect |
+|---|---|
+| Ammo | +25 % of the equipped primary's capacity |
+| Nitro | one charge, 2.5 s of +40 % top speed and accel, fired with the nitro bit |
+| Repair kit | +30 hull, capped at max |
+| Cash | 50–150 credits, rolled by the race rng, added to the purse on settlement |
 
 ### Money
 
+Racing costs nothing to enter. Place money goes only to cars that finished or were alive when
+the race ended; an exploded car keeps its cash pickups and kill bonuses.
+
 | Source | Amount |
 |---|---|
-| 1st place | 600 × track multiplier |
+| 1st place | 600 × multipliers |
 | 2nd | 350 × |
 | 3rd | 200 × |
-| 4th–6th | 60 × (participation) |
-| Cash pickup | 50–150, rolled by the race rng |
+| 4th–6th, alive at the end | 60 × |
+| Cash pickup | 50–150 |
 | Kill | 75 |
 
-Track multipliers: 1.0 / 1.3 / 1.6 for the three tracks in difficulty order.
+Multipliers stack in one place in `career.settle`: track 1.0 / 1.3 / 1.6 in difficulty order,
+bot difficulty 0.6 / 1.0 / 1.3 for easy / normal / hard.
 
 ### Persistent damage and mandatory repairs
 
 - The hull you end the race with is the hull you start the next one with. An exploded car comes
   home at 0.
-- Repair costs `(maxHull − hull) × repairRate` where `repairRate` rises with the car tier.
+- Repair costs `(maxHull − hull) × repairRate`, where `repairRate` rises with the car tier.
 - **No purchase is possible while the hull is below max.** The shop returns
-  `{error: 'repair-first'}` and the garage UI greys out every button but Repair.
-- A driver may still race damaged. The garage shows the hull bar in red under a third, the same
-  language as the AGRAV damage readout.
+  `{error: 'repair-first'}` and the garage greys out every button but Repair.
+- A driver may still race damaged: there is no gate. The garage shows the hull bar in red
+  under a third, the AGRAV damage-readout language. Racing a wreck is a gamble, since an
+  exploded car earns no place money.
 
 ### Upgrades
 
-Three stats per car, five levels each. Prices scale with car tier and level.
+Three stats per car, five levels each, **bought per car**: a new car starts at level 0.
+Prices scale with car tier and level.
 
 | Stat | What it moves |
 |---|---|
@@ -138,50 +200,56 @@ Three stats per car, five levels each. Prices scale with car tier and level.
 
 ### Cars and the ladder
 
-Six cars, unlocked by **reputation** and bought with money. Reputation is one scale that
-encodes all three of the brief's paths to the elite tier: a win is 3 points, second place is
-1.5, any other finish (including exploding) is 1. Five wins, ten seconds or fifteen
-participations all reach 15.
+Six cars, each bought with money; there is no other gate. A driver owns one car at a time:
+buying the next is a **trade-in** that refunds 50 % of the old car's price plus 25 % of what
+was spent on its upgrades, shown before confirming. Upgrades and the bumper do not carry over.
 
-| Car | Inspiration | Reputation to unlock | Price | Base speed / handling / armour |
-|---|---|---|---|---|
-| **Vagabond** | a beetle | 0 (starter, owned) | — | low / low / low |
-| **Mongrel** | a pickup | 3 | 1 500 | mid / low / mid |
-| **Stiletto** | a coupé | 6 | 4 000 | high / mid / low |
-| **Warden** | an armoured saloon | 9 | 7 000 | mid / mid / high |
-| **Behemoth** | a truck cab | 12 | 11 000 | mid / low / very high |
-| **Valkyrie** | an elite prototype | 15 | 18 000 | very high / high / high |
+| Car | Inspiration | Price | Base speed / handling / armour |
+|---|---|---|---|
+| **Vagabond** | a beetle | starter, owned | low / low / low |
+| **Mongrel** | a pickup | 1 500 | mid / low / mid |
+| **Stiletto** | a coupé | 4 000 | high / mid / low |
+| **Warden** | an armoured saloon | 7 000 | mid / mid / high |
+| **Behemoth** | a truck cab | 11 000 | mid / low / very high |
+| **Valkyrie** | an elite prototype | 18 000 | very high / high / high |
 
-The names other than Vagabond are placeholders; only the tier structure and the thresholds
-are design.
+The names other than Vagabond are placeholders.
 
-Bots drive the tier of the lobby: each bot gets the car and upgrade level of the average human
-in the room, ±1 tier, so a new Vagabond driver is not fed to Valkyries and an elite driver is
-not handed free wins.
+**Pacing target.** The brief's ladder ("elite cars after about 5 wins, 10 second places, or
+15 participations") is the balance target for prizes and prices, not a rule in the code:
+`tools/rallysim.js` simulates each of the three careers at normal difficulty with the
+expected repair bills and mid-tier trade-ins on the way, and the check is that all three reach
+the Valkyrie within one or two races of those counts. Wins, places and races are stored as
+statistics for the garage and results screens only.
+
+**Mixed lobbies.** Any career can join any room. The room list and the lobby show each
+driver's car tier so a newcomer sees what they are joining, and the bots take the car and
+upgrade level of the average human in the room, ±1 tier, so a new Vagabond driver is not
+fed to Valkyries and an elite driver is not handed free wins.
 
 ---
 
-## 3. Architecture
+## 4. Architecture
 
 ```
 shared/rally/
-  module.js        the contract object: match lifecycle, inputs, bots, snapshot, results, career hooks
+  module.js        the contract object: match lifecycle, inputs, bots, fillBots, snapshot, results, career hooks
   constants.js     tick/snapshot rates, physics, weapons, pickups, prizes, prices, PHASE, input bits
-  cars.js          the six cars: base stats, tier, unlock reputation, price, upgrade tables, hull shape
+  cars.js          the six cars: base stats, tier, price, trade-in, upgrade tables, repair rate, hull shape
   weapons.js       primaries, mines, bumper: fire, hitscan with rewind, cone/pellet spread, lock selection
-  pickups.js       spawn schedule, collection, effects
-  career.js        pure career rules: default profile, settle(results), apply(action) -> {career|error}
+  pickups.js       pads, respawn, the cash schedule, collection, effects
+  career.js        pure career rules: create, apply(action) -> {career|error}, settle(results), profile
   bot.js           racing line follower + combat judgement; also drives tools/rallysim.js
   sim/
-    track.js       track -> {ribbon, walls, spawn points, grid}; nearest-s progress; wall distance
-    car.js         the 2D car model: stepCar(track, car, input, dt)
+    track.js       track -> {ribbon, walls, obstacles, pads, grid}; incremental nearest-s; wall distance
+    car.js         the 2D car model: stepCar(track, car, input, dt), reverse, sliding
     race.js        createRace, addRacer, start, stepRace (contacts, laps, elimination, end), results
-    snapshot.js    encode/decode: cars, wrecks, mines, live pickups, locks
+    snapshot.js    encode/decode: cars, wrecks, entities (mines), pad bits, locks
   tracks/
     index.js       TRACK_IDS, getTrack
     scrapyard.js   track 1: junkyard — wide, forgiving, one hairpin
-    harbour.js     track 2: docks — cranes and containers, a bridge crossing the parallax layer
-    ridge.js       track 3: mountain pass — narrow, long drops beside the road, two chicanes
+    harbour.js     track 2: docks — cranes and containers, a bridge deck overhead as scenery
+    ridge.js       track 3: mountain pass — narrow, drops beside the road, two chicanes
 
 rally/
   index.html       screens: menu, garage, lobby, race HUD, results (CSS inline, as Volley does)
@@ -190,60 +258,67 @@ rally/
     main.js        wiring: menu → garage → lobby → race → results; loop
     net.js         the network client (prediction, reconciliation, interpolation, career messages)
     input.js       keyboard / gamepad / touch → {bits, steer}
-    garage.js      the shop: repair, upgrades, weapons, cars; talks CAREER_ACTION
-    hud.js         hull, ammo, lap, position, minimap, laser line, kill feed
+    garage.js      the shop: repair, upgrades, bumper, weapons, trade-in, transfer code
+    hud.js         hull, ammo, mines, nitro, lap, position, minimap, laser line, kill feed
     audio.js       engines, guns, explosions (synthesized, as AGRAV)
     render/
-      scene.js     three.js top-down camera, layers, follow + look-ahead
-      track.js     ground, road, kerbs, walls from track data; parallax props per theme
-      car.js       car meshes (lofted or sprite-on-quad), liveries, damage state, wreck
+      scene.js     three.js top-down perspective camera, follow + look-ahead, speed zoom, lite mode
+      track.js     ground, road, kerbs, walls, obstacles from track data; parallax props per theme
+      car.js       car meshes, liveries, damage state, wreck
       fx.js        tracers, muzzle flash, explosions, mine glow, nitro flame, pickups
       themes/      scrapyard.js, harbour.js, ridge.js — props and colours per track
 
 server/
-  store.js         JSON-on-disk key/value with atomic writes; DATA_DIR from config
+  store.js         Store interface (get, set, list) over JSON files; atomic writes; DATA_DIR from config
   games.js         + rally line
   room.js          + fillBots at start; + career settle at _finish
   session.js       + careerKey on HELLO; + CAREER / CAREER_ACTION routing
 
 tools/
-  rallysim.js      headless bots-only race per track and car tier: finish rate, lap times, kills
-  rallylint.js     track checks: closed, no self-intersection, min width, grid fits, spawn points on road
+  rallysim.js      headless bots-only races and career pacing: finish rate, lap times, kills, money curves
+  rallylint.js     track checks: closed, no self-intersection, min width with a wreck, obstacles passable, pads on road
   netsim.js        --game rally (drives rally/src/net.js with the rally bot)
-  racetest.js      --game rally (two Chromium clients + bots through to results and the garage)
+  racetest.js      --game rally (two Chromium clients + bots through to results and a repair in the garage)
 ```
 
 ### The world is free 2D, the track is still a ribbon
 
-AGRAV moves craft in ribbon coordinates `(s, t)`. A top-down car has to be free to spin,
-reverse, and cross the road at any angle, so RALLY simulates in world `(x, y, heading)` and
-uses the ribbon only as a **reference**:
+AGRAV moves craft in ribbon coordinates `(s, t)`. A top-down car has to spin out on a hit,
+reverse out of a wall and fight in every direction, so Scrap Rally simulates in world
+`(x, y, heading, vx, vy)` and uses the ribbon only as a **reference**:
 
 - `shared/sim/spline.js` builds the centreline (control points with `y = 0`) and gives arc
-  length, frames and width. The track's left and right walls are the offset curves.
-- Progress and laps: the car's nearest `s` (a per-car incremental search along the frames,
-  not the coarse `nearestS`, which is meant for tools) and `deltaS` across ticks, as AGRAV
-  does. A car driven backwards loses progress and cannot cheat a lap.
-- Wall collision: signed lateral distance `|t| − width/2` at the nearest frame, resolved as
-  a circle-vs-wall push with the scrape / hard-hit rule.
-- Bots follow the ribbon with a lookahead point like the AGRAV bot, and the racing line is
-  the same curvature-biased lane.
+  length, frames and width. The track's left and right walls are the offset curves. The road
+  is flat: no height, no jumps, no crossings in the first release. The ribbon already carries
+  a per-point height, so a later bridge crossing changes the sim, not the authoring format.
+- Progress and laps: each car keeps its nearest `s` by an incremental search along the frames
+  (not the coarse `nearestS`, which is meant for tools) and accumulates `deltaS` across ticks,
+  as AGRAV does. A car driven backwards loses progress and cannot cheat a lap.
+- Wall collision: signed lateral distance `|t| − width/2` at the nearest frame, resolved as a
+  circle-vs-wall push with the scrape / hard-hit rule.
+- Obstacles: authored static circles `{x, y, r}` per track (container stacks, pillars, a
+  wrecked bus). They use the same contact code as wrecks and mines, so they cost nothing in the
+  sim, and the bots steer around them with the same logic they need for wrecks. No polygons,
+  no forks: a fork would break single-ribbon lap counting.
+- Bots follow the ribbon with a lookahead point like the AGRAV bot, on the same
+  curvature-biased racing line.
 
 ### Car model (`sim/car.js`)
 
 An arcade model that reads as a heavy car and rewards handling upgrades:
 
 - Longitudinal: throttle accel, brake decel, rolling drag, top speed; nitro multiplies the first
-  and last.
-- Steering: yaw rate proportional to the stick and to speed up to a cap, reduced at very high
-  speed; the handling stat sets the cap.
+  and last. Holding brake at rest engages reverse at a fraction of top speed.
+- Steering is car-relative: yaw rate proportional to the stick and to speed up to a cap,
+  reduced at very high speed; the handling stat sets the cap. Reversing steers the other way,
+  as a car does.
 - Lateral: velocity is decomposed into forward and sideways; sideways velocity decays with a
   grip factor per tick (the handling stat again). When sideways speed exceeds a threshold the
-  car is **sliding**: less grip, tyre marks, the HUD nudge. Low handling cars slide on every
+  car is **sliding**: less grip, tyre marks, a HUD nudge. Low-handling cars slide on every
   fast corner and meet the wall; that is the brief's "fondamentale per non scivolare contro i
   muri".
-- Contact: circle bodies (radius from the car's length) for cars and wrecks, mass = armour.
-- Mines: static circles; wrecks: static circles with the dead car's mass.
+- Contact: circle bodies (radius from the car's length) for cars, wrecks (60 %), obstacles and
+  mines; mass = armour.
 - Fully deterministic: no `Math.random`, all randomness from the race rng, so the client's
   prediction of its own car is the server's step bit for bit (the property both existing games
   rely on).
@@ -251,103 +326,117 @@ An arcade model that reads as a heavy car and rewards handling upgrades:
 ### Netcode (`rally/src/net.js`)
 
 Copied from the Volley client, which is the smaller and cleaner of the two, with the AGRAV
-additions RALLY needs:
+additions Scrap Rally needs:
 
-- 60 Hz inputs, last three bundled; `NetClock` for the tick estimate and lead.
+- 60 Hz inputs, last three bundled; `NetClock` for the tick estimate and lead. The input record
+  is unchanged: five bits of the `u8` plus the signed steer byte.
 - Own car: `stepCar` every tick, replaced by the snapshot record and replayed for pending inputs,
   the difference blended over ~100 ms.
-- Others, wrecks, mines, pickups: interpolated 4 ticks behind between two snapshots.
+- Others, wrecks, mines, pads: interpolated 4 ticks behind between two snapshots.
 - Hitscan shots are server-authoritative; the client draws its own tracer instantly from the fire
   input and reconciles hits from the `hit` events (the AGRAV minigun pattern).
-- Snapshot payload budget: 6 cars × ~22 bytes + mines × 6 + pickups bitfield + locks ≈ 200
-  bytes at 30 Hz. No delta compression needed.
+- Snapshot payload budget: 6 cars × ~22 bytes + entities × 8 + pad bits + locks ≈ 200 bytes at
+  30 Hz. No delta compression needed.
 
 ### Rendering (`rally/src/render/`)
 
-**Recommendation: three.js with a perspective camera looking straight down.** The parallax
-the brief asks for then comes for free: the road sits at height 0, walls, buildings, cranes and
-trees are extruded up toward the camera, and overhead pieces (a bridge, gantry, foliage) sit
-above the cars, so everything tall leans away from the centre and slides against the ground as
-the camera follows the car. This is the *Death Rally* 2012 look, and it reuses the vendored
-three.js, `shared/gfx/bloom.js`, and the AGRAV procedural texture and prop code
-(`agrav/src/render/surfaces.js`, `props.js`, `noise.js`) rather than a second renderer.
+Three.js with a **perspective camera looking straight down, north-up**. The parallax comes
+free: the road sits at height 0, walls, buildings, cranes and trees are extruded up toward the
+camera, and overhead pieces (a bridge deck, a gantry, foliage) sit above the cars, so
+everything tall leans away from the centre and slides against the ground as the camera follows
+the car. This reuses the vendored three.js, `shared/gfx/bloom.js`, and the AGRAV procedural
+texture and prop code (`agrav/src/render/surfaces.js`, `props.js`, `noise.js`).
 
-The alternative is Canvas 2D with hand-scrolled layers (as Volley draws), which is cheaper to
-write and lighter on phones but gives only a flat, layered parallax. Keep `?lite=1` for weak
-devices and headless tests either way: no props, no bloom, flat colours.
+The camera follows the own car with a look-ahead along its velocity and zooms out with speed.
+It never rotates, so the minimap and the track read the same all race. Cars are low-poly
+meshes with a painted livery atlas (the AGRAV livery generator, scaled down) that takes scorch
+marks as hull drops, and a burnt wreck mesh on death.
 
-Camera: follows the own car with a look-ahead along its velocity, zooms out with speed, and
-rotates never (north-up, so the minimap and the track read the same all race). Cars are
-low-poly meshes with a painted livery atlas (the AGRAV livery generator, scaled down) that takes
-scorch marks as hull drops, and a burnt wreck mesh on death.
+`?lite=1` (weak devices, headless tests): flat colours, no props, no bloom, the AGRAV quality
+governor for everything in between.
+
+### Controls
+
+| Keyboard | Gamepad | Touch |
+|---|---|---|
+| ← → or A D steer (car-relative) | left stick / d-pad | drag left/right in the steering zone |
+| ↑ / W throttle · ↓ / S brake, reverse when stopped | RT throttle · LT brake | automatic throttle · BRK button |
+| space fire | X or RB | FIRE |
+| M drop mine · N nitro | B mine · A nitro | MINE · NITRO buttons |
 
 ---
 
-## 4. Bots (`shared/rally/bot.js`)
+## 5. Bots (`shared/rally/bot.js`)
 
 - **Driving**: aim at a lookahead point on the ribbon, feed-forward the curvature, brake for
-  corners it cannot make at its speed, hold a lane of its own on a full grid, and detour to a
-  pickup ahead when it needs one (ammo when low, repair when hurt, nitro on a straight).
+  corners it cannot make at its speed, hold a lane of its own on a full grid, steer around
+  obstacles and wrecks, and detour to a pad ahead when it needs one (ammo when low, repair when
+  hurt, nitro on a straight). Pads have fixed types, so the detour is a static plan per lap.
 - **Combat**: fire the primary only when a victim is inside the cone the hitscan actually scores
   with (the AGRAV rule), drop a mine when someone is close behind on a bend, fire nitro on the
   longest straight or to escape a chaser.
-- **Skill**: `skill` scales lookahead, reaction and how late it brakes; a bot's car and upgrades
-  match the lobby tier (§2). A host option `botSkill` (easy / normal / hard) is worth adding,
-  mirroring Volley's `botDifficulty`.
-- Drives every seat the room has no human for: a lobby bot, an auto-filled seat, or a driver
-  who dropped and ran out the reconnect grace (the AGRAV `onAbandon` behaviour: the car is
-  eliminated, and in RALLY its wreck stays).
+- **Skill**: the host option `botDifficulty` (easy / normal / hard) scales lookahead, reaction
+  and how late it brakes, and scales the prizes (§3) so it is a difficulty choice and not a
+  money exploit. A bot's car and upgrades match the lobby tier (§3).
+- **Seats**: bots are room-level players. Auto-fill adds them at start through `fillBots`; the
+  host can add or kick them beforehand; they appear in the lobby, the snapshot and the results
+  like any AGRAV lobby bot. A human who drops and runs out the reconnect grace is removed and
+  vanishes from the track (no wreck).
 
 ---
 
-## 5. Career and persistence
+## 6. Career and persistence
 
 ### Identity
 
-The platform's session token is meant for reconnecting a socket to a seat and expires
-minutes after a disconnect. A career needs an identity that lasts months, so the client keeps a
-second, random 128-bit **career key** in `localStorage` and presents it on HELLO. The key is
-the whole identity: no accounts, no passwords, and losing the browser storage loses the
-career. That matches the platform's "type a name and play" posture; a later account system can
-map onto the same store. The garage shows the key once as a "transfer code" so a player can
-move a career to another device.
+The platform's session token reconnects a socket to a seat and expires minutes after a
+disconnect. A career needs an identity that lasts months, so the client keeps a random 128-bit
+**career key** in `localStorage` and presents it on HELLO. The key is the whole identity: no
+accounts, no passwords; losing the browser storage loses the career. The garage shows the key
+once as a **transfer code** so a player can move a career to another device. The store is
+keyed so an account layer can later map one account to one key without migrating anything.
+Sharing a key between friends is harmless: there is no leaderboard, and nothing to gain but a
+friend's car.
 
 ### Store (`server/store.js`)
 
-- `get(ns, key)` / `set(ns, key, value)`: one JSON file per record under
-  `DATA_DIR/<ns>/<key>.json`, written to a temp file and renamed, with an in-memory map so the
-  hot path never touches disk.
+- A `Store` interface with `get(ns, key)`, `set(ns, key, value)` and `list(ns)`, and one
+  implementation: one JSON file per record under `DATA_DIR/<ns>/<key>.json`, written to a temp
+  file and renamed, with an in-memory map so the hot path never touches disk. If a leaderboard
+  or admin queries ever arrive, a SQLite implementation slots in behind the same three methods.
 - `DATA_DIR` defaults to `./data` (git-ignored, added to the static server's `HIDDEN` set so it
   is never served); `deploy/agrav.service` gets `StateDirectory=agrav` and
   `Environment=DATA_DIR=/var/lib/agrav`, since the unit mounts the checkout read-only.
-- Bounded: a record is at most a few KB and the map evicts idle careers after an hour; a
-  careers-per-file layout keeps `ls` and backups obvious.
+- Bounded: a record is a few KB and the map evicts idle careers after an hour. A disk error is
+  logged and never kills a room.
 
 ### Contract extension (added to `module-contract.md`)
 
 ```js
+fillBots(state, opts) -> bool,                       // add lobby bots up to maxPlayers at start
 career: {
   create() -> career,                                  // a new driver: Vagabond, machine gun, 0 money
-  apply(career, action) -> { career } | { error },     // repair | upgrade | buyWeapon | buyCar | selectCar | selectWeapon
-  settle(career, results, id) -> career,               // money, reputation, persisted hull, kills, races
-  profile(career) -> profile                           // what the lobby/seat starts from: car, upgrades, hull, weapon
+  apply(career, action) -> { career } | { error },     // repair | upgrade | buyBumper | buyWeapon | buyCar (trade-in) | selectWeapon
+  settle(career, results, id, opts) -> career,         // money with multipliers, persisted hull, stats
+  profile(career) -> profile                           // what the seat starts from: car, upgrades, bumper, hull, weapon
 }
 ```
 
-All career mutation is on the server, in pure functions in `shared/rally/career.js` so the
-garage UI can *preview* a purchase with the same code and tests can drive the whole ladder
-without a server.
+All career mutation is on the server, in pure functions in `shared/rally/career.js`, so the
+garage can *preview* a purchase or a trade-in with the same code and tests can drive the whole
+ladder without a server.
 
 ### Flow
 
 1. HELLO carries `careerKey`; the session loads (or creates) the career and sends `CAREER`.
-2. The garage sends `CAREER_ACTION {action, ...}`; the server applies, saves, replies `CAREER`.
-3. Joining a room, the seat's profile is derived from the career by `career.profile`; the
-   lobby lets the driver choose only among weapons and cars they own, and `setProfile` on the
-   server rejects anything else.
-4. At `_finish`, the room calls `career.settle` for every human seat with a career key and
-   saves; the results screen shows money earned, reputation gained and the hull you came home
-   with, with a button straight into the garage.
+2. The garage sends `CAREER_ACTION {action, ...}`; the server applies, saves, replies `CAREER`
+   (or the error, such as `repair-first` or `funds`).
+3. Joining a room, the seat's profile is derived from the career by `career.profile`; the lobby
+   lets the driver choose only among weapons they own, and `setProfile` on the server rejects
+   anything else. The room list and the lobby show each driver's car tier.
+4. At `_finish`, the room calls `career.settle` for every human seat with a career key, passing
+   the room options (track, bot difficulty) for the multipliers, and saves. The results screen
+   shows money earned and the hull you came home with, with a button straight into the garage.
 5. Bots have no career; their seat profile is synthesized from the lobby tier.
 
 A player who races without a career key (storage blocked) still plays: a Vagabond with a
@@ -355,19 +444,19 @@ machine gun, nothing saved, and the garage explains why.
 
 ---
 
-## 6. Testing and tools
+## 7. Testing and tools
 
 | Test | Proves |
 |---|---|
-| `shared/test/rally-car.test.js` | determinism (same inputs → same state), top speed and handling monotone in their stats, sliding threshold, wall scrape and hard hit |
-| `shared/test/rally-race.test.js` | laps count only forward, a backwards car cannot lap, elimination win ends the race, finish grace, results ordering, wrecks persist |
-| `shared/test/rally-weapons.test.js` | hitscan rewinds to the shooter's tick, cone and pellet spread, lock selection, mines arm and hurt the owner, bumper multipliers |
-| `shared/test/rally-career.test.js` | settle prizes and reputation, repair-first rule, unlock thresholds (5 wins / 10 seconds / 15 races), price checks, no negative money |
-| `shared/test/rally-bot.test.js` | a bot alone finishes every track; six bots finish without a pile-up |
-| `server/test/rally-room.test.js` | auto-fill to six, a career persists across two races in one lobby, a dropped driver becomes a wreck, snapshots decode |
-| `server/test/store.test.js` | atomic write, reload from disk, eviction |
-| `tools/rallysim.js` | balance: per car tier per track, lap time spread and bot kill rate |
-| `tools/rallylint.js` | every track closed, wide enough, no self-intersection, spawn points on the road |
+| `shared/test/rally-car.test.js` | determinism (same inputs → same state), top speed and handling monotone in their stats, sliding threshold, reverse, wall scrape and hard hit |
+| `shared/test/rally-race.test.js` | laps count only forward, a backwards car cannot lap, last-alive ends the race at once, 20 s finish grace with finished cars immune, results ordering, wrecks persist at 60 %, a dropout vanishes |
+| `shared/test/rally-weapons.test.js` | hitscan rewinds to the shooter's tick, cone and pellet spread, the lock never moves the ray, mines arm and hurt the owner, bumper multipliers |
+| `shared/test/rally-career.test.js` | prizes with stacked multipliers, no place money for exploded cars, repair-first rule, trade-in refund, per-car upgrades reset, no negative money, storage-less driver |
+| `shared/test/rally-bot.test.js` | a bot alone finishes every track; six bots finish without a pile-up; bots avoid obstacles |
+| `server/test/rally-room.test.js` | auto-fill to six, a career persists across two races in one lobby, a dropped driver is removed, snapshots decode, tiers in the room state |
+| `server/test/store.test.js` | atomic write, reload from disk, eviction, a disk error does not throw into the room |
+| `tools/rallysim.js` | balance: per car tier per track, lap time spread, bot kill rate, elimination-ending rate, and the three career pacing curves (§3) |
+| `tools/rallylint.js` | every track closed, wide enough for a car past a wreck, no self-intersection, obstacles passable by the Vagabond at speed, pads on the road and 40 m apart |
 | `tools/netsim.js --game rally` | prediction error, corrections, bandwidth under 80 ms ± 20 ms, 2 % loss with six clients |
 | `tools/racetest.js --game rally` | two Chromium clients race bots to the results and buy a repair |
 
@@ -376,29 +465,30 @@ join the existing 54 without wiring.
 
 ---
 
-## 7. Tracks
+## 8. Tracks
 
-Three circuits, authored like the AGRAV tracks as control-point lists (`x, z`, width) with
-theme props generated on the client. Each has a difficulty multiplier for prizes and a distinct
-parallax layer.
+Three flat circuits, authored like the AGRAV tracks as control-point lists (`x, z`, width)
+plus obstacle circles and typed pads, with theme props generated on the client. Each has a
+prize multiplier and a distinct parallax layer. The host picks any of them from the start.
 
-| Track | Theme | Length | Character | Parallax layer |
-|---|---|---|---|---|
-| **Scrapyard** | junkyard, rust and oil | ~1 200 m | wide, forgiving, one hairpin, two long straights for nitro | car stacks and a crane arm over the back straight |
-| **Harbour** | docks at night | ~1 500 m | medium width, a chicane between containers, a bridge crossing | gantry cranes, the bridge deck the road passes under, then over |
-| **Ridge** | mountain pass | ~1 800 m | narrow, drops beside the road, two chicanes, a blind crest | cliff faces on one side, tree canopy over the road, a rock arch |
+| Track | Theme | Length | Character | Parallax layer | Prize × |
+|---|---|---|---|---|---|
+| **Scrapyard** | junkyard, rust and oil | ~1 200 m | wide, forgiving, one hairpin, two long straights for nitro; a few car-stack obstacles | car stacks and a crane arm over the back straight | 1.0 |
+| **Harbour** | docks at night | ~1 500 m | medium width, a chicane between container obstacles, a bridge deck overhead as scenery | gantry cranes, the bridge deck the road passes under | 1.3 |
+| **Ridge** | mountain pass | ~1 800 m | narrow, drops beside the road, two chicanes, a blind crest, fallen-rock obstacles | cliff faces on one side, tree canopy over the road, a rock arch | 1.6 |
 
 Authoring rules go in `tools/rallylint.js`: minimum width for six cars abreast on the start
-straight, minimum corner radius the Vagabond can take at half throttle, and pickup spawn points
-at least 40 m apart.
+straight, minimum width for a live car to pass a wreck anywhere, minimum corner radius the
+Vagabond can take at half throttle, every obstacle passable on both sides or flagged as
+one-sided with the open side wide enough, and pads at least 40 m apart.
 
 ---
 
-## 8. Milestones
+## 9. Milestones
 
-Each milestone ends with something that runs and a check that proves it. Sizes are rough and
-in working days for one developer; the order is chosen so the multiplayer loop is real from
-M1 and every later milestone rides on it.
+Each milestone is one pull request, merged before the next begins, with `npm test` green.
+Sizes are rough and in working days for one developer; the order puts the multiplayer loop
+first so every later piece rides on it.
 
 ### M0 — Platform groundwork (1–2 days)
 
@@ -406,50 +496,54 @@ M1 and every later milestone rides on it.
   `StateDirectory`.
 - `fillBots` hook in `Room.requestStart`; `careerKey` on HELLO; `CAREER` and `CAREER_ACTION`
   messages; `PROTOCOL_VERSION` 2; `module-contract.md` updated.
-- `rally` registered in `server/games.js` with a stub module (an echo of the contract), the
-  launcher card on `index.html`, empty `rally/` PWA shell.
-- **Proves**: existing 54 tests pass; a stub RALLY room can be created, auto-filled and started
-  in a test.
+- `rally` registered in `server/games.js` with a stub module. No launcher card yet.
+- **Proves**: existing 54 tests pass; a stub Scrap Rally room can be created, auto-filled and
+  started in a test; a career round-trips through the store.
 
 ### M1 — Simulation core (4–5 days)
 
-- `tracks/scrapyard.js`, `sim/track.js` (ribbon, walls, progress), `sim/car.js`,
-  `sim/race.js` (grid, countdown, laps, finish, results), `snapshot.js`, `bot.js` driving only.
-- `tools/rallysim.js` and `tools/rallylint.js`.
+- `tracks/scrapyard.js`, `sim/track.js` (ribbon, walls, obstacles, progress), `sim/car.js`,
+  `sim/race.js` (grid, countdown, laps, finish grace, results), `snapshot.js`, `bot.js`
+  driving only.
+- `tools/rallysim.js` (races only) and `tools/rallylint.js`.
 - **Proves**: six bots race three laps of Scrapyard headless and all finish; determinism and
   race tests green; the snapshot round-trips.
 
 ### M2 — Playable client (5–6 days)
 
 - `rally/src/net.js`, `input.js`, `main.js` (menu, lobby, results), `render/scene.js`,
-  `render/track.js` (road, kerbs, walls, flat ground), `render/car.js`, `hud.js`.
-- Camera follow and look-ahead, minimap, position and lap readouts.
-- **Proves**: two browsers and four bots complete a race; `netsim.js --game rally` reports
-  no hard corrections at 80 ms RTT; `racetest.js --game rally` passes.
+  `render/track.js` (road, kerbs, walls, obstacles, flat ground), `render/car.js`, `hud.js`.
+- Camera follow, look-ahead and speed zoom, minimap, position and lap readouts, lite mode.
+- The launcher card on `index.html`.
+- **Proves**: two browsers and four bots complete a race; `netsim.js --game rally` reports no
+  hard corrections at 80 ms RTT; `racetest.js --game rally` passes.
 
 ### M3 — Combat (4–5 days)
 
-- `weapons.js`: machine gun, shotgun, minigun with rewind hitscan, lock selection and aim
-  assist; mines; spiked bumper in contacts; `pickups.js` with the four items.
-- Hull, wall damage, explosions, wrecks as obstacles, elimination win, spectating.
+- `weapons.js`: machine gun, shotgun, minigun with rewind hitscan and cosmetic lock; mines;
+  spiked bumper in contacts; `pickups.js` with typed pads and the cash schedule.
+- Hull, wall damage, explosions, wrecks as obstacles, last-alive win, spectating.
 - Bot combat judgement. Client: tracers, laser line, muzzle flash, explosions, kill feed, mine
   and nitro FX, audio.
-- **Proves**: weapons and race tests green; a bots-only race ends by elimination at least
-  sometimes at hard skill; nobody can score a hit outside the cone.
+- **Proves**: weapons and race tests green; `rallysim` reports the elimination-ending rate at
+  each difficulty; nobody can score a hit outside the cone.
 
 ### M4 — Career (3–4 days)
 
-- `cars.js` full ladder and upgrade tables, `career.js` (create, apply, settle, profile),
-  server settle at `_finish`, lobby restricted to owned cars and weapons.
-- `rally/src/garage.js` and the garage screen: repair-first, upgrades, weapons, cars, transfer
-  code. Results screen shows earnings.
+- `cars.js` full ladder, trade-in and upgrade tables; `career.js` (create, apply, settle,
+  profile); server settle at `_finish` with the multipliers; lobby restricted to owned weapons;
+  tiers in the room list and lobby; bot tiering.
+- `rally/src/garage.js` and the garage screen: repair-first, upgrades, bumper, weapons,
+  trade-in preview, transfer code. Results screen shows earnings.
+- `rallysim` career pacing curves.
 - **Proves**: career tests green; a room test runs two races and the second starts with the
-  persisted hull; a fresh driver cannot buy before repairing.
+  persisted hull; a fresh driver cannot buy before repairing; the three pacing curves reach the
+  Valkyrie near the brief's counts.
 
 ### M5 — Tracks and look (5–7 days)
 
-- Harbour and Ridge, with their themes; parallax props (cranes, bridge, canopy, cliffs);
-  liveries and damage states; wreck meshes; lite mode.
+- Harbour and Ridge, with their obstacles, pads and themes; parallax props (cranes, bridge deck,
+  canopy, cliffs); liveries and damage states; wreck meshes.
 - Icons, manifest, service worker, `tools/shots.js` support for `rally` screenshots into
   `docs/screenshots/rally/`.
 - **Proves**: `rallylint` clean on all three; `rallysim` lap-time spread per tier within the
@@ -457,8 +551,8 @@ M1 and every later milestone rides on it.
 
 ### M6 — Balance, hardening, docs (3–4 days)
 
-- Balance pass on prices, prizes, repair rates and unlock pacing against the brief's "about 5
-  wins to the elite cars"; bot tiering; weapon damage.
+- Balance pass on prices, prizes, repair rates, trade-in and the pacing target; bot tiering and
+  difficulty; weapon damage and the elimination rate.
 - Netsim with six clients and packet loss; reconnect mid-race; a slow client on the grid hold.
 - `rally/README.md`, root README card and file map, `deploy/` notes for `DATA_DIR`.
 
@@ -466,32 +560,37 @@ Total: roughly 25–33 days of focused work, with M1–M3 as the critical path.
 
 ---
 
-## 9. Decisions to confirm
+## 10. Deferred, by decision
 
-Defaults are chosen so work can start now; each is a one-line change if the answer differs.
+Not in the first release; each has a place prepared for it.
 
-| Question | Default in this plan |
-|---|---|
-| Renderer | three.js perspective top-down (true parallax, reuses the AGRAV toolkit); Canvas 2D if phone performance turns out to matter more than the look |
-| Identity for the career | a client-held career key, no accounts; store is file-backed JSON |
-| Elimination win | ends the race immediately when one car is left, even mid-lap |
-| Mines | 3 per race, free; hurt the owner too |
-| Spiked bumper | a permanent career purchase, not a per-race consumable |
-| Bot cars | matched to the lobby's average tier ±1 |
-| Reputation scale | win 3, second 1.5, other finish 1, elite at 15 (which is exactly 5 wins, 10 seconds or 15 races) |
-| Display name | placeholder; pick before the launcher card is written |
-| Rockets / homing weapons | out of scope for the first release; the weapon table is data-driven so adding one is a row plus FX |
+- **Missiles / rockets**: a new entity kind in the generic snapshot list, a support-slot
+  alternative to mines, straight and not homing so the cosmetic lock stays a gun feature.
+- **Road crossings and jumps**: a `layer` per ribbon segment and per car; the authoring format
+  already carries height.
+- **Accounts**: map one account to one career key in the store; no migration.
+- **Leaderboards / admin queries**: a SQLite `Store` behind the same three methods.
+- **Lobby tier cap**: one host option and one check in `setProfile`.
+- **Per-race ammo purchase**: a difficulty option in `career.settle` and the lobby, no wire
+  change.
 
 ---
 
-## 10. Risks
+## 11. Risks
 
 - **Physics feel** is the whole game; budget iteration in M1 with `rallysim` and a keyboard
-  before any art. The brief's handling-versus-walls tension has to be felt at the Vagabond tier
-  or the upgrade economy has nothing to sell.
-- **Six cars in one corner**: circle contacts and wrecks as obstacles can produce pile-ups at
-  the first bend; the grid spacing, contact loss and the bots' lane-keeping are the levers, and
-  the bots-only race in `rallysim` is the regression test.
+  before any art. The handling-versus-walls tension has to be felt at the Vagabond tier or the
+  upgrade economy has nothing to sell.
+- **Six cars in one corner**: circle contacts, obstacles and wrecks can produce pile-ups at the
+  first bend; grid spacing, contact loss, the wreck's 60 % circle and the bots' lane-keeping are
+  the levers, and the bots-only race in `rallysim` is the regression test.
+- **Elimination as the default ending**: with an immediate last-alive win, weapon damage that is
+  too high turns every race into a hunt; `rallysim`'s elimination-ending rate at normal
+  difficulty is the number to watch, and the target is that racing wins more often than
+  killing.
+- **Money-only ladder**: with no gate but price, the pacing lives entirely in the prize and
+  price tables; the three pacing curves in `rallysim` are the guard against a ladder that is
+  climbed in five races or never.
 - **Persistence is new to the platform**: keep the store tiny, synchronous in the room tick
   (memory only) and asynchronous to disk, and never let a disk error kill a room.
 - **Cheating**: all money and hull changes are server-side and the lobby validates picks against
