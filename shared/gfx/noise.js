@@ -1,8 +1,10 @@
 // ============================================================================
-// AGRAV — seeded noise for procedural textures and displaced geometry. Pure
-// number functions, no three.js: the same code drives canvas pixels, height
-// fields and per-vertex displacement, so every client builds the same world
-// from the same seeds and the server never sees any of it.
+// Seeded noise for procedural textures and displaced geometry. Pure number
+// functions, no three.js: the same code drives canvas pixels, height fields and
+// per-vertex displacement, so every client builds the same world from the same
+// seeds and the server never sees any of it.
+//
+// Shared by every game's renderer; nothing in here knows about any of them.
 // ============================================================================
 
 // integer hash → [0,1)

@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { frameAt, toWorld } from '../../../shared/sim/spline.js';
 import { HOVER_HEIGHT } from '../../../shared/agrav/constants.js';
 import { padTexture, checkerTexture, curbTexture, skidTexture, sponsorAdTexture, SPONSOR_IDS } from './textures.js';
-import { asphaltSet, concreteSet, metalPlateSet, standard } from './surfaces.js';
+import { asphaltSet, concreteSet, metalPlateSet, standard } from '../../../shared/gfx/surfaces.js';
 import { sweep, barrierPostGeo, gantryGeo } from './props.js';
 import { instanced } from './env/common.js';
 import { mergeGeometries } from '../../../shared/gfx/merge.js';

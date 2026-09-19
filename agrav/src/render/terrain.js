@@ -9,7 +9,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { smin, smoothstep } from './noise.js';
+import { smin, smoothstep } from '../../../shared/gfx/noise.js';
 
 /**
  * @param ribbon

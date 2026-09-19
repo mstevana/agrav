@@ -347,8 +347,9 @@ Three.js with a **perspective camera looking straight down, north-up**. The para
 free: the road sits at height 0, walls, buildings, cranes and trees are extruded up toward the
 camera, and overhead pieces (a bridge deck, a gantry, foliage) sit above the cars, so
 everything tall leans away from the centre and slides against the ground as the camera follows
-the car. This reuses the vendored three.js, `shared/gfx/bloom.js`, and the AGRAV procedural
-texture and prop code (`agrav/src/render/surfaces.js`, `props.js`, `noise.js`).
+the car. This reuses the vendored three.js and the procedural texture, noise and geometry
+toolkit, which now lives in `shared/gfx/` (`surfaces.js`, `noise.js`, `geom.js`, `merge.js`)
+because two games use it.
 
 The camera follows the own car with a look-ahead along its velocity and zooms out with speed.
 It never rotates, so the minimap and the track read the same all race. Cars are low-poly
@@ -678,3 +679,34 @@ the car would roll forward a metre and jam on the same shell again.
 With the bots no longer losing races to the scenery, the aggression that had been turned
 down while they were sitting still being shot at went back up, and five per cent of races
 now end with one car left standing rather than none.
+
+**The detail pass on the three maps** changed how the circuits are drawn rather than what
+they are. None of it reaches the server: every material is still computed on the client from
+a height function, and the simulation never hears about any of it.
+
+  · The procedural toolkit moved out of AGRAV. `noise.js` and `surfaces.js` are now
+    `shared/gfx/`, the geometry helpers they were tangled up with came out into
+    `shared/gfx/geom.js`, and `agrav/src/render/props.js` re-exports the five it
+    used to own so nothing in AGRAV had to change beyond an import path.
+  · The ground is two materials, not one, mixed by a `blend` vertex attribute
+    from slow noise and tinted per theme on top. A single texture repeated over a
+    kilometre of landscape is a chequerboard, and no amount of detail in the
+    texture hides it.
+  · Materials are tiled at roughly one texture to a screen's worth of ground.
+    They had been packed six times finer, which sounds like more detail and is
+    in fact less: every repeat was minified into mush before it reached a pixel.
+  · The barrier is a solid wall with a top and a back, not a single plane. From
+    directly above a plane is one pixel wide, and the eye loses the edge of the
+    road exactly where it most needs it.
+  · The road is shaded across its width as well as along it: rubber down the
+    racing line, grit at the edges, patch noise over the top. Tar-filled cracks,
+    patches and drain covers are laid on as flat quads, and the grid boxes are
+    painted where `gridSlot` actually puts the cars.
+  · Anything that passes over the road — a bridge deck, the arch on Ridge, the
+    beam of the start gantry — fades out as the camera comes under it. A slab of
+    concrete between the camera and your own car is not a detail, it is a
+    blindfold.
+  · Scenery is merged down to one mesh per material by `flatten()`. The verges
+    are a few thousand little props now, and a few thousand draw calls is how a
+    scene like this stops being sixty frames a second: on the software renderer
+    the screenshot tool uses, merging took a frame from 3.6 s to 0.45 s.

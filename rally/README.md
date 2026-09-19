@@ -139,6 +139,7 @@ src/main.js         wiring, camera, loop  src/input.js    keyboard / gamepad / t
 src/garage.js       the shop              src/hud.js      hull, speed, lap, minimap, kill feed
 src/audio.js        synthesized engines, guns, explosions
 src/render/         camera, road and barriers, cars, effects, three circuit themes
+../shared/gfx/      procedural materials, noise, geometry helpers, the mesh merger
 ../shared/rally/    the simulation the server runs (module.js, sim/, tracks/, cars.js, career.js, weapons.js, bot.js)
 ```
 
@@ -146,6 +147,13 @@ The client imports the same `shared/rally/` modules the server runs, so its
 prediction of your own car is bit for bit the server's simulation. See
 [`../shared/net/module-contract.md`](../shared/net/module-contract.md) for how a
 game plugs into the platform.
+
+Every material on a circuit is computed on the client from a height function —
+albedo, normal, bump and roughness — so nothing is downloaded and the server
+knows about none of it. The ground mixes two of them by a vertex attribute, the
+road is shaded across its width for the racing line and the grit at its edges,
+and the verges are merged down to one mesh per material before they go in.
+Anything that passes over the road fades out as you drive under it.
 
 Add `?lite=1` to the URL for a scenery-free client (weak devices, headless tests).
 

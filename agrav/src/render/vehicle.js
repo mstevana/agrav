@@ -12,9 +12,9 @@ import { mergeGeometries } from '../../../shared/gfx/merge.js';
 import { VEHICLES, BASE } from '../../../shared/agrav/vehicles.js';
 import { glowSprite } from './textures.js';
 import { loft, displaceAlongNormal } from './props.js';
-import { metalPlateSet, standard } from './surfaces.js';
+import { metalPlateSet, standard } from '../../../shared/gfx/surfaces.js';
 import { liverySet, ATLAS } from './livery.js';
-import { fbm3 } from './noise.js';
+import { fbm3 } from '../../../shared/gfx/noise.js';
 import { makePlume, animatePlume, plumeTip } from './exhaust.js';
 import { EngineTrail } from './trails.js';
 

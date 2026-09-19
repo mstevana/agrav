@@ -133,7 +133,7 @@ or a mine ahead as well as on a missile already locked on.
 Everything you see beside the road is generated on the client from a seed the moment the
 track is chosen (the lobby prewarms it), so the server ships nothing but the ribbon:
 
-- **Material sets** (`src/render/surfaces.js`): a height function per surface is evaluated
+- **Material sets** (`../shared/gfx/surfaces.js`): a height function per surface is evaluated
   once per texel and yields the albedo, a Sobel normal map, a bump map, a roughness map and,
   for the city facades, an emissive map with lit windows. Asphalt with recessed panel seams and
   puddles, canyon strata with cracks and ledges, striated coastal rock, rippled sand, riveted

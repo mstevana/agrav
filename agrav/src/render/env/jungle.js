@@ -9,10 +9,10 @@
 import * as THREE from 'three';
 import { setupSky, placeAlong, instanced, instancedVariants, rockTint, merged, placed, particleField, flock, billboards, fogCards, swayMaterial } from './common.js';
 import { glowSprite } from '../textures.js';
-import { cliffSet, sandSet, concreteSet, metalPlateSet, facadeSet, standard, triplanarBlended } from '../surfaces.js';
+import { cliffSet, sandSet, concreteSet, metalPlateSet, facadeSet, standard, triplanarBlended } from '../../../../shared/gfx/surfaces.js';
 import { rock, domeGeo, treeGeo, palmGeo, mangroveGeo, coralGeo, grassGeo, loft, tower, sweep, frameRuns, worldUv } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
-import { fbm2, voronoi2, ridged2, smoothstep } from '../noise.js';
+import { fbm2, voronoi2, ridged2, smoothstep } from '../../../../shared/gfx/noise.js';
 import { makeSea } from './sea.js';
 import { frameQuat } from '../track.js';
 import { makeRng } from '../../../../shared/sim/rng.js';

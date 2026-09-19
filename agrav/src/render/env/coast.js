@@ -5,10 +5,10 @@
 import * as THREE from 'three';
 import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
-import { cliffSet, sandSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
+import { cliffSet, sandSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../../../../shared/gfx/surfaces.js';
 import { rock, cliffSlab, seaStack, grassGeo, sweep, frameRuns } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
-import { fbm2, fbm3, ridged2, smoothstep } from '../noise.js';
+import { fbm2, fbm3, ridged2, smoothstep } from '../../../../shared/gfx/noise.js';
 import { makeSea } from './sea.js';
 
 const SEA_LEVEL = 1;

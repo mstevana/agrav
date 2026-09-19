@@ -1,12 +1,21 @@
 // Offline shell for Scrap Rally. The simulation, the renderer and the vendored
 // three.js are all static files, so a cached copy is a playable game the moment
 // a server is reachable again.
-const CACHE = 'scrap-rally-v1';
+const CACHE = 'scrap-rally-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './src/main.js', './src/net.js', './src/input.js', './src/hud.js',
-  './src/render/scene.js', './src/render/track.js', './src/render/car.js', './src/render/themes.js',
-  '../shared/vendor/three.module.min.js'
+  './src/garage.js', './src/audio.js',
+  './src/render/scene.js', './src/render/track.js', './src/render/car.js', './src/render/themes.js', './src/render/fx.js',
+  '../shared/vendor/three.module.min.js',
+  '../shared/gfx/noise.js', '../shared/gfx/surfaces.js', '../shared/gfx/geom.js', '../shared/gfx/merge.js',
+  '../shared/net/protocol.js', '../shared/net/bytes.js', '../shared/net/channel.js', '../shared/net/clock.js',
+  '../shared/sim/vec.js', '../shared/sim/rng.js', '../shared/sim/spline.js', '../shared/sim/ring-buffer.js',
+  '../shared/rally/module.js', '../shared/rally/constants.js', '../shared/rally/cars.js', '../shared/rally/career.js',
+  '../shared/rally/weapons.js', '../shared/rally/pickups.js', '../shared/rally/bot.js',
+  '../shared/rally/sim/race.js', '../shared/rally/sim/car.js', '../shared/rally/sim/track.js', '../shared/rally/sim/snapshot.js',
+  '../shared/rally/tracks/index.js', '../shared/rally/tracks/util.js',
+  '../shared/rally/tracks/scrapyard.js', '../shared/rally/tracks/harbour.js', '../shared/rally/tracks/ridge.js'
 ];
 
 self.addEventListener('install', (e) => {

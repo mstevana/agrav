@@ -9,7 +9,7 @@ import { Client } from './net.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { Scene, isLite } from './render/scene.js';
-import { buildTrackScene, animatePads } from './render/track.js';
+import { buildTrackScene, animatePads, animateOverhead } from './render/track.js';
 import { makeCarMesh, makeWreckMesh, setDamage, TEAM_COLOURS } from './render/car.js';
 import { Fx } from './render/fx.js';
 import { Audio } from './audio.js';
@@ -407,6 +407,7 @@ function drawWorld(view, dt, time) {
     mesh.rotation.y = w.yaw;
   }
   if (app.built) animatePads(app.built.pads, time, view.pads);
+  if (app.built?.overhead?.length) animateOverhead(app.built.overhead, scene.target.x, scene.target.z);
   fx?.update(view, dt, net.me);
 
   const me = view.cars.find(c => c.mine);

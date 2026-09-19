@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { setupSky, placeAlong, instanced, ground, merged, placed, particleField, fogCards } from './common.js';
 import { glowSprite, holoTexture, adTexture, neonSignTexture, sponsorAdTexture, SPONSOR_IDS } from '../textures.js';
-import { asphaltSet, facadeSet, concreteSet, metalPlateSet, standard } from '../surfaces.js';
+import { asphaltSet, facadeSet, concreteSet, metalPlateSet, standard } from '../../../../shared/gfx/surfaces.js';
 import { tower, towerDressing, pylonGeo, lampPostGeo, sweep, frameRuns } from '../props.js';
 import { frameQuat } from '../track.js';
 import { frameAt } from '../../../../shared/sim/spline.js';
