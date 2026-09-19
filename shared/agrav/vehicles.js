@@ -7,12 +7,16 @@
 //   accel      m/s² toward topSpeed
 //   turnRate   rad/s of heading change at full steer, low speed
 //   grip       how fast velocity follows heading (1/s); lower = more drift
-//   armor      health multiplier (base 100)
+//   armor      health multiplier, against BASE.hp
 //   damage     weapon damage multiplier
 // ============================================================================
 
 export const BASE = Object.freeze({
   topSpeed: 92, accel: 34, turnRate: 2.3, grip: 3.2, armor: 1.0, damage: 1.0,
+  // Hull of a craft with armor 1.0. Weapon damage is absolute, so this alone sets how many hits a
+  // race lasts. The snapshot carries hp as a u8 that CLAMPS rather than wraps, so this times the
+  // highest armor must stay under 255 (today: bulwark at 203); past that, widen the field first.
+  hp: 150,
   airbrakeTurn: 1.55,     // turn-rate multiplier with one airbrake down
   airbrakeDrag: 22,       // m/s² speed bled with an airbrake down
   drag: 0.28,             // quadratic drag coefficient (fraction of topSpeed² per s)
@@ -54,7 +58,7 @@ export function vehicleStats(id) {
     grip: BASE.grip * v.grip,
     armor: v.armor,
     damage: v.damage,
-    maxHp: Math.round(100 * v.armor),
+    maxHp: Math.round(BASE.hp * v.armor),
     airbrakeTurn: BASE.airbrakeTurn, airbrakeDrag: BASE.airbrakeDrag, drag: BASE.drag, brake: BASE.brake,
     length: BASE.length, width: BASE.width
   };
