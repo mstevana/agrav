@@ -43,18 +43,29 @@ for (const track of TRACK_IDS) {
   });
 
   test(`bot: a full grid of six gets round ${track} without piling up`, () => {
+    // With weapons on the grid, finishing is not the measure — plenty of races
+    // end with cars wrecked, which is the game working. What must never happen
+    // is a car left leaning on a barrier for the whole race, so the measure is
+    // that everyone either got home, got killed, or at least covered the ground.
     for (const seed of [11, 2027, 55555]) {
       const r = race({ track, laps: 2, cars: 6, seed });
-      const finishers = r.results.order.filter(o => o.finished).length;
-      assert.ok(finishers >= 4, `only ${finishers} of 6 finished (seed ${seed})`);
       assert.equal(r.state.phase, PHASE.FINISHED, 'the race reached an ending');
+      const distance = r.state.ribbon.length * 2;
+      for (const car of r.state.cars) {
+        const went = car.progress / distance;
+        assert.ok(car.finished || car.dead || went > 0.55,
+          `car ${car.id} covered only ${(went * 100).toFixed(0)}% of the race and was neither home nor wrecked (seed ${seed})`);
+      }
       assert.ok(r.wallShare < 0.12, `the field spent ${(r.wallShare * 100).toFixed(0)}% of its time against barriers`);
     }
   });
 }
 
 test('bot: harder bots are faster bots', () => {
-  const best = (d) => Math.min(...race({ track: TRACK_IDS[0], laps: 2, cars: 1, difficulty: d }).results.order.map(o => o.bestLap || 1e9));
+  // one race is noise: a bot that detours for a pickup loses a second and the
+  // ordering flips, so ask several and compare the best lap each level managed
+  const best = (d) => Math.min(...[3, 77, 4242, 90210].map(seed =>
+    Math.min(...race({ track: TRACK_IDS[0], laps: 2, cars: 1, difficulty: d, seed }).results.order.map(o => o.bestLap || 1e9))));
   const easy = best('easy'), hard = best('hard');
   assert.ok(hard < easy, `hard (${hard.toFixed(1)}s) should lap quicker than easy (${easy.toFixed(1)}s)`);
 });

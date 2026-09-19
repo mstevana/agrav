@@ -48,7 +48,8 @@ export function encodeRallySnapshot(race, forId) {
     w.qu16(Math.max(0, c.hull), SMALL).u16(Math.max(0, Math.min(65535, c.maxHull)));
     w.u8(c.lap).u8(c.rank);
     w.qu8(Math.min(12.75, v.nitroT), 20);
-    w.u8(weaponCode(c.weapon)).u16(Math.max(0, Math.min(65535, c.ammo | 0))).u8(Math.max(0, Math.min(255, c.mines | 0)));
+    w.u8(weaponCode(c.weapon)).u16(Math.max(0, Math.min(65535, c.ammo | 0)))
+     .u8(Math.max(0, Math.min(255, c.mines | 0))).u8(Math.max(0, Math.min(255, c.nitro | 0)));
     w.qu8(Math.max(0, Math.min(12.75, c.burstT || 0)), 20);
     w.i8(c.lockOn === undefined ? -1 : c.lockOn);
   }
@@ -59,13 +60,11 @@ export function encodeRallySnapshot(race, forId) {
     w.u16(e.id).u8(e.kind).u8(e.owner).f32(e.x).f32(e.z).angle(e.yaw)
      .qu8(Math.max(0, Math.min(12.75, e.life ?? 0)), 20).u8(e.armed ? 1 : 0);
   }
+  // a byte per pad rather than a bit, because what a pad is holding can change:
+  // zero means taken, anything else is the item currently sitting on it
   const pads = race.pads;
   w.u8(pads.length);
-  for (let i = 0; i < pads.length; i += 8) {
-    let b = 0;
-    for (let k = 0; k < 8 && i + k < pads.length; k++) if (pads[i + k].respawnTick <= race.tick) b |= 1 << k;
-    w.u8(b);
-  }
+  for (const pad of pads) w.u8(pad.respawnTick > race.tick ? 0 : itemCode(pad.live || pad.item));
   return w.finish();
 }
 
@@ -80,7 +79,7 @@ export function decodeRallySnapshot(u8) {
     c.hull = r.qu16(SMALL); c.maxHull = r.u16();
     c.lap = r.u8(); c.rank = r.u8();
     c.nitroT = r.qu8(20);
-    c.weapon = weaponName(r.u8()); c.ammo = r.u16(); c.mines = r.u8();
+    c.weapon = weaponName(r.u8()); c.ammo = r.u16(); c.mines = r.u8(); c.nitro = r.u8();
     c.burstT = r.qu8(20);
     c.lockOn = r.i8();
     c.dead = !!(c.flags & CF.DEAD);
@@ -98,15 +97,18 @@ export function decodeRallySnapshot(u8) {
     });
   }
   const np = r.u8();
-  for (let i = 0; i < np; i += 8) {
-    const b = r.u8();
-    for (let k = 0; k < 8 && i + k < np; k++) out.pads.push(!!(b & (1 << k)));
+  for (let i = 0; i < np; i++) {
+    const code = r.u8();
+    out.pads.push(code === 0 ? null : itemName(code));
   }
   return out;
 }
 
-// Weapons arrive in M3; the byte is here from the start so the wire format does
-// not move under a client that has already shipped.
+const ITEM_CODE = Object.freeze({ ammo: 1, nitro: 2, repair: 3, cash: 4, mines: 5 });
+const ITEM_NAME = Object.freeze({ 1: 'ammo', 2: 'nitro', 3: 'repair', 4: 'cash', 5: 'mines' });
+export const itemCode = (i) => ITEM_CODE[i] || 1;
+export const itemName = (c) => ITEM_NAME[c] || 'ammo';
+
 const WEAPON_CODE = Object.freeze({ machinegun: 1, shotgun: 2, minigun: 3 });
 const WEAPON_NAME = Object.freeze({ 1: 'machinegun', 2: 'shotgun', 3: 'minigun' });
 export const weaponCode = (w) => WEAPON_CODE[w] || 1;

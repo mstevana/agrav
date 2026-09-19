@@ -64,12 +64,12 @@ export const CONTACT = Object.freeze({
   wallFriction: 0.55,      // a wall scrubs far more speed than another car does
   hardHit: 16,             // closing speed (m/s) above which a bump is a ram, not a nudge
   cooldownTicks: 30,       // two cars pressed together hurt each other at most this often
-  ramDamage: 7,            // hull off each car in a ram, before bumpers and mass
+  ramDamage: 11,            // hull off each car in a ram, before bumpers and mass
   /** walls */
   scrapeSpeed: 2.5,        // sliding along a wall faster than this scrapes
-  scrapeDamagePerSec: 5,
+  scrapeDamagePerSec: 8,
   wallHardSpeed: 10,       // hitting a wall this hard costs hull in one go
-  wallDamagePerSpeed: 0.8,
+  wallDamagePerSpeed: 1.3,
   /** a wreck is a burnt shell: it blocks the road, but takes less of it */
   wreckRadiusFactor: 0.6
 });
@@ -86,11 +86,18 @@ export const PRIZE = Object.freeze({
   cashMin: 50, cashMax: 150
 });
 
-/** bot difficulty: how well they drive, and what the race is therefore worth */
+/**
+ * Bot difficulty: how well they drive, and what the race is therefore worth.
+ *
+ * `skill` is the share of the corner speed the car is actually capable of that
+ * the bot is willing to carry, so it tops out at one. Pushing it past that does
+ * not make a faster bot, it makes one that arrives at the barrier sooner — which
+ * is exactly what the first attempt at a "hard" setting did.
+ */
 export const BOT_DIFFICULTY = Object.freeze({
-  easy:   { skill: 0.78, prize: 0.6 },
-  normal: { skill: 0.94, prize: 1.0 },
-  hard:   { skill: 1.08, prize: 1.3 }
+  easy:   { skill: 0.66, prize: 0.6 },
+  normal: { skill: 0.85, prize: 1.0 },
+  hard:   { skill: 1.00, prize: 1.3 }
 });
 export const DIFFICULTY_IDS = Object.freeze(Object.keys(BOT_DIFFICULTY));
 
@@ -109,10 +116,71 @@ export const BOT = Object.freeze({
   wallPush: 0.9,           // how hard it eases off
   watchTicks: 120,         // the stuck watchdog looks at how far it got in this many ticks
   watchProgress: 6,        // fewer metres of lap than this means it is wedged on something
-  reverseTicks: 50,
+  reverseTicks: 120,
   avoidLook: 26,           // metres ahead it watches for a wreck or an obstacle
   avoidGain: 1.5,
-  avoidMax: 5.5            // metres the aim point may be shoved aside, however crowded it gets
+  avoidMax: 5.5,           // metres the aim point may be shoved aside, however crowded it gets
+  padNear: 12,             // a pad nearer than this is already behind the decision
+  padLook: 110,            // and further than this is somebody else's problem
+  padPull: 0.75,           // how much of the way to the pad the aim point moves
+  mineBehind: 14,          // drop one when a chaser is this close
+  mineCooldown: 420,       // and not again for seven seconds
+  nitroStraight: 0.004     // curvature flat enough to be worth a bottle on
+});
+
+/**
+ * The three primaries. All hitscan, all fixed forward: a car aims by pointing.
+ * `price` is what the garage charges; the machine gun comes with the licence.
+ */
+export const WEAPONS = Object.freeze({
+  machinegun: {
+    id: 'machinegun', name: 'Machine gun', price: 0,
+    ammo: 320, rate: 9, damage: 1.7, range: 95, spread: 0.014, pellets: 1,
+    blurb: 'Accurate, endless and unexciting. It will get the job done from anywhere.'
+  },
+  shotgun: {
+    id: 'shotgun', name: 'Shotgun', price: 2400,
+    ammo: 44, rate: 1.5, damage: 2.0, range: 34, spread: 0.13, pellets: 6,
+    blurb: 'Six pellets and a very short conversation. Useless past a car length or three.'
+  },
+  minigun: {
+    id: 'minigun', name: 'Minigun', price: 5200,
+    ammo: 640, rate: 19, damage: 1.15, range: 78, spread: 0.055, pellets: 1, spinUp: 0.4,
+    blurb: 'Takes a moment to wind up, then removes an entire car if you can hold it on one.'
+  }
+});
+
+/** mines: free, three a race, and no respecter of whose they are */
+export const MINE = Object.freeze({
+  perRace: 3,
+  armSec: 0.5,
+  dropBack: 1.6,
+  radius: 1.5,
+  blastRadius: 5.5,
+  falloff: 0.8,            // how much of the damage the edge of the blast loses
+  damage: 34
+});
+
+export const NITRO = Object.freeze({ duration: 2.5, boost: 1.4, maxCharges: 3 });
+
+/** the spiked bumper, bought per car */
+export const BUMPER = Object.freeze({ price: 1800, dealt: 3, taken: 0.5 });
+
+/** what a shot is scored against: where everyone was when the trigger came down */
+export const HITSCAN_REWIND_TICKS = 6;      // about 100 ms
+export const HISTORY_TICKS = 24;
+
+/** the laser sight. Cosmetic: it says what is in the cone, it does not move the ray. */
+export const LOCK = Object.freeze({ cone: 0.30, rangeFactor: 1.0 });
+
+/** pickup pads */
+export const PAD = Object.freeze({
+  radius: 3.2,
+  respawnSec: 20,
+  ammoShare: 0.25,        // a refill is this much of the weapon's capacity
+  repair: 80,
+  cashEverySec: 14,       // a cash drop appears on some free pad about this often
+  cashLifeSec: 16
 });
 
 /** the flags packed into each car's snapshot record */

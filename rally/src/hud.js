@@ -16,6 +16,7 @@ export class Hud {
     this.ctx = canvas.getContext('2d');
     this.map = null;
     this.mapTrack = null;
+    this.feed = [];          // {text, colour, until}
     this._resize();
     addEventListener('resize', () => { this._resize(); this.map = null; });
   }
@@ -41,6 +42,7 @@ export class Hud {
     this._hull(g, me);
     this._readout(g, view, me);
     this._minimap(g, view, me);
+    this._feed(g);
     if (view.phase === PHASE.COUNTDOWN) this._countdown(g, view);
     if (me.dead) this._banner(g, 'WRECKED', '#ff6a5a', extra.spectating ? `following ${extra.spectating}` : 'tap to follow another car');
     else if (me.finished) this._banner(g, 'FINISHED', '#7dff9a', 'cool-down lap');
@@ -73,8 +75,12 @@ export class Hud {
     g.fillText(`${Math.round(me.hull)} / ${me.maxHull}`, x + w, y - 10);
     g.textAlign = 'left';
     g.font = '600 11px system-ui, sans-serif';
+    g.fillStyle = me.ammo > 0 ? '#8b95b4' : '#ff6a5a';
+    g.fillText(`${(me.weapon || 'machinegun').toUpperCase()}  ${me.ammo ?? 0}`, x, y + h + 14);
     g.fillStyle = '#8b95b4';
-    g.fillText(`${me.weapon || 'machinegun'}  ${me.ammo ?? 0}   mines ${me.mines ?? 0}`, x, y + h + 14);
+    g.fillText(`MINES ${me.mines ?? 0}`, x + 108, y + h + 14);
+    g.fillStyle = (me.nitroCharges || 0) > 0 ? '#4ad6ff' : '#4a5168';
+    g.fillText(`NOS ${me.nitroCharges ?? 0}`, x + 168, y + h + 14);
     g.restore();
   }
 
@@ -155,6 +161,31 @@ export class Hud {
     g.fillRect((start.pos.x - this.mapOff.x) * scale - 3, (start.pos.z - this.mapOff.z) * scale - 3, 6, 6);
     this.map = c;
     this.mapTrack = track.id;
+  }
+
+  /** somebody did something to somebody: three lines, top left, then gone */
+  say(text, colour = '#d8e2f5') {
+    this.feed.unshift({ text, colour, until: performance.now() + 4200 });
+    if (this.feed.length > 4) this.feed.length = 4;
+  }
+
+  _feed(g) {
+    const now = performance.now();
+    this.feed = this.feed.filter(f => f.until > now);
+    g.save();
+    g.font = '600 13px system-ui, sans-serif';
+    let y = 38;
+    for (const f of this.feed) {
+      const left = (f.until - now) / 4200;
+      g.globalAlpha = Math.min(1, left * 3);
+      g.fillStyle = 'rgba(8,10,16,0.6)';
+      const w = g.measureText(f.text).width + 16;
+      g.fillRect(14, y - 14, w, 20);
+      g.fillStyle = f.colour;
+      g.fillText(f.text, 22, y);
+      y += 24;
+    }
+    g.restore();
   }
 
   _countdown(g, view) {

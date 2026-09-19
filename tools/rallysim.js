@@ -9,6 +9,7 @@
 //   node tools/rallysim.js --laps 3 --races 5
 //   node tools/rallysim.js --track scrapyard --difficulty hard --cars 6
 //   node tools/rallysim.js --ladder               every car, alone, on every track
+//   node tools/rallysim.js --sweep                how races end at each difficulty
 // ============================================================================
 
 import rally from '../shared/rally/module.js';
@@ -110,4 +111,39 @@ function ladderRun() {
   }
 }
 
-if (has('--ladder')) ladderRun(); else fieldRun();
+/**
+ * The number this game is tuned against: how often a race ends because somebody
+ * blew up the whole field rather than because somebody crossed the line. Racing
+ * is supposed to be the usual way to win, and killing the memorable one.
+ */
+function sweepRun() {
+  console.log(`\n=== how races end · ${RACES} races per difficulty, ${CARS} bots, ${LAPS} laps ===`);
+  const guns = ['machinegun', 'shotgun', 'minigun'];
+  for (const track of TRACKS) {
+    console.log(`\n  ${getTrack(track).name}`);
+    for (const difficulty of ['easy', 'normal', 'hard']) {
+      let elim = 0, finishers = 0, seats = 0, kills = 0, seconds = 0, damage = 0;
+      for (let i = 0; i < RACES; i++) {
+        const r = runRace({
+          track, laps: LAPS, cars: CARS, difficulty, seed: 100 + i * 991,
+          profiles: (n) => ({ weapon: guns[n % guns.length] })
+        });
+        if (r.results.byElimination) elim++;
+        finishers += r.rows.filter(x => x.finished).length;
+        seats += r.rows.length;
+        kills += r.rows.reduce((a, x) => a + (x.kills || 0), 0);
+        seconds += r.tick / 60;
+        damage += r.rows.reduce((a, x) => a + (x.maxHull - x.hull), 0);
+      }
+      console.log(`    ${difficulty.padEnd(7)} elimination endings ${String(elim).padStart(2)}/${RACES}` +
+        `   finishers ${String(finishers).padStart(2)}/${seats}` +
+        `   kills ${String(kills).padStart(3)}` +
+        `   hull lost per race ${String(Math.round(damage / RACES)).padStart(4)}` +
+        `   race ${(seconds / RACES).toFixed(0)}s`);
+    }
+  }
+}
+
+if (has('--sweep')) sweepRun();
+else if (has('--ladder')) ladderRun();
+else fieldRun();

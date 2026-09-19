@@ -191,13 +191,20 @@ function padMeshes(track, theme) {
 export const PAD_COLOURS = { ammo: 0xffc24a, nitro: 0x4ad6ff, repair: 0x5cff8f, cash: 0xc9f24a };
 
 /** the pads bob and spin, and go dark while they are used up */
-export function animatePads(items, time, available) {
+export function animatePads(items, time, live) {
   for (let i = 0; i < items.length; i++) {
     const { gem, base } = items[i];
-    const up = available?.[i] !== false;
+    const item = live ? live[i] : items[i].pad.item;
+    const up = !!item;
     gem.visible = up;
     base.material.opacity = up ? 0.32 : 0.07;
     if (!up) continue;
+    const colour = PAD_COLOURS[item] || 0xffffff;
+    if (gem.material.color.getHex() !== colour) {
+      gem.material.color.setHex(colour);
+      gem.material.emissive.setHex(colour);
+      base.material.color.setHex(colour);
+    }
     gem.rotation.y = time * 1.6 + i;
     gem.position.y = 1.5 + Math.sin(time * 2.4 + i) * 0.28;
   }

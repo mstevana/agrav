@@ -18,7 +18,7 @@
 // ============================================================================
 
 import { IN } from '../../net/protocol.js';
-import { CAR, CONTACT } from '../constants.js';
+import { CAR, CONTACT, NITRO } from '../constants.js';
 import { nearestOnRibbon, wallPenetration } from './track.js';
 
 export const forwardOf = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
@@ -68,8 +68,8 @@ export function stepCar(track, c, input, dt, frozen = false) {
 
   if (c.nitroT > 0) c.nitroT = Math.max(0, c.nitroT - dt);
   const nitro = c.nitroT > 0;
-  const topSpeed = st.topSpeed * (nitro ? 1.4 : 1);
-  const accel = st.accel * (nitro ? 1.4 : 1);
+  const topSpeed = st.topSpeed * (nitro ? NITRO.boost : 1);
+  const accel = st.accel * (nitro ? NITRO.boost : 1);
 
   const f = forwardOf(c.yaw), r = rightOf(c.yaw);
   let fwd = c.vx * f.x + c.vz * f.z;

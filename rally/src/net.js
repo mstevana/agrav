@@ -204,14 +204,17 @@ export class Client {
     // the shells and the pads are the server's word; they are not predicted
     this.state.wrecks = snap.wrecks.map(w => ({ ...w, r: (this.state.byId[w.id]?.c.radius || 2) * 0.6 }));
     for (let i = 0; i < this.state.pads.length; i++) {
-      this.state.pads[i].respawnTick = snap.pads[i] === false ? this.state.tick + 1 : 0;
+      const live = snap.pads[i];
+      this.state.pads[i].respawnTick = live ? 0 : this.state.tick + 1;
+      if (live) this.state.pads[i].live = live;
     }
     for (const rec of snap.cars) {
       const car = this.state.byId[rec.id];
       if (!car) continue;
       car.hull = rec.hull; car.maxHull = rec.maxHull; car.lap = rec.lap; car.rank = rec.rank;
       car.dead = rec.dead; car.finished = rec.finished;
-      car.ammo = rec.ammo; car.mines = rec.mines; car.weapon = rec.weapon; car.burstT = rec.burstT;
+      car.ammo = rec.ammo; car.mines = rec.mines; car.nitro = rec.nitro;
+      car.weapon = rec.weapon; car.burstT = rec.burstT;
       car.lockOn = rec.lockOn;
     }
     this._reconcile(snap);
@@ -314,7 +317,8 @@ export class Client {
         speed: Math.hypot(vx, vz),
         hull: ra.hull, maxHull: ra.maxHull, lap: ra.lap, rank: ra.rank,
         dead: ra.dead, finished: ra.finished, nitro: ra.nitroT > 0,
-        weapon: ra.weapon, ammo: ra.ammo, mines: ra.mines, lockOn: ra.lockOn,
+        weapon: ra.weapon, ammo: ra.ammo, mines: ra.mines, nitroCharges: ra.nitro, lockOn: ra.lockOn,
+        firing: ra.burstT > 0,
         mine: seat.id === this.me
       });
     }

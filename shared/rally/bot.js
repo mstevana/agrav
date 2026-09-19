@@ -13,7 +13,8 @@ import { wrapAngle } from '../sim/vec.js';
 import { IN } from '../net/protocol.js';
 import { frameYaw } from './sim/track.js';
 import { steerAuthority } from './sim/car.js';
-import { BOT, BOT_DIFFICULTY, CAR } from './constants.js';
+import { inKillCone, weaponDef } from './weapons.js';
+import { BOT, BOT_DIFFICULTY, CAR, MINE, NITRO, PAD } from './constants.js';
 
 export function makeBot(opts = {}) {
   const skill = opts.skill ?? 1;
@@ -22,7 +23,8 @@ export function makeBot(opts = {}) {
     noise: opts.noise ?? 0.1,
     lane: opts.lane ?? 0,          // its private line, as a share of the half-width
     phase: (opts.phase ?? 0) * 100,
-    reverseFor: 0, lastProgress: null, watchTick: 0
+    reverseFor: 0, lastProgress: null, watchTick: 0,
+    aggression: opts.aggression ?? 0.8, wantPad: -1, lastMineTick: -999
   };
 }
 
@@ -33,7 +35,8 @@ export function botFor(difficulty, id, seedMix = 0) {
     skill: d.skill * (0.94 + jitter * 0.12),
     noise: 0.14 - d.skill * 0.06,
     lane: ((id % 5) - 2) * BOT.laneSpread * 0.5,
-    phase: (id * 0.37) % 1
+    phase: (id * 0.37) % 1,
+    aggression: 0.25 + d.skill * 0.40
   });
 }
 
@@ -104,6 +107,14 @@ export function botInput(race, car, bot, tick) {
   }
   let tx = f.pos.x + f.right.x * lane, tz = f.pos.z + f.right.z * lane;
 
+  // --- a pad worth going out of its way for
+  const pad = wantedPad(race, car, bot);
+  if (pad) {
+    const pull = clamp(1 - Math.abs(deltaS(ribbon, c.s, pad.s)) / BOT.padLook, 0, 1);
+    tx += (pad.x - tx) * pull * BOT.padPull;
+    tz += (pad.z - tz) * pull * BOT.padPull;
+  }
+
   // --- steer away from anything parked in the road
   const avoid = avoidance(race, car, look);
   tx += avoid.x; tz += avoid.z;
@@ -142,17 +153,100 @@ export function botInput(race, car, bot, tick) {
   }
   if (bot.reverseFor > 0) {
     bot.reverseFor--;
-    // backing out makes no progress by definition, so the window only reopens once it is done
-    if (bot.reverseFor === 0) { bot.lastProgress = car.progress; bot.watchTick = tick; }
-    // facing back up the road is not a wedge, it is a mistake: drive out of it
-    if (wrongWay) return { bits: IN.THROTTLE, steer: clamp(steer, -1, 1) };
-    // otherwise back off whatever it is against, turning the nose out as it goes
-    return { bits: IN.BRAKE, steer: -clamp(steer, -1, 1) };
+    // Back out until there is room again. It has to be a committed manoeuvre: a
+    // car leaning on a barrier at walking pace has almost no steering to turn
+    // with, and only gets any back once it is properly moving, so a brief dab of
+    // reverse just puts it back into the same wall.
+    const clear = Math.abs(c.t) < hereRoom * 0.7 && speed > 3;
+    if (clear || bot.reverseFor === 0) {
+      bot.reverseFor = 0;
+      bot.lastProgress = car.progress;
+      bot.watchTick = tick;
+    }
+    if (bot.reverseFor > 0) {
+      // facing back up the road is not a wedge, it is a mistake: drive out of it
+      if (wrongWay) return { bits: IN.THROTTLE, steer: clamp(steer, -1, 1) };
+      return { bits: IN.BRAKE, steer: -clamp(steer, -1, 1) };
+    }
   }
 
-  if (c.nitroT <= 0 && car.nitro > 0 && Math.abs(worst) < 0.004 && speed > stats.topSpeed * 0.7) bits |= IN.NITRO;
+  // --- the trigger, the mines and the bottle
+  bits |= combat(race, car, bot, tick, worst, speed);
 
   return { bits, steer };
+}
+
+/**
+ * The pad this bot is going for, if any. It only ever wants something it is
+ * actually short of, and only from the pads close enough ahead to be worth the
+ * line it would cost.
+ */
+function wantedPad(race, car, bot) {
+  const w = weaponDef(car.weapon);
+  const needs = (item) => {
+    switch (item) {
+      case 'ammo': return car.ammo < w.ammo * 0.4;
+      case 'repair': return car.hull < car.maxHull * 0.7;
+      case 'nitro': return car.nitro < NITRO.maxCharges;
+      case 'cash': return true;
+      case 'mines': return car.mines < MINE.perRace;
+      default: return false;
+    }
+  };
+  let best = null, nearest = Infinity;
+  for (const pad of race.pads) {
+    if (pad.respawnTick > race.tick) continue;
+    if (!needs(pad.live || pad.item)) continue;
+    const ds = deltaS(race.ribbon, car.c.s, pad.s);
+    if (ds < BOT.padNear || ds > BOT.padLook || ds >= nearest) continue;
+    nearest = ds; best = pad;
+  }
+  bot.wantPad = best ? best.i : -1;
+  return best;
+}
+
+/**
+ * Shooting, mining and the nitro bottle. It fires only when the shot would
+ * actually score — the same ray the server will trace, not a hopeful guess down
+ * the road — drops a mine when somebody is close behind and there is a bend to
+ * lose them round, and spends nitro on a straight or to get away from a chaser.
+ */
+function combat(race, car, bot, tick, worstAhead, speed) {
+  let bits = 0;
+  const w = weaponDef(car.weapon);
+
+  if (car.ammo > 0 && car.lockOn >= 0 && race.rng() < bot.aggression) {
+    const target = race.byId[car.lockOn];
+    if (target && inKillCone(race, car, target, tick)) bits |= IN.FIRE;
+  }
+
+  // a mine is for whoever is sitting on your bumper
+  if (car.mines > 0 && tick - bot.lastMineTick > BOT.mineCooldown) {
+    const chaser = closestBehind(race, car);
+    if (chaser && chaser.dist < BOT.mineBehind) { bits |= IN.MINE; bot.lastMineTick = tick; }
+  }
+
+  if (car.nitro > 0 && car.c.nitroT <= 0 && Math.abs(worstAhead) < BOT.nitroStraight
+      && speed > car.stats.topSpeed * 0.62) bits |= IN.NITRO;
+  void w;
+  return bits;
+}
+
+/** the nearest car sitting behind this one, close enough to be a nuisance */
+function closestBehind(race, car) {
+  const fx = Math.sin(car.c.yaw), fz = Math.cos(car.c.yaw);
+  let best = null;
+  for (const other of race.cars) {
+    if (other.id === car.id || other.dead || other.finished) continue;
+    const dx = other.c.x - car.c.x, dz = other.c.z - car.c.z;
+    const behind = -(dx * fx + dz * fz);
+    if (behind <= 0) continue;
+    const dist = Math.hypot(dx, dz);
+    const off = Math.abs(dx * -Math.cos(car.c.yaw) + dz * Math.sin(car.c.yaw));
+    if (off > 6) continue;
+    if (!best || dist < best.dist) best = { car: other, dist };
+  }
+  return best;
 }
 
 /** a push away from the nearest wreck, obstacle or car in the way */

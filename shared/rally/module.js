@@ -9,6 +9,7 @@ import { createRace, addCar, removeCar, setCarProfile, publicProfile, startRace,
 import { encodeRallySnapshot, decodeRallySnapshot } from './sim/snapshot.js';
 import { botFor, botInput } from './bot.js';
 import { CAR_IDS, isCarId } from './cars.js';
+import { isWeaponId } from './weapons.js';
 import { TRACK_IDS } from './tracks/index.js';
 
 /** a bot's car: the average of the humans in the room, so nobody is fed to a Valkyrie */
@@ -47,14 +48,17 @@ export default {
   setProfile(state, id, m) {
     const c = state.byId[id];
     if (!c) return null;
-    const owned = state.owned?.[id];
-    const want = {
-      car: isCarId(m?.car) && (!owned || owned.car === m.car) ? m.car : c.stats.id,
+    // A player with no durable record has nothing to spend and nothing to own,
+    // so they race the starter loadout; one with a record may pick among what it
+    // says they bought, and nothing else.
+    const owned = state.owned?.[id] || { car: 'vagabond', weapons: ['machinegun'] };
+    const wantsWeapon = isWeaponId(m?.weapon) && owned.weapons.includes(m.weapon);
+    return setCarProfile(state, id, {
+      car: isCarId(m?.car) && owned.car === m.car ? m.car : c.stats.id,
       upgrades: c.stats.upgrades, bumper: c.stats.bumper, hull: c.hull,
       name: typeof m?.name === 'string' ? m.name : c.name,
-      weapon: owned && !owned.weapons?.includes(m?.weapon) ? c.weapon : m?.weapon
-    };
-    return setCarProfile(state, id, want);
+      weapon: wantsWeapon ? m.weapon : c.weapon
+    });
   },
 
   /** the server seats a player from their durable record; nothing here is client-supplied */

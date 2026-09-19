@@ -20,10 +20,11 @@ import { carStats } from '../cars.js';
 import { buildTrack, frameYaw } from './track.js';
 import { makeCarState, stepCar, environmentDamage, speedOf } from './car.js';
 import { TRACK_IDS, isTrackId } from '../tracks/index.js';
+import { stepWeapons, armCar, resetEntityIds, isWeaponId } from '../weapons.js';
+import { stepPickups, resetPads } from '../pickups.js';
 import { PHASE, CONTACT, HIT_SLOW, GRID, COUNTDOWN_SEC, GRID_HOLD_SEC, FINISH_GRACE_SEC,
-         RESULTS_HOLD_SEC, ELIM_BANNER_SEC, TICK_RATE, BOT_DIFFICULTY, DIFFICULTY_IDS } from '../constants.js';
-
-const HISTORY_TICKS = 24;     // ~400 ms of poses, for lag-compensated guns (M3)
+         RESULTS_HOLD_SEC, ELIM_BANNER_SEC, TICK_RATE, BOT_DIFFICULTY, DIFFICULTY_IDS,
+         HISTORY_TICKS, PRIZE } from '../constants.js';
 
 export function validateOpts(o = {}) {
   return {
@@ -48,7 +49,9 @@ export function createRace(opts, seed = 1) {
     cars: [], byId: {},
     wrecks: [],                                      // {id, x, z, yaw, r} — burnt shells that stay in the road
     entities: [],                                    // mines today; the kind byte leaves room for more
-    pads: track.pads.map(p => ({ ...p, respawnTick: 0 })),
+    pads: track.pads.map(p => ({ ...p, respawnTick: 0, live: p.item, cashUntil: 0 })),
+    nextCashTick: 0,
+    cashMin: PRIZE.cashMin, cashMax: PRIZE.cashMax,
     history: new RingBuffer(HISTORY_TICKS)
   };
 }
@@ -67,6 +70,8 @@ export function addCar(race, id, profile = {}, bot = false) {
     finished: false, finishTick: 0, dead: false, deathTick: 0, killer: -1, kills: 0,
     disconnected: false, abandoned: false, rank: 0, place: 0,
     cash: 0, ramTick: -999,
+    weapon: isWeaponId(profile.weapon) ? profile.weapon : 'machinegun',
+    ammo: 0, mines: 0, nitro: 0, refireT: 0, spinT: 0, burstT: 0, lockOn: -1,
     input: { bits: 0, steer: 0 }
   };
   race.cars.push(c);
@@ -93,7 +98,7 @@ export function setCarProfile(race, id, profile) {
   c.maxHull = stats.maxHull;
   c.hull = clampHull(profile.hull, stats.maxHull);
   if (typeof profile.name === 'string') c.name = profile.name.slice(0, 16);
-  if (profile.weapon) c.weapon = profile.weapon;
+  if (isWeaponId(profile.weapon)) c.weapon = profile.weapon;
   placeOnGrid(race);
   return publicProfile(c);
 }
@@ -140,12 +145,14 @@ export function startRace(race, tick) {
   race.lastAlive = -1;
   race.wrecks = [];
   race.entities = [];
-  for (const p of race.pads) p.respawnTick = 0;
+  resetEntityIds();
+  resetPads(race);
   placeOnGrid(race);
   for (const c of race.cars) {
     c.lap = 0; c.lapTimes = []; c.bestLap = 0; c.finished = false; c.dead = false;
     c.kills = 0; c.killer = -1; c.cash = 0; c.ramTick = -999;
     c.lapStartTick = race.startTick;
+    armCar(c);
   }
 }
 
@@ -227,14 +234,17 @@ export function stepRace(race, tick, events) {
     } else if (lapsDone < c.lap) c.lap = Math.max(0, lapsDone);
   }
 
-  if (!frozen) {
-    resolveContacts(race, events, applyDamage);
-    race.stepWeapons?.(race, dt, tick, events, applyDamage);
-  }
-
+  // the pose history is written before anything shoots, so a shot rewound by N
+  // ticks reads a history that already contains this tick
   const poses = {};
   for (const c of race.cars) poses[c.id] = { x: c.c.x, z: c.c.z, yaw: c.c.yaw, r: c.c.radius, dead: c.dead };
   race.history.set(tick, poses);
+
+  if (!frozen) {
+    resolveContacts(race, events, applyDamage);
+    stepWeapons(race, dt, tick, events, applyDamage);
+    stepPickups(race, dt, tick, events);
+  }
 
   rankCars(race);
   checkEnd(race, tick, events);

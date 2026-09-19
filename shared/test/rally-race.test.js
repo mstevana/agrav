@@ -163,6 +163,7 @@ test('race: the snapshot round-trips everything the client draws from', () => {
   const race = match(4, { laps: 2 });
   run(race, 60 * 8);
   makeDamage(race, race.tick)(race.cars[3], 9999, 0, 'ram', []);
+  race.entities.length = 0;                       // the bots have been busy; this test wants one known mine
   race.entities.push({ id: 7, kind: ENTITY.MINE, owner: 1, x: 12.5, z: -30.25, yaw: 0.5, life: 9, armed: true });
   race.pads[0].respawnTick = race.tick + 600;
 
@@ -175,8 +176,8 @@ test('race: the snapshot round-trips everything the client draws from', () => {
   assert.equal(d.entities[0].kind, ENTITY.MINE);
   assert.equal(d.entities[0].armed, true);
   assert.equal(d.pads.length, race.pads.length);
-  assert.equal(d.pads[0], false, 'a taken pad reads as taken');
-  assert.equal(d.pads[1], true);
+  assert.equal(d.pads[0], null, 'a taken pad reads as taken');
+  assert.equal(d.pads[1], race.pads[1].item, 'and a live one says what is on it');
   for (const car of race.cars) {
     const rec = d.cars.find(r => r.id === car.id);
     assert.ok(Math.abs(rec.x - car.c.x) < 1e-3 && Math.abs(rec.z - car.c.z) < 1e-3,

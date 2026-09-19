@@ -11,7 +11,10 @@ import { Hud } from './hud.js';
 import { Scene, isLite } from './render/scene.js';
 import { buildTrackScene, animatePads } from './render/track.js';
 import { makeCarMesh, makeWreckMesh, setDamage, TEAM_COLOURS } from './render/car.js';
+import { Fx } from './render/fx.js';
+import { Audio } from './audio.js';
 import { TRACKS } from '../../shared/rally/tracks/index.js';
+import { WEAPONS } from '../../shared/rally/constants.js';
 import { DT, PHASE } from '../../shared/rally/constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -25,12 +28,15 @@ const ui = {
 };
 const OPT = {
   track: $('opt-track'), laps: $('opt-laps'), bots: $('opt-bots'), fill: $('opt-fill'), public: $('opt-public'),
-  lobTrack: $('lob-track'), lobLaps: $('lob-laps'), lobBots: $('lob-bots'), lobFill: $('lob-fill')
+  lobTrack: $('lob-track'), lobLaps: $('lob-laps'), lobBots: $('lob-bots'), lobFill: $('lob-fill'),
+  weapon: $('lob-weapon')
 };
 
 for (const sel of [OPT.track, OPT.lobTrack]) {
   for (const t of TRACKS) sel.add(new Option(t.name, t.id));
 }
+for (const w of Object.values(WEAPONS)) OPT.weapon.add(new Option(w.name, w.id));
+OPT.weapon.onchange = () => net.setProfile({ weapon: OPT.weapon.value });
 
 const app = {
   screen: 'menu', playing: false, imReady: false, room: null,
@@ -43,7 +49,11 @@ const net = new Client();
 const input = new Input();
 const scene = new Scene($('scene'));
 const hud = new Hud($('hud'));
-window.__rally = { app, net, scene, input, THREE };
+const audio = new Audio();
+let fx = null;
+window.__rally = { app, net, scene, input, audio, fx: () => fx, THREE };
+// browsers will not make a sound until the player has touched the page
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => audio.resume(), { once: true });
 
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
 
@@ -184,6 +194,16 @@ function onRoom(room) {
   ui.start.classList.toggle('hidden', !isHost);
   ui.ready.textContent = app.imReady ? 'Not ready' : 'Ready';
 
+  // only what the record says you own is on the menu
+  const owned = net.career?.weapons || ['machinegun'];
+  for (const opt of OPT.weapon.options) {
+    const w = WEAPONS[opt.value];
+    opt.disabled = !owned.includes(opt.value);
+    opt.textContent = opt.disabled ? `${w.name} — locked` : w.name;
+  }
+  const mySeat = room.state?.cars.find(c => c.id === room.you);
+  if (mySeat?.weapon) OPT.weapon.value = mySeat.weapon;
+
   renderSeats(room);
   const humans = room.players.filter(p => !p.bot).length;
   const hostName = room.players.find(p => p.id === room.hostId)?.name || 'the host';
@@ -210,7 +230,10 @@ function renderSeats(room) {
     div.className = `seat${p ? '' : ' empty'}${id === room.you ? ' me' : ''}`;
     const colour = `#${TEAM_COLOURS[id % TEAM_COLOURS.length].toString(16).padStart(6, '0')}`;
     const who = p ? escapeHtml(p.name) : (room.opts?.fillBots === false ? 'empty' : 'empty → bot');
-    const tag = p ? `${car?.car || 'vagabond'}${car ? ` · tier ${car.tier}` : ''}${p.bot ? ' · bot' : p.ready ? ' · ready' : ''}` : '';
+    const tag = p
+      ? `${car?.car || 'vagabond'}${car ? ` · ${WEAPONS[car.weapon]?.name || car.weapon}` : ''}` +
+        `${p.bot ? ' · bot' : p.ready ? ' · ready' : ''}`
+      : '';
     const kick = (room.hostId === room.you && p && p.id !== room.hostId)
       ? `<button class="tag" data-kick="${p.id}">kick</button>` : '';
     div.innerHTML = `<span class="dot" style="background:${colour}"></span><span class="who">${who}</span><span class="tag">${tag}</span>${kick}`;
@@ -235,6 +258,8 @@ function buildScene(room) {
   app.meshes.clear(); app.wreckMeshes.clear();
   const track = net.track;
   app.built = buildTrackScene(scene, track, room.seed);
+  fx?.dispose();
+  fx = new Fx(scene, track);
   for (const seat of net.state.cars) {
     const mesh = makeCarMesh(seat.stats.id, TEAM_COLOURS[seat.id % TEAM_COLOURS.length], { bumper: seat.stats.bumper });
     scene.three.add(mesh);
@@ -248,22 +273,61 @@ function stopRace() {
   app.playing = false;
   input.enabled = false;
   ui.touch.classList.remove('on');
+  audio.stopEngine();
 }
 
 function onEvents(m) {
   for (const ev of m.events || []) {
     switch (ev.t) {
-      case 'go': flash('GO', 900); break;
-      case 'lap': if (ev.id === net.me) flash(`Lap ${ev.lap} — ${ev.time.toFixed(2)}s`, 1500); break;
-      case 'finish': flash(ev.id === net.me ? 'Finished' : `${nameOf(ev.id)} is home`, 1600); break;
-      case 'laststanding': flash(ev.id === net.me ? 'LAST DRIVER STANDING' : `${nameOf(ev.id)} is the last one running`, 2600); break;
-      case 'dead': if (ev.id === net.me) { scene.kick(1.4); flash('Wrecked', 2200); } break;
-      case 'wall': if (ev.id === net.me && ev.force > 14) scene.kick(Math.min(1, ev.force / 40)); break;
-      case 'bump': if ((ev.a === net.me || ev.b === net.me) && ev.force > 10) scene.kick(Math.min(0.8, ev.force / 45)); break;
+      case 'go': flash('GO', 900); audio.beep(true); audio.startEngine(); break;
+      case 'lap':
+        if (ev.id === net.me) { flash(`Lap ${ev.lap} — ${ev.time.toFixed(2)}s`, 1500); audio.beep(); }
+        break;
+      case 'finish':
+        flash(ev.id === net.me ? 'Finished' : `${nameOf(ev.id)} is home`, 1600);
+        hud.say(`${nameOf(ev.id)} finished`, '#7dff9a');
+        break;
+      case 'laststanding':
+        flash(ev.id === net.me ? 'LAST DRIVER STANDING' : `${nameOf(ev.id)} is the last one running`, 2600);
+        break;
+      case 'dead': {
+        const car = net.viewState()?.cars.find(c => c.id === ev.id);
+        if (car) { fx?.boom(car.x, car.z, 1.6); audio.explosion(1.4); }
+        hud.say(ev.by >= 0 && ev.by !== ev.id
+          ? `${nameOf(ev.id)} wrecked by ${nameOf(ev.by)}`
+          : `${nameOf(ev.id)} wrecked`, ev.id === net.me ? '#ff6a5a' : '#ffb03a');
+        if (ev.id === net.me) { scene.kick(1.4); flash('Wrecked', 2200); }
+        break;
+      }
+      case 'blast':
+        fx?.boom(ev.x, ev.z, 1.1);
+        audio.explosion(0.9);
+        break;
+      case 'mine': if (ev.id === net.me) flash('Mine down', 900); break;
+      case 'pickup':
+        if (ev.id === net.me) { flash(PICKUP_TEXT[ev.item] || ev.item, 1100); audio.pickup(); }
+        break;
+      case 'cash':
+        if (ev.id === net.me) { flash(`+${ev.amount}`, 1300); audio.cash(); }
+        hud.say(`${nameOf(ev.id)} picked up ${ev.amount}`, '#c9f24a');
+        break;
+      case 'hit':
+        if (ev.id === net.me) scene.kick(Math.min(0.4, ev.dmg / 90));
+        break;
+      case 'wall':
+        if (ev.id === net.me && ev.force > 14) { scene.kick(Math.min(1, ev.force / 40)); audio.impact(Math.min(1, ev.force / 30)); }
+        break;
+      case 'bump':
+        if ((ev.a === net.me || ev.b === net.me) && ev.force > 10) {
+          scene.kick(Math.min(0.8, ev.force / 45));
+          audio.impact(Math.min(1, ev.force / 35));
+        }
+        break;
       default: break;
     }
   }
 }
+const PICKUP_TEXT = { ammo: 'Ammo', nitro: 'Nitro', repair: 'Repaired', mines: 'Mine', cash: 'Cash' };
 
 /** the room knows everyone's name; the race state only carries what a profile put there */
 function nameOf(id) { return app.room?.players.find(p => p.id === id)?.name || `car ${id + 1}`; }
@@ -333,9 +397,15 @@ function drawWorld(view, dt, time) {
     mesh.rotation.y = w.yaw;
   }
   if (app.built) animatePads(app.built.pads, time, view.pads);
+  fx?.update(view, dt, net.me);
+
+  const me = view.cars.find(c => c.mine);
+  if (me && !me.dead) {
+    audio.engineAt(Math.min(1, me.speed / 45), me.speed > 1 ? 1 : 0.4);
+    if (me.firing) audio.shot(me.weapon);
+  }
 
   // follow my car, or whoever I am watching once mine is gone
-  const me = view.cars.find(c => c.mine);
   let subject = me;
   if (me?.dead) {
     const others = view.cars.filter(c => !c.dead);
