@@ -5,20 +5,24 @@ hosts many rooms of many games at once, a `shared/` simulation and protocol laye
 server and the browser import **unchanged**, and one three.js PWA client per game. No build
 step anywhere: ES modules are served as they are written.
 
-Two games ship today:
+Three games ship today:
 
 - **[AGRAV](agrav/README.md)** — a 12-player anti-gravity combat racer in the spirit of the
   original Wipeout.
 - **[Volley](volley/README.md)** — blobby beach volleyball, 2-on-2 or 1-on-1, for up to four
   players, bots filling any empty seat.
+- **[Scrap Rally](rally/README.md)** — top-down car combat for six, won by the flag or by
+  being the last car running, with a career that remembers your money and your damage.
 
 ```
 server/     Node 22 · rooms, sessions, lobby, static files, /api, /ws · one dependency (ws)
 shared/     net protocol + transport, sim primitives, gfx helpers, and shared/<game>/ per game
 agrav/      the AGRAV client (PWA)
 volley/     the Volley client (PWA)
+rally/      the Scrap Rally client (PWA)
 tools/      lint, balance, network soak, browser end-to-end, icon rendering
 deploy/     systemd unit, nginx site, Ubuntu install script
+data/       durable player records, when a game keeps any (git-ignored)
 ```
 
 ## Run it
@@ -55,24 +59,50 @@ WebTransport path can be added without touching game code.
 
 The room, lobby, sessions, reconnect, snapshots and bots-in-the-lobby all come for free.
 
+Two more things a game can ask for, and neither costs the others anything:
+
+- **`fillBots`** — at the flag, every seat nobody took becomes an ordinary room player
+  driven by the game's own bot, so one person can start a full grid.
+- **`career`** — a JSON record the server keeps per player in `server/store.js`, addressed
+  by a long-lived key the client makes once and presents on `HELLO`. Every rule about it is
+  one of the game module's own pure functions; the server only moves records between the
+  store and the module. Scrap Rally keeps money, damage and what you own in one.
+
 ## Tools
 
 ```sh
-npm test                       # node --test: shared sim + server (54 tests, AGRAV + Volley)
+npm test                       # node --test: shared sim + server (149 tests, all three games)
+
+# AGRAV
 node tools/tracklint.js        # every track: width, radius, overlap, banking, pads, jumps
 node tools/balance.js          # each craft solo on each track; lap times within ±3 %
 node tools/netsim.js --players 12 --rtt 80 --jitter 20 --loss 0.02
                                # headless clients over real sockets through a lossy shim
 node tools/racetest.js         # two headless Chromium clients + a bot race to the results
-node tools/icons.js            # re-render the PWA icons
 node tools/shots.js            # screenshots of every track and craft into docs/screenshots
-                               #   [outdir] [--only meridian,craft] [--times 5,15,25] [--hide water]
+
+# Volley
+node tools/volleysim.js 15 2 hard          # a headless bots-vs-bots match
+
+# Scrap Rally
+node tools/rallylint.js        # every circuit: closure, width, obstacles, pads, the grid
+node tools/rallysim.js         # headless bots; --sweep how races end, --career the ladder
+node tools/rallynet.js --players 6         # synthetic clients over a lossy socket
+node tools/rallytest.js        # two headless browsers through a race and into the garage
+node tools/rallyshots.js       # screenshots of every circuit
+
+node tools/icons.js            # re-render the PWA icons
 ```
 
 Netsim baseline on a 4-core box (12 racers, 80 ms ±20 ms RTT, 2 % loss, one lap of Neon
 Meridian, server and all twelve clients in one process): server tick p95 0.44 ms,
 10 KB/s down and 1.5 KB/s up per client, prediction error after reconciliation 0.00 m
 median and p95, no hard corrections and no clock resyncs while racing.
+
+`tools/rallynet.js` is the same soak for Scrap Rally (six cars, 80 ms ±20 ms, 2 % loss):
+server tick p95 under 0.3 ms, about 7.5 KB/s down and 1.5 KB/s up per client, prediction
+error after reconciliation 0.001 m median and 0.05 m at the 95th percentile, no hard
+corrections and no clock resyncs.
 
 ## Deploy on Ubuntu
 
@@ -85,7 +115,12 @@ curl -s http://127.0.0.1:8080/api/health
 `deploy/agrav.service` runs the server as a system user on `127.0.0.1:8080`;
 `deploy/nginx.conf` terminates TLS, serves the static files and proxies `/api` and `/ws`.
 Environment knobs: `PORT`, `HOST`, `STATIC_ROOT`, `MAX_ROOMS`, `TICK_BUDGET_MS`,
-`RECONNECT_GRACE_MS`, `EMPTY_ROOM_TTL_MS`, `RATE_LIMIT_PER_SEC`, `LOG_LEVEL`.
+`RECONNECT_GRACE_MS`, `EMPTY_ROOM_TTL_MS`, `RATE_LIMIT_PER_SEC`, `LOG_LEVEL`, `DATA_DIR`.
+
+`DATA_DIR` is where durable player records live (Scrap Rally careers). It defaults to
+`./data` beside the checkout; the systemd unit mounts the checkout read-only and points it
+at `/var/lib/agrav` through `StateDirectory`, which is the directory to back up. Setting it
+to the empty string keeps records in memory only, so nothing survives a restart.
 Update with `git pull && npm install --omit=dev && systemctl restart agrav`
 (a restart drops live races; do it between sessions or run a second instance on another
 port and switch nginx).

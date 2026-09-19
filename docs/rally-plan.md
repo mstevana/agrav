@@ -12,6 +12,9 @@ This document is the plan: the pieces, the order to build them in, what each mil
 prove, and the decisions taken. Every decision below was reviewed one by one; the plan is
 meant to be revised as the work lands, but the decisions stand unless revisited explicitly.
 
+**The game is built.** Every decision below was carried out as written. Section 12 records
+where the implementation departed from the plan's own detail, and why.
+
 ---
 
 ## 1. Decisions
@@ -576,7 +579,7 @@ Not in the first release; each has a place prepared for it.
 
 ---
 
-## 11. Risks
+## 11. Risks (as written before the work)
 
 - **Physics feel** is the whole game; budget iteration in M1 with `rallysim` and a keyboard
   before any art. The handling-versus-walls tension has to be felt at the Vagabond tier or the
@@ -595,3 +598,58 @@ Not in the first release; each has a place prepared for it.
   (memory only) and asynchronous to disk, and never let a disk error kill a room.
 - **Cheating**: all money and hull changes are server-side and the lobby validates picks against
   ownership, so the only thing a client controls is its inputs, as today.
+
+---
+
+## 12. What the work changed
+
+The decisions in section 1 all stand. These are the places where the plan's own detail
+turned out to be wrong, or where building it suggested something better.
+
+**Tooling is per game, not per flag.** The plan said `tools/netsim.js --game rally` and
+`tools/racetest.js --game rally`. Both of those tools reach deep into AGRAV's client
+internals, so a flag would have meant branching most of their length. Scrap Rally has its
+own `rallynet.js`, `rallytest.js` and `rallyshots.js` instead, which sit beside
+`rallysim.js` and `rallylint.js` and read as a set.
+
+**The career is read through an action, not pushed at HELLO.** The plan had the server send
+the record as soon as a client said hello. The server does not know which game's record to
+send at that point — a session has not joined a room yet — so `CAREER_ACTION {game, action}`
+reads it, and the room also sends it unprompted when a player joins, which is when the lobby
+needs it.
+
+**A module is seated from its record through `setCareer`, not `career.profile`.** The
+contract ended up with the server handing the module the record and the module deciding what
+that means for the seat. It keeps every rule about a car in one place.
+
+**Pads carry a byte, not a bit.** The plan had one availability bit per pad. Cash is a
+dressing on an existing pad rather than a pad of its own, so what a pad holds can change
+during a race, and the snapshot carries the item rather than a yes or no.
+
+**No event per shot.** The plan had the server tell the client about hits. At nine rounds a
+second per car that is a hundred messages a second, so the client traces its own rays for
+the tracers and the sound against the same obstacles, and only damage — gathered per victim
+per tick — comes down the wire.
+
+**The lint grew two rules the plan did not foresee**, both of them paid for in debugging
+time: a road may not come back within its own width of itself, and an obstacle may not leave
+a slot too narrow to drive through but wide enough to aim at.
+
+**Two simulation rules were added for the same reason**: a wreck settles toward the side of
+the road until the rest of it is open, and the barrier gets the last word in a step. Without
+either, an obstacle and a couple of shells could close a chicane into a pocket that nothing
+got out of.
+
+**The numbers moved a long way.** Hulls went up by about two and a half times and the guns
+came down, because a Vagabond died in four seconds of held fire and every race ended with
+the whole field wrecked. Prizes went up and car prices came down until the brief's three
+paths landed near their stated counts. Bot difficulty was recalibrated after "hard" turned
+out to be *slower* than "easy": skill above one told the bot to carry more speed than the
+car can hold, so it simply arrived at the barrier sooner.
+
+**Still open, for the next pass.** A bot on the two narrow circuits can still lose a large
+part of a race to a pocket of wrecks in a chicane; the field average is fine and the tests
+watch it, but the worst case is a car that spends half a race reversing and re-entering the
+same trap. A longer, straighter recovery was tried and measured worse. The likely answer is
+for the bot to treat "I have been rescued here before" as a reason to pick a different line
+on the approach, rather than a reason to reverse further.

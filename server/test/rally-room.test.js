@@ -219,3 +219,104 @@ test('rally: you can only take to the grid what your record owns', async () => {
   assert.equal(r.state.byId[0].weapon, 'machinegun', 'one you have bought is');
   L.close();
 });
+
+test('rally: the grid waits for every client to build its scene, but not forever', async () => {
+  const L = lobby();
+  const host = new TestClient(L), slow = new TestClient(L);
+  await host.hello('Ann'); await slow.hello('Bob');
+  host.send(MSG.CREATE_ROOM, { game: 'rally', opts: { laps: 1 }, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  slow.send(MSG.JOIN_ROOM, { code: room.code });
+  await slow.waitFor(m => m.type === MSG.ROOM);
+  host.send(MSG.READY, { ready: true });
+  slow.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+
+  const r = L.rooms.get(room.code);
+  assert.equal(r.armed, false, 'the countdown has not been armed yet');
+  r.loaded(host.session);
+  assert.equal(r.armed, false, 'one client in is not enough');
+  spin(r, 60 * 3);
+  assert.equal(r.state.phase, rally.PHASE.COUNTDOWN, 'and the grid is still held');
+
+  // the slow one turns up
+  r.loaded(slow.session);
+  assert.equal(r.armed, true);
+  spin(r, 60 * 5);
+  assert.equal(r.state.phase, rally.PHASE.RACING, 'then the flag drops');
+  L.close();
+});
+
+test('rally: a client that never reports in does not hold the grid past the ceiling', async () => {
+  const L = lobby();
+  const host = new TestClient(L), silent = new TestClient(L);
+  await host.hello('Ann'); await silent.hello('Bob');
+  host.send(MSG.CREATE_ROOM, { game: 'rally', opts: { laps: 1 }, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  silent.send(MSG.JOIN_ROOM, { code: room.code });
+  await silent.waitFor(m => m.type === MSG.ROOM);
+  host.send(MSG.READY, { ready: true });
+  silent.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+
+  const r = L.rooms.get(room.code);
+  r.loaded(host.session);
+  spin(r, 60 * 20);                                   // well past the hold ceiling
+  assert.equal(r.state.phase, rally.PHASE.RACING, 'the race started without them');
+  L.close();
+});
+
+test('rally: a driver who drops mid-race keeps their car until they are back', async () => {
+  const L = lobby();
+  const host = new TestClient(L), guest = new TestClient(L);
+  await host.hello('Ann'); await guest.hello('Bob', undefined, 'DROPKEY0001');
+  host.send(MSG.CREATE_ROOM, { game: 'rally', opts: { laps: 3 }, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  guest.send(MSG.JOIN_ROOM, { code: room.code });
+  await guest.waitFor(m => m.type === MSG.ROOM);
+  host.send(MSG.READY, { ready: true });
+  guest.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  const r = L.rooms.get(room.code);
+  r.loaded(host.session); r.loaded(guest.session);
+  spin(r, 60 * 6);
+
+  const token = guest.token;
+  const car = r.state.byId[1];
+  car.hull = 140;
+  guest.close();
+  await settle();
+  assert.equal(car.disconnected, true, 'their car coasts, and the race goes on');
+  assert.equal(car.dead, false, 'it is not thrown away the moment the socket drops');
+  spin(r, 60 * 2);
+
+  // the same token comes back on a new socket and finds the same car
+  const again = new TestClient(L);
+  await again.hello('Bob', token, 'DROPKEY0001');
+  const back = await again.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  assert.equal(back.you, 1, 'same seat');
+  assert.equal(r.state.byId[1].disconnected, false, 'and driving again');
+  const hullBack = r.state.byId[1].hull;
+  assert.ok(hullBack > 0 && hullBack <= 140,
+    `with the damage it had when they left, or a little more from coasting (${Math.round(hullBack)})`);
+  L.close();
+});
+
+test('rally: a room survives a game module that has never seen these options', async () => {
+  const L = lobby();
+  const host = new TestClient(L);
+  await host.hello('Ann');
+  host.send(MSG.CREATE_ROOM, { game: 'rally', opts: { track: 42, laps: 'lots', botDifficulty: {}, fillBots: 'yes' }, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  assert.equal(room.opts.track, 'scrapyard');
+  assert.equal(room.opts.laps, 3);
+  assert.equal(room.opts.botDifficulty, 'normal');
+  assert.equal(room.opts.fillBots, true);
+  L.close();
+});

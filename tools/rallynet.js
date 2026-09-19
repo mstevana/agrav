@@ -148,6 +148,7 @@ const home = (c) => {
 while (!clients.every(home) && performance.now() - t0 < SECONDS * 1000) await new Promise(r => setTimeout(r, 500));
 clearInterval(timer);
 const elapsed = (performance.now() - t0) / 1000;
+const ranOut = !clients.every(home);
 
 // --- report
 const pct = (a, p) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
@@ -162,13 +163,22 @@ const tickP95 = Math.max(0, ...rooms.map(r => r.tickP95()));
 const finished = clients.filter(c => c.latest?.cars.find(r => r.id === c.me)?.finished).length;
 const dead = clients.filter(c => c.latest?.cars.find(r => r.id === c.me)?.dead).length;
 
-console.log(`ran ${elapsed.toFixed(1)} s · ${finished} finished, ${dead} wrecked of ${clients.length}`);
+console.log(`ran ${elapsed.toFixed(1)} s · ${finished} finished, ${dead} wrecked of ${clients.length}` +
+  (ranOut ? ` · ${clients.length - finished - dead} still out there when the window closed` : ''));
 console.log(`server tick p95 ${tickP95.toFixed(2)} ms · ${snaps} snapshots · ${resyncs} clock resyncs`);
 console.log(`per client: ${(inB / clients.length / elapsed / 1024).toFixed(1)} KB/s down · ${(outB / clients.length / elapsed / 1024).toFixed(1)} KB/s up`);
 console.log(`prediction error after reconciliation: median ${pct(errs, 0.5).toFixed(3)} m · p95 ${pct(errs, 0.95).toFixed(3)} m · max ${pct(errs, 1).toFixed(3)} m · hard corrections ${hard}`);
 
-const ok = tickP95 < 4 && pct(errs, 0.95) < 1.0 && hard === 0 && finished + dead === clients.length;
-console.log(ok ? 'OK' : 'FAIL: outside the baseline (tick p95 < 4 ms, error p95 < 1 m, no hard corrections, everyone home)');
+// What this tool judges is the netcode, not the race: how far a car's own
+// prediction drifts before reconciliation puts it back, how often that gap is
+// too large to blend away, and what it all costs. Whether every car got home
+// inside the window is a property of the circuit and the bots, and a long lap
+// simply runs out of clock — it is reported, not failed on.
+const raced = snaps > 0 && (finished + dead > 0 || ranOut);
+const ok = tickP95 < 4 && pct(errs, 0.95) < 1.0 && hard === 0 && resyncs === 0 && raced;
+console.log(ok
+  ? `OK${ranOut ? ' (the race was still running; --seconds for a longer window)' : ''}`
+  : 'FAIL: outside the baseline (tick p95 < 4 ms, error p95 < 1 m, no hard corrections, no clock resyncs)');
 for (const c of clients) c.close();
 lobby.close(); server.close();
 process.exit(ok ? 0 : 1);

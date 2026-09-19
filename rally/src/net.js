@@ -27,8 +27,16 @@ import { DT, TICK_RATE, PHASE } from '../../shared/rally/constants.js';
 const TOKEN_KEY = 'rally_token';
 const CAREER_KEY = 'rally_career_key';
 const INTERP_TICKS = 4;          // render everyone else this many ticks behind the server clock
-const BLEND_MS = 110;            // how long a correction takes to disappear
-const HARD_CORRECTION = 6;       // metres: past this, snap rather than blend
+// How a correction is absorbed. A car cannot predict being shunted by another
+// one — contacts are the server's alone — so an ordinary race produces errors of
+// a few metres whenever two cars touch. Blending those away over a fixed tenth
+// of a second makes the car appear to slide at sixty metres a second; the blend
+// therefore lasts in proportion to how far it has to move, up to a quarter of a
+// second, and only a gap too large to be a shunt is snapped.
+const BLEND_MIN_MS = 70;
+const BLEND_PER_METRE_MS = 26;
+const BLEND_MAX_MS = 260;
+const HARD_CORRECTION = 12;      // metres: past this it is a desync, not a shove
 
 /** the long-lived identity behind a career; unrelated to the session token */
 export function careerKey() {
@@ -243,7 +251,8 @@ export class Client {
     this.predError = err;
     if (err > HARD_CORRECTION) { this.blend = null; this.corrections++; return; }
     if (err > 0.01) {
-      this.blend = { x: dx, z: dz, yaw: shortestAngle(this.pred.yaw, wasYaw), until: this.clock.now() + BLEND_MS, span: BLEND_MS };
+      const span = Math.min(BLEND_MAX_MS, BLEND_MIN_MS + err * BLEND_PER_METRE_MS);
+      this.blend = { x: dx, z: dz, yaw: shortestAngle(this.pred.yaw, wasYaw), until: this.clock.now() + span, span };
     } else this.blend = null;
   }
 
