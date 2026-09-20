@@ -70,8 +70,11 @@ Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`):
 behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
 edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
 middle; throttle and boost ease its length and heat, and a Homeworld-style ribbon trail hangs in the air
-for a second behind each engine. The trail is emitted from the tip of the plume, so it begins where the
-fire ends, then tapers gently and closes to a point rather than ending in a stub. Shields and weapons are shaders too
+for a second behind each engine. The moving part of the trail is emitted from the tip of the plume and
+left in world space, tapering and closing to a point rather than ending in a stub; ahead of it the same
+ribbon carries two pinned points, at the plume's tip and its nozzle, which bridge the length of the fire
+and fade out into it. The fire is transparent by its own tip, so a trail that merely began there began
+in the middle of a gap. Being one ribbon throughout, the join costs no seam and no second material. Shields and weapons are shaders too
 (`src/render/fxshaders.js`): hex-cell shield skins with a fresnel rim, a scanning band and a ripple
 spreading from where a hit lands; rockets and missiles as white-cored bolts with streaks and fading
 ribbon trails (missiles carry a plume); mines that pulse red once armed; noise-eroded fireballs with

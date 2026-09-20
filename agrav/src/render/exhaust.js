@@ -78,8 +78,10 @@ export function animatePlume(plume, { throttle, boost, speedFrac, dead }, t, dt 
   u.heat.value = d.heat;
 }
 
-/** the world position of a plume's tip — where the fire ends and the trail should begin */
-const _tip = new THREE.Vector3();
-export function plumeTip(plume, out) {
-  return (out || _tip).set(0, 0, 1).applyMatrix4(plume.matrixWorld);
+/** the world position of a point along a plume: 0 at the nozzle, 1 at the tip */
+const _at = new THREE.Vector3();
+export function plumePoint(plume, z, out) {
+  return (out || _at).set(0, 0, z).applyMatrix4(plume.matrixWorld);
 }
+/** where the fire ends and the moving part of the trail begins */
+export const plumeTip = (plume, out) => plumePoint(plume, 1, out);

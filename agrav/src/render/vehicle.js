@@ -15,7 +15,7 @@ import { loft, displaceAlongNormal } from './props.js';
 import { metalPlateSet, standard } from '../../../shared/gfx/surfaces.js';
 import { liverySet, ATLAS } from './livery.js';
 import { fbm3 } from '../../../shared/gfx/noise.js';
-import { makePlume, animatePlume, plumeTip } from './exhaust.js';
+import { makePlume, animatePlume, plumeTip, plumePoint } from './exhaust.js';
 import { EngineTrail } from './trails.js';
 
 const protos = new Map();
@@ -175,14 +175,16 @@ export function buildCraft(vehicleId) {
 }
 
 /** call once per frame after the craft is posed: grows the trails from the flame tips toward the camera's view */
-const _w = new THREE.Vector3();
+const _w = new THREE.Vector3(), _nozzle = new THREE.Vector3();
 export function updateTrails(craft, camera, now) {
   // the trails are grown before the renderer updates matrices, so bring the plumes' own up to date
   craft.group.updateWorldMatrix(true, false);
   for (const t of craft.trails) {
     t.plume.updateWorldMatrix(false, false);
+    // both ends of the flame: the trail bridges them and carries on from the tip
+    plumePoint(t.plume, 0, _nozzle);
     plumeTip(t.plume, _w);
-    t.trail.update(_w, craft.group.visible ? (craft.thrust || 0) : 0, camera, now);
+    t.trail.update(_nozzle, _w, craft.group.visible ? (craft.thrust || 0) : 0, camera, now);
   }
 }
 export function disposeTrails(craft) { for (const t of craft.trails) t.trail.dispose(); }
