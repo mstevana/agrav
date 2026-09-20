@@ -133,6 +133,53 @@ try {
     [...document.querySelectorAll('[data-action="upgrade"]')].some(b => !b.disabled));
   if (!openNow) fail('the shop stayed shut after the repair');
 
+  // What the shop changes has to reach the seat, not just the record. The room
+  // broadcast is what the next race is built from, on the server and on every
+  // client, so a seat still showing the pre-purchase car means the next race is
+  // run in the car you just traded away.
+  const seatOf = (page) => page.evaluate(() => {
+    const net = window.__rally.net;
+    return net.room?.players.find(p => p.id === net.me)?.profile ?? null;
+  });
+  const seatCatchesUp = (page, key, want) => page.waitForFunction(({ k, v }) => {
+    const net = window.__rally.net;
+    const seat = net.room?.players.find(p => p.id === net.me)?.profile;
+    return seat && seat[k] === v;
+  }, { k: key, v: want }, { timeout: 8000 }).catch(() => {});
+
+  // an armour upgrade raises maxHull, which the seat only knows if it was
+  // re-seated: a stale seat keeps the number the car had when it joined
+  const armourBefore = (await seatOf(guest))?.maxHull;
+  const canUpgrade = await guest.evaluate(() =>
+    !!document.querySelector('[data-action="upgrade"][data-stat="armour"]:not([disabled])'));
+  if (!canUpgrade) fail('armour could not be upgraded after the repair, so the seat check has nothing to bite on');
+  await guest.click('[data-action="upgrade"][data-stat="armour"]');
+  await guest.waitForFunction(() => window.__rally.net.career.upgrades.armour > 0, null, { timeout: 8000 });
+  const recordAfterUpgrade = await guest.evaluate(() => window.__rally.net.career);
+  await seatCatchesUp(guest, 'maxHull', recordAfterUpgrade.maxHull ?? -1);
+  const seatAfterUpgrade = await seatOf(guest);
+  if (!seatAfterUpgrade) fail('the guest has no seat in the room');
+  if (seatAfterUpgrade.upgrades?.armour !== recordAfterUpgrade.upgrades.armour) {
+    fail(`the record is on armour ${recordAfterUpgrade.upgrades.armour} but the seat still says ${seatAfterUpgrade.upgrades?.armour}`);
+  }
+  step(`armour upgrade reached the seat: maxHull ${armourBefore} -> ${seatAfterUpgrade.maxHull}, armour ${seatAfterUpgrade.upgrades.armour}`);
+
+  // and the same for a whole car, when the guest can still afford one
+  const buyable = await guest.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-action="buyCar"]')].find(x => !x.disabled);
+    return b ? b.dataset.car : null;
+  });
+  if (buyable) {
+    await guest.click(`[data-action="buyCar"][data-car="${buyable}"]`);
+    await guest.waitForFunction((car) => window.__rally.net.career.car === car, buyable, { timeout: 8000 });
+    await seatCatchesUp(guest, 'car', buyable);
+    const seatAfterBuy = await seatOf(guest);
+    if (seatAfterBuy?.car !== buyable) fail(`bought a ${buyable} but the seat still says ${seatAfterBuy?.car}`);
+    step(`bought a ${buyable} and the seat says ${seatAfterBuy.car}`);
+  } else {
+    step('no car was affordable after the upgrade, so only the upgrade was checked against the seat');
+  }
+
   // the damage is persistent: whatever the host finished the race on is what its
   // record now says, and a car that exploded earns no place money for it
   const hostRecord = await host.evaluate(() => window.__rally.net.career);

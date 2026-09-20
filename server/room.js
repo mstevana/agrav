@@ -123,6 +123,29 @@ export class Room {
     this.broadcastRoomState();
   }
 
+  /**
+   * A player's record changed in the shop. The store has it and the buyer has
+   * been told, but the seat is what the next race is built from — on the server
+   * and, through the room broadcast, on every client — so it has to move too.
+   * Mid-race it does not: a seat races what it started the race in.
+   */
+  setCareerRecord(session, career) {
+    const p = this.players.get(session.playerId);
+    if (!p || !career) return;
+    p.career = career;
+    if (this.phase === 'running') return;
+    this._leaveResults();
+    // The shop is used on the results screen, where the last race is finished
+    // and a finished race will not take a profile change — so seating the new
+    // car into it does nothing, and the lobby goes on showing the old one.
+    // Building the next race now is what was going to happen anyway at the
+    // flag, and it is what makes the purchase real.
+    if (!this._rebuildAfterRace()) {
+      p.profile = this.game.setCareer?.(this.state, p.id, career) || p.profile;
+    }
+    this.broadcastRoomState();
+  }
+
   /** the race is over: pay everyone their money and keep the damage they drove home with */
   _settleCareers(results) {
     if (!this.game.career?.settle) return;
@@ -275,19 +298,28 @@ export class Room {
     this.start();
   }
 
-  start() {
-    if (this.raced) {
-      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since).
-      // A player with a durable record is seated from the record rather than from the
-      // profile they had last time, because the last race is exactly what changed it.
-      this.seed = (Math.random() * 0xffffffff) >>> 0;
-      this.state = this.game.createMatch(this.opts, this.seed);
-      for (const p of this.players.values()) {
-        this.game.addPlayer(this.state, p.id, p.profile, p.bot);
-        if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
-      }
-      this.raced = false;
+  /**
+   * Throw the finished race away and build the one that comes next: same
+   * players and picks, and anyone with a durable record seated from the record
+   * rather than from the profile they had last time, because the last race is
+   * exactly what changed it. A no-op until a race has actually been run.
+   *
+   * @returns {boolean} whether there was a finished race to replace
+   */
+  _rebuildAfterRace() {
+    if (!this.raced) return false;
+    this.seed = (Math.random() * 0xffffffff) >>> 0;
+    this.state = this.game.createMatch(this.opts, this.seed);
+    for (const p of this.players.values()) {
+      this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+      if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
     }
+    this.raced = false;
+    return true;
+  }
+
+  start() {
+    this._rebuildAfterRace();
     this.phase = 'running';
     this.results = null;
     for (const p of this.players.values()) { p.inputs = new RingBuffer(INPUT_HISTORY); p.lastInput = null; p.lastSeq = 0; p.abandoned = false; }

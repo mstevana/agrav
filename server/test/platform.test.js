@@ -106,6 +106,11 @@ test('platform: a career is created on first sight, spent in the shop and kept',
   assert.equal(bought.career.car, 'stiletto');
   assert.equal(bought.career.money, 1500);
   assert.deepEqual(await L.store.get('careertest', 'CAREERKEY0001'), bought.career, 'and it is in the store');
+
+  // buying in the shop has to reach the seat, not just the store: the room is
+  // what the next race is built from, on the server and on every client
+  const reseated = await c.waitFor(m => m.type === MSG.ROOM && m.players[0].profile?.car === 'stiletto');
+  assert.equal(reseated.players[0].profile.car, 'stiletto', 'the seat now shows the car that was just bought');
   L.close();
 });
 

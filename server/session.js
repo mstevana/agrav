@@ -111,6 +111,9 @@ export class Session {
     if (!this.careerKey) return this.sendJson(MSG.CAREER, { game, error: 'no-key' });
     const out = await this.lobby.career(game, this.careerKey, m?.action ? m : null);
     if (this.closed) return;
+    // a purchase has to reach the seat as well as the store, or the next race
+    // is run in the car the player just traded away
+    if (!out.error && out.career && this.room?.game?.id === game) this.room.setCareerRecord(this, out.career);
     this.sendJson(MSG.CAREER, { game, ...out });
   }
 

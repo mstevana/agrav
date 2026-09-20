@@ -781,3 +781,23 @@ bug. Over seventy-two measured races it did what it was meant to: kills down a
 sixth, finishers from 49 per cent to 54, hull lost per race from 1360 to 1290.
 Mines and the bumper are untouched, so there is still something to do with the
 first five seconds besides steer.
+
+**Buying a car did not change the car you raced.** The shop wrote the purchase to
+the store and told the buyer, and the room never heard about it, so the seat kept
+the profile it was given when the player joined. The model on track was the
+visible half of it; the other half was that the race ran on the old car's stats
+and hull.
+
+  · A career action now reaches the room as well as the store. `setCareerRecord`
+    takes the new record, and mid-race it deliberately does nothing: a seat races
+    what it started the race in.
+  · That alone was not enough. The shop is used on the results screen, where the
+    last race's state is `FINISHED`, and `setCarProfile` refuses a profile change
+    on anything but a lobby state — so seating the new car into it did nothing at
+    all. The rematch rebuild that `start` already did is now `_rebuildAfterRace`,
+    shared by both, so a purchase builds the next race there and then. That is
+    what was going to happen at the flag anyway.
+  · `tools/rallytest.js` buys an armour upgrade in a real browser after a real
+    race and checks the seat's `maxHull` moved with the record — it reads 260
+    before and 294 after — then buys a car when one is affordable. Removing the
+    fix makes it fail, which is the only way to know a regression test works.
