@@ -82,9 +82,9 @@ burnt-out shell into cover.
 | **Mines ×3** | free, every race, and no respecter of whose they are; they arm after half a second |
 | **Spiked bumper** | triple damage when you ram, half when you are rammed; bought per car |
 
-The **laser sight** draws a line to whatever is inside the gun's cone. It is
-cosmetic: the ray goes where the car points, and the sight only tells you what
-the cone covers.
+Every gun is fixed and forward. Nothing aims for you and nothing bends a shot
+toward a target: the ray goes where the nose points, so lining a car up is the
+whole skill of shooting one.
 
 ## Pickups
 

@@ -71,7 +71,7 @@ export function addCar(race, id, profile = {}, bot = false) {
     disconnected: false, abandoned: false, rank: 0, place: 0,
     cash: 0, ramTick: -999,
     weapon: isWeaponId(profile.weapon) ? profile.weapon : 'machinegun',
-    ammo: 0, mines: 0, nitro: 0, refireT: 0, spinT: 0, burstT: 0, lockOn: -1,
+    ammo: 0, mines: 0, nitro: 0, refireT: 0, spinT: 0, burstT: 0,
     input: { bits: 0, steer: 0 }
   };
   race.cars.push(c);

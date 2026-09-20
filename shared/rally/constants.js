@@ -201,9 +201,6 @@ export const BUMPER = Object.freeze({ price: 1400, dealt: 3, taken: 0.5 });
 export const HITSCAN_REWIND_TICKS = 6;      // about 100 ms
 export const HISTORY_TICKS = 24;
 
-/** the laser sight. Cosmetic: it says what is in the cone, it does not move the ray. */
-export const LOCK = Object.freeze({ cone: 0.30, rangeFactor: 1.0 });
-
 /** pickup pads */
 export const PAD = Object.freeze({
   radius: 3.2,

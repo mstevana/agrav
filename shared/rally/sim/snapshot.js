@@ -51,7 +51,6 @@ export function encodeRallySnapshot(race, forId) {
     w.u8(weaponCode(c.weapon)).u16(Math.max(0, Math.min(65535, c.ammo | 0)))
      .u8(Math.max(0, Math.min(255, c.mines | 0))).u8(Math.max(0, Math.min(255, c.nitro | 0)));
     w.qu8(Math.max(0, Math.min(12.75, c.burstT || 0)), 20);
-    w.i8(c.lockOn === undefined ? -1 : c.lockOn);
   }
   w.u8(Math.min(255, race.wrecks.length));
   for (const k of race.wrecks.slice(0, 255)) w.u8(k.id).f32(k.x).f32(k.z).angle(k.yaw);
@@ -81,7 +80,6 @@ export function decodeRallySnapshot(u8) {
     c.nitroT = r.qu8(20);
     c.weapon = weaponName(r.u8()); c.ammo = r.u16(); c.mines = r.u8(); c.nitro = r.u8();
     c.burstT = r.qu8(20);
-    c.lockOn = r.i8();
     c.dead = !!(c.flags & CF.DEAD);
     c.finished = !!(c.flags & CF.FINISHED);
     c.sliding = !!(c.flags & CF.SLIDING);

@@ -12,7 +12,7 @@
 import { ByteWriter, ByteReader } from './bytes.js';
 
 /** bump whenever a binary layout or a control message shape changes */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const MSG = Object.freeze({
   // control (JSON)

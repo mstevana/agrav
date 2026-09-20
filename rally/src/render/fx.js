@@ -37,14 +37,6 @@ export class Fx {
     this.tracerGeo.setAttribute('position', new THREE.BufferAttribute(this.tracerBuf, 3));
     this.tracerGeo.setDrawRange(0, 0);
 
-    // the laser sight, drawn only for the car you are driving
-    this.laser = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-      new THREE.LineBasicMaterial({ color: 0xff3a3a, transparent: true, opacity: 0.55 }));
-    this.laser.frustumCulled = false;
-    this.laser.visible = false;
-    this.group.add(this.laser);
-
     this.mineGeo = new THREE.CylinderGeometry(0.6, 0.7, 0.34, 10);
     this.mineMat = new THREE.MeshStandardMaterial({ color: 0x3a3a42, emissive: 0xff2a2a, emissiveIntensity: 0.2, roughness: 0.6 });
     this.blastGeo = new THREE.RingGeometry(0.6, 1, 22);
@@ -55,9 +47,8 @@ export class Fx {
   dispose() { this.scene.three.remove(this.group); }
 
   /** one frame of effects, given the interpolated view */
-  update(view, dt, myId) {
+  update(view, dt) {
     this._tracers(view, dt);
-    this._laser(view, myId);
     this._mines(view, dt);
     this._blasts(dt);
     this._smoke(view, dt);
@@ -120,19 +111,6 @@ export class Fx {
     for (const wreck of view.wrecks || []) test(wreck.x, wreck.z, (wreck.r || 1.2), -1);
     for (const o of this.track.obstacles) test(o.x, o.z, o.r, -1);
     return { x: ox + dx * best, z: oz + dz * best, on };
-  }
-
-  // --- the laser sight: cosmetic, and only for the car you are driving
-  _laser(view, myId) {
-    const me = view.cars.find(c => c.id === myId);
-    const target = me && me.lockOn >= 0 ? view.cars.find(c => c.id === me.lockOn) : null;
-    if (!me || me.dead || !target) { this.laser.visible = false; return; }
-    const pos = this.laser.geometry.attributes.position;
-    pos.setXYZ(0, me.x + Math.sin(me.yaw) * me.radius, 0.85, me.z + Math.cos(me.yaw) * me.radius);
-    pos.setXYZ(1, target.x, 0.85, target.z);
-    pos.needsUpdate = true;
-    this.laser.geometry.computeBoundingSphere();
-    this.laser.visible = true;
   }
 
   // --- mines sitting in the road; they pulse once they are live
