@@ -7,6 +7,7 @@ const KEY = 'agrav_settings_v1';
 const DEFAULTS = {
   name: '',
   vehicle: 'corsair',
+  botDifficulty: 'normal',  // easy | normal | hard -- shown as Easy / Medium / Hard
   quality: 'auto',          // auto | high | low
   sound: true,
   music: true,

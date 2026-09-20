@@ -13,7 +13,7 @@ import { getTrack, TRACK_IDS } from '../tracks/index.js';
 import { makeVehicleState, stepVehicle, environmentDamage } from './vehicle.js';
 import { rollItem, useItem, stepProjectiles, stepMinigun, resetProjectileIds } from './weapons.js';
 import { ITEMS, PAD, GRID, PHASE, CONTACT, HIT_SLOW, COUNTDOWN_SEC, GRID_HOLD_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
-         TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS } from '../constants.js';
+         TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS, DIFFICULTY_IDS } from '../constants.js';
 
 const ribbonCache = new Map();
 export function ribbonFor(trackId) {
@@ -27,7 +27,8 @@ export function ribbonFor(trackId) {
 export function validateOpts(o = {}) {
   return {
     track: TRACK_IDS.includes(o.track) ? o.track : TRACK_IDS[0],
-    laps: Math.max(1, Math.min(9, o.laps | 0 || 3))
+    laps: Math.max(1, Math.min(9, o.laps | 0 || 3)),
+    botDifficulty: DIFFICULTY_IDS.includes(o.botDifficulty) ? o.botDifficulty : 'normal'
   };
 }
 

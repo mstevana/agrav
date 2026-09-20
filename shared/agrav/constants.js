@@ -65,6 +65,19 @@ export const WEAPON = Object.freeze({
 export const PAD = Object.freeze({ radiusS: 3.5, radiusT: 2.6, respawnSec: 6 });
 
 /** bot driving and gunnery. tools/balance.js is the gate on anything here that costs lap time. */
+/**
+ * How well the bots drive, chosen per room. `skill` is the dial bot.js already had: how far ahead
+ * it aims, how late it brakes, how hard it steers and how much it leads a shot. `noise` wanders
+ * the line it wants. `normal` is exactly what every bot was before this was choosable, so the
+ * default grid, the balance tool and the bot tests all measure what they measured before.
+ */
+export const BOT_DIFFICULTY = Object.freeze({
+  easy:   { pace: 0.82, skill: 0.76, noise: 0.30 },
+  normal: { pace: 0.91, skill: 0.85, noise: 0.20 },
+  hard:   { pace: 1.00, skill: 0.97, noise: 0.13 }
+});
+export const DIFFICULTY_IDS = Object.freeze(Object.keys(BOT_DIFFICULTY));
+
 export const BOT = Object.freeze({
   padLook: 150,       // m ahead a bot will consider a weapon pad
   padNear: 0,         // the seek holds until the pad is passed, not abandoned just short of it

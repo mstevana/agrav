@@ -13,15 +13,31 @@ import { frameAt, deltaS } from '../sim/spline.js';
 import { wrapAngle } from '../sim/vec.js';
 import { IN } from '../net/protocol.js';
 import { acquireTarget } from './sim/weapons.js';
-import { BOT, WEAPON } from './constants.js';
+import { BOT, WEAPON, BOT_DIFFICULTY } from './constants.js';
 
 export function makeBot(opts = {}) {
   return {
     skill: opts.skill ?? 1,            // 0.7 .. 1.1: lookahead, reaction, how late it brakes
+    // The share of the craft it will actually use. skill alone turned out not to set the pace at
+    // all -- a bot is on full throttle except when a corner makes it brake, so a better driver only
+    // takes a tidier line, and pushed hard it simply crashes more. This is what makes an easier
+    // bot slower in a way you can feel.
+    pace: opts.pace ?? 1,
     noise: opts.noise ?? 0.15,
     lane: opts.lane ?? 0,              // preferred lateral offset, metres
     wobble: 0, phase: (opts.phase ?? Math.random()) * 100
   };
+}
+
+/**
+ * The bot for a grid slot at a chosen difficulty. The per-id spread is the one the grid always
+ * had, so a row of bots is a row of slightly different drivers rather than five copies -- and so
+ * `normal` reproduces the old hardcoded line exactly.
+ */
+export function botFor(difficulty, id) {
+  const d = BOT_DIFFICULTY[difficulty] || BOT_DIFFICULTY.normal;
+  return makeBot({ skill: d.skill + ((id * 37) % 5) * 0.03, pace: d.pace, noise: d.noise,
+                   lane: ((id % 5) - 2) * 2.2, phase: id * 0.37 });
 }
 
 /** worst curvature over the next `dist` metres */
@@ -111,6 +127,7 @@ export function botInput(race, r, bot, tick) {
   const available = st.turnRate * turnScale;              // rad/s with no airbrake
   const needed = Math.abs(worst) * speed;                 // rad/s to follow the bend
   let bits = IN.THROTTLE;
+  if (speed > st.topSpeed * bot.pace) bits &= ~IN.THROTTLE;   // off the throttle, coasting, not braking
   let airMult = 1;
   if (needed > available * 0.72 * bot.skill) {
     bits |= worst > 0 ? IN.AIRBRAKE_R : IN.AIRBRAKE_L;

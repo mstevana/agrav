@@ -299,7 +299,7 @@ async function playSolo() {
     ui.solo = true;
     ui.soloFilled = false;
     await client.connectLocal(host.channel, $('name').value.trim() || 'player');
-    client.createRoom({ track: settings.track || 'meridian', laps: 3 }, false);
+    client.createRoom({ track: settings.track || 'meridian', laps: 3, botDifficulty: settings.botDifficulty }, false);
   } catch (e) {
     closeSoloHost();
     toast('Could not start solo racing');
@@ -308,7 +308,7 @@ async function playSolo() {
   }
 }
 
-$('btn-create').addEventListener('click', async () => { unlockAudio(); if (await ensureConnected()) client.createRoom({ track: 'meridian', laps: 3 }, true); });
+$('btn-create').addEventListener('click', async () => { unlockAudio(); if (await ensureConnected()) client.createRoom({ track: 'meridian', laps: 3, botDifficulty: settings.botDifficulty }, true); });
 $('btn-join').addEventListener('click', async () => {
   unlockAudio();
   const code = $('join-code').value.trim().toUpperCase();
@@ -346,6 +346,9 @@ $('btn-addbot').addEventListener('click', () => client.addBot());
 $('btn-public').addEventListener('click', () => client.setPublic(!client.room?.public));
 $('laps-minus').addEventListener('click', () => client.setOpts({ laps: (client.room?.opts.laps || 3) - 1 }));
 $('laps-plus').addEventListener('click', () => client.setOpts({ laps: (client.room?.opts.laps || 3) + 1 }));
+// bots run on the server, so difficulty is a room option rather than a local preference. It is also
+// remembered, so a solo race starts at the level you last played.
+$('set-difficulty').addEventListener('change', (e) => { setSetting('botDifficulty', e.target.value); client.setOpts({ botDifficulty: e.target.value }); });
 $('btn-chat').addEventListener('click', sendChat);
 $('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 function sendChat() { const t = $('chat-input').value.trim(); if (!t) return; client.chat(t); $('chat-input').value = ''; }
@@ -434,7 +437,10 @@ function renderLobby(room) {
       for (let i = 0; i < want; i++) client.addBot();
     }
   }
-  $('lobby-track-name').textContent = `${TRACKS[room.opts.track]?.name || ''} · ${room.opts.laps} LAPS${room.public ? ' · PUBLIC' : ' · PRIVATE'}`;
+  const DIFFICULTY_LABEL = { easy: 'EASY', normal: 'MEDIUM', hard: 'HARD' };
+  const diff = room.opts.botDifficulty || 'normal';
+  $('lobby-track-name').textContent = `${TRACKS[room.opts.track]?.name || ''} · ${room.opts.laps} LAPS · ${DIFFICULTY_LABEL[diff]} BOTS${room.public ? ' · PUBLIC' : ' · PRIVATE'}`;
+  $('set-difficulty').value = diff;
   prewarm(room.opts.track);
   $('host-opts').style.display = isHost ? '' : 'none';
   $('laps').textContent = room.opts.laps;

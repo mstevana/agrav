@@ -82,6 +82,40 @@ test('bots take weapon pads and shoot each other', () => {
   assert.equal(selfHits, 0, 'nobody shoots themselves');
 });
 
+test('bot difficulty is a validated room option', () => {
+  assert.deepEqual(module.validateOpts({}), { track: 'meridian', laps: 3, botDifficulty: 'normal' });
+  assert.equal(module.validateOpts({ botDifficulty: 'easy' }).botDifficulty, 'easy');
+  assert.equal(module.validateOpts({ botDifficulty: 'hard' }).botDifficulty, 'hard');
+  // whatever a client sends, only the three levels can reach the sim
+  assert.equal(module.validateOpts({ botDifficulty: 'impossible' }).botDifficulty, 'normal');
+  assert.equal(module.validateOpts({ botDifficulty: { toString: () => 'hard' } }).botDifficulty, 'normal');
+});
+
+test('harder bots lap faster', () => {
+  // Pace is what the setting is for, so lap time is what this measures -- not distance covered,
+  // which combat and eliminations muddle. Several seeds, because one bot race proves nothing.
+  const lap = (botDifficulty) => {
+    const times = [];
+    for (const seed of [1, 2, 3]) {
+      const st = module.createMatch({ track: 'meridian', laps: 9, botDifficulty }, seed);
+      for (let i = 0; i < 3; i++) module.addPlayer(st, i, { vehicle: 'corsair', name: 'P' + i }, true);
+      module.start(st, 0);
+      for (let t = 1; t <= 100 * TICK_RATE; t++) {
+        for (const r of st.racers) module.applyInput(st, r.id, module.botInput(st, r.id, t), t);
+        module.step(st, t, []);
+      }
+      for (const r of st.racers) if (r.bestLap) times.push(r.bestLap);
+    }
+    assert.ok(times.length >= 3, `${botDifficulty} bots set ${times.length} laps`);
+    return times.reduce((a, b) => a + b, 0) / times.length;
+  };
+  const easy = lap('easy'), normal = lap('normal'), hard = lap('hard');
+  assert.ok(hard < normal, `hard ${hard.toFixed(1)}s should beat medium ${normal.toFixed(1)}s`);
+  assert.ok(normal < easy, `medium ${normal.toFixed(1)}s should beat easy ${easy.toFixed(1)}s`);
+  // the gap has to be worth choosing between, not a rounding difference
+  assert.ok(easy - hard > 2, `only ${(easy - hard).toFixed(1)}s between easy and hard`);
+});
+
 test('zero health eliminates; a dead racer stops and ranks below the living', () => {
   const st = race({ track: 'meridian', laps: 3 }, 2);
   module.start(st, 0);

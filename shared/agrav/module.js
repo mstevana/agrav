@@ -7,21 +7,21 @@ import { TICK_RATE, SNAPSHOT_RATE, PHASE } from './constants.js';
 import { createRace, addRacer, removeRacer, setRacerProfile, startRace, holdRace, armRace, applyRacerInput, stepRace,
          raceIsOver, raceResults, publicRaceState, validateOpts } from './sim/race.js';
 import { encodeRaceSnapshot, decodeRaceSnapshot } from './sim/snapshot.js';
-import { makeBot, botInput } from './bot.js';
+import { botFor, botInput } from './bot.js';
 import { VEHICLE_IDS } from './vehicles.js';
 
 export default {
   id: 'agrav', name: 'AGRAV',
   minPlayers: 1, maxPlayers: 12,
   tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE,
-  defaultOpts: { track: 'meridian', laps: 3 },
+  defaultOpts: { track: 'meridian', laps: 3, botDifficulty: 'normal' },
   validateOpts,
 
   createMatch(opts, seed) { const race = createRace(opts, seed); race.bots = {}; return race; },
   addPlayer(state, id, profile, isBot) {
     if (isBot) {
       profile = { ...profile, vehicle: profile.vehicle || VEHICLE_IDS[id % VEHICLE_IDS.length], name: profile.name || `BOT ${id + 1}` };
-      state.bots[id] = makeBot({ skill: 0.85 + ((id * 37) % 5) * 0.05, noise: 0.2, lane: ((id % 5) - 2) * 2.2, phase: id * 0.37 });
+      state.bots[id] = botFor(state.opts.botDifficulty, id);
     }
     addRacer(state, id, profile, isBot);
   },
@@ -41,7 +41,7 @@ export default {
   botInput(state, id, tick) {
     const r = state.byId[id];
     if (!r) return { bits: 0, steer: 0 };
-    return botInput(state, r, state.bots[id] || (state.bots[id] = makeBot()), tick);
+    return botInput(state, r, state.bots[id] || (state.bots[id] = botFor(state.opts.botDifficulty, id)), tick);
   },
   step: stepRace,
   onDisconnect(state, id) { const r = state.byId[id]; if (r) r.disconnected = true; },

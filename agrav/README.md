@@ -8,8 +8,12 @@ Anti-gravity combat racing for up to twelve players, in the browser.
 game works from a static deploy (GitHub Pages) or offline once installed — a full grid of
 seven bots, every track, every craft. Online, create a race (you become the host) or join one
 by code or from the public list. The host
-picks the track and the lap count, can add bots and starts once everyone is ready. Three
-laps by default. **Zero health eliminates you**: the craft explodes and you spectate
+picks the track, the lap count and how hard the bots drive -- easy, medium or hard -- can add
+bots and starts once everyone is ready. Three laps by default. Bots run on the server, so their
+level belongs to the room rather than to your client; it is remembered, so a solo race starts
+where you left off. Difficulty mostly sets the pace a bot will hold, and with it how tidily it
+drives and aims: the same grid laps Neon Meridian in about 43 s on easy, 40 s on medium and
+39 s on hard. **Zero health eliminates you**: the craft explodes and you spectate
 (tap or click to follow another racer) until the race ends. A race ends when every
 surviving craft has finished, or 45 seconds after the first one did. Finished craft keep
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.
