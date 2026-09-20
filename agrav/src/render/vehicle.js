@@ -184,7 +184,7 @@ export function updateTrails(craft, camera, now) {
     // both ends of the flame: the trail bridges them and carries on from the tip
     plumePoint(t.plume, 0, _nozzle);
     plumeTip(t.plume, _w);
-    t.trail.update(_nozzle, _w, craft.group.visible ? (craft.thrust || 0) : 0, camera, now);
+    t.trail.update(_nozzle, _w, craft.dead || !craft.group.visible ? 0 : (craft.thrust || 0), camera, now);
   }
 }
 export function disposeTrails(craft) { for (const t of craft.trails) t.trail.dispose(); }
@@ -202,5 +202,11 @@ export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead
   craft.flapL.rotation.x += ((abL ? -0.9 : 0) - craft.flapL.rotation.x) * fk;
   craft.flapR.rotation.x += ((abR ? -0.9 : 0) - craft.flapR.rotation.x) * fk;
   craft.light.intensity = dead ? 0 : (boost ? 3 : 1.2);
-  craft.group.visible = !dead;
+  // Hide the wreck by its parts, not by the group. The group carries the craft's point light, and
+  // three gathers lights with traverseVisible -- so hiding the group dropped a light out of the
+  // scene, changed the light count every material is compiled against, and rebuilt every shader in
+  // the scene on the frame you died. The light stays visible at zero intensity instead, which costs
+  // nothing to render and keeps the count still.
+  craft.dead = !!dead;
+  for (const ch of craft.group.children) if (ch !== craft.light) ch.visible = !dead;
 }
