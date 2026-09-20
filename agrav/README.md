@@ -14,7 +14,11 @@ laps by default. **Zero health eliminates you**: the craft explodes and you spec
 surviving craft has finished, or 45 seconds after the first one did. Finished craft keep
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.
 The room offers fullscreen while you wait for the start, both as the browser's own shortcut
-(F11, or ⌃⌘F on a Mac, which a page cannot press for you) and as a button, which can.
+(F11, or ⌃⌘F on a Mac, which a page cannot press for you) and as a button, which can. On a phone
+the tap that starts a race takes the whole screen by itself, since the browser's chrome is a large
+slice of a small one. Safari has no Fullscreen API outside video, so there it does nothing and
+installing to the home screen is the way there -- the manifest already asks for a fullscreen
+display mode.
 Choosing a track prepares it there and then, behind a progress bar: terrain and texture sets, the
 scene itself, and every shader it will need. That last part is the long one and it is sliced across
 frames, so the lobby keeps painting -- and the backdrop becomes the track you are about to race.

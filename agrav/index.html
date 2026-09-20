@@ -20,8 +20,14 @@
 }
 html.large-hud { --hud: 1.3; }
 html.reduced-motion * { transition: none !important; animation: none !important; }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* touch-action does not inherit, so setting it on body alone left every button at `auto` -- and a
+   double tap on one zoomed the page. Safari has ignored user-scalable=no since iOS 10, and with the
+   meta tag still refusing to scale, pinching back out did not work either: you were stuck zoomed in.
+   `manipulation` is the fix: taps, drags and scrolling all behave, only double-tap-to-zoom goes. */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); overflow: hidden; touch-action: none; overscroll-behavior: none; }
+/* the 3D view and the driving controls swallow gestures whole: no panning, no zooming, no delay */
+#canvas-host, #canvas-host canvas, #touch, #touch-steer, .tbtn, #hud { touch-action: none; }
 button, input, select { font: inherit; color: inherit; }
 #canvas-host { position: fixed; inset: 0; }
 #canvas-host canvas { display: block; width: 100%; height: 100%; }

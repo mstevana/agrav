@@ -377,6 +377,26 @@ document.addEventListener('fullscreenchange', syncFullscreen);
 document.addEventListener('webkitfullscreenchange', syncFullscreen);
 syncFullscreen();
 
+/**
+ * On a phone the browser's own chrome is a large slice of a small screen, so going into a race
+ * takes the whole of it. Fullscreen needs a user gesture, and the tap that starts the race is one --
+ * hence this hangs off the buttons rather than off entering the race, which the server triggers.
+ * Where there is no Fullscreen API (Safari has none outside video) it quietly does nothing; the
+ * manifest asks for a fullscreen display mode, so installing to the home screen is the way there.
+ */
+function fullscreenForRace() {
+  if (!enterFullscreen || isFullscreen()) return;
+  if (!document.documentElement.classList.contains('touch')) return;   // desktop keeps the button
+  Promise.resolve(enterFullscreen.call(fsRoot)).catch(() => {});       // refusal is not worth a toast here
+}
+for (const id of ['btn-solo', 'btn-start', 'btn-ready', 'btn-results-ready']) $(id).addEventListener('click', fullscreenForRace);
+
+// Safari has ignored user-scalable=no since iOS 10, so a pinch still zooms the page and -- with the
+// meta tag refusing to scale back -- leaves it stuck. These are the events that pinch arrives on.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+}
+
 function leaveToMenu() {
   ui.screen = 'menu'; ui.ready = false; ui.results = null;
   if (ui.solo) { client.close(); closeSoloHost(); }
