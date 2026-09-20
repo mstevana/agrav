@@ -101,36 +101,54 @@ class Audio {
     }
   }
 
-  /** keep an engine voice for a craft up to date; call every frame for audible craft */
+  /**
+   * An engine voice. It used to be a sawtooth and a square an octave apart, with the lower one
+   * detuned by 2 Hz -- which beats twice a second, and a buzzing waveform throbbing at 2 Hz is a
+   * lawnmower. This is air instead: broadband noise is the voice, opening up and climbing as the
+   * craft gains speed, over a soft triangle and a sine sub that give it body without a reed. The
+   * noise bypasses the tone filter so it keeps its top end, since that is where a woosh lives.
+   */
   engine(id, { speedFrac, throttle, boost, pos, mine }) {
     if (!this.ctx) return;
     let e = this.engines.get(id);
     const c = this.ctx;
     if (!e) {
-      const o1 = c.createOscillator(); o1.type = 'sawtooth';
-      const o2 = c.createOscillator(); o2.type = 'square';
+      const o1 = c.createOscillator(); o1.type = 'triangle';
+      const o2 = c.createOscillator(); o2.type = 'sine';
       const n = c.createBufferSource(); n.buffer = this.noise; n.loop = true;
-      const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.Q.value = 0.8;
+      const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.Q.value = 0.35;   // wide: air, not a whistle
+      const nhp = c.createBiquadFilter(); nhp.type = 'highpass'; nhp.frequency.value = 180;
+      const ng = c.createGain(); ng.gain.value = 0;
+      const tg = c.createGain(); tg.gain.value = 0;
       const lp = c.createBiquadFilter(); lp.type = 'lowpass';
       const g = c.createGain(); g.gain.value = 0;
       const pan = c.createStereoPanner ? c.createStereoPanner() : null;
-      o1.connect(lp); o2.connect(lp); n.connect(nf); nf.connect(lp); lp.connect(g);
+      o1.connect(tg); o2.connect(tg); tg.connect(lp); lp.connect(g);
+      n.connect(nhp); nhp.connect(nf); nf.connect(ng); ng.connect(g);
       if (pan) { g.connect(pan); pan.connect(this.sfx); } else g.connect(this.sfx);
       o1.start(); o2.start(); n.start();
-      e = { o1, o2, nf, lp, g, pan };
+      e = { o1, o2, n, nf, nhp, ng, tg, lp, g, pan };
       this.engines.set(id, e);
     }
     const t = c.currentTime;
-    const base = 55 + speedFrac * 140 + (boost ? 40 : 0);
-    e.o1.frequency.setTargetAtTime(base, t, 0.08);
-    e.o2.frequency.setTargetAtTime(base * 0.5 + (throttle ? 2 : 0), t, 0.08);
-    e.nf.frequency.setTargetAtTime(400 + speedFrac * 2600, t, 0.1);
-    e.lp.frequency.setTargetAtTime(600 + speedFrac * 3000 + (throttle ? 600 : 0), t, 0.1);
+    // a narrow pitch range: the rush should carry the speed, not a rising note
+    const base = 48 + speedFrac * 70 + (boost ? 16 : 0);
+    e.o1.frequency.setTargetAtTime(base, t, 0.12);
+    e.o2.frequency.setTargetAtTime(base * 0.5, t, 0.12);          // an exact octave: nothing to beat against
+    // the band sits in the low mids: pushed higher it stops being a rush of air and becomes a hiss
+    e.nf.frequency.setTargetAtTime(520 + speedFrac * 1700 + (boost ? 500 : 0), t, 0.12);
+    e.lp.frequency.setTargetAtTime(520 + speedFrac * 1100, t, 0.12);
+    // the faster it goes the more of it is air and the less is hum, but the hum never leaves: it is
+    // what keeps the woosh sounding like a craft and not like an open tap
+    e.ng.gain.setTargetAtTime(0.30 + speedFrac * 0.45 + (throttle ? 0.18 : 0) + (boost ? 0.22 : 0), t, 0.12);
+    e.tg.gain.setTargetAtTime(0.95 - speedFrac * 0.25, t, 0.12);
     const { gain, pan } = mine ? { gain: 1, pan: 0 } : this._spatial(pos);
     e.g.gain.setTargetAtTime((mine ? 0.16 : 0.12) * gain * (0.5 + speedFrac * 0.5 + (throttle ? 0.25 : 0)), t, 0.1);
     if (e.pan) e.pan.pan.setTargetAtTime(pan, t, 0.1);
   }
-  stopEngine(id) { const e = this.engines.get(id); if (!e) return; try { e.o1.stop(); e.o2.stop(); } catch { /* */ } this.engines.delete(id); }
+  // the noise source was never stopped, so every craft that ever died left one running for the
+  // lifetime of the page, still feeding the graph
+  stopEngine(id) { const e = this.engines.get(id); if (!e) return; try { e.o1.stop(); e.o2.stop(); e.n.stop(); e.g.disconnect(); } catch { /* already gone */ } this.engines.delete(id); }
   stopAllEngines() { for (const id of [...this.engines.keys()]) this.stopEngine(id); }
 
   // ------------------------------------------------------------------ music --
