@@ -187,7 +187,16 @@ export class Hud {
     this.feed = this.feed.filter(f => now - f.t < 5000);
     this.el.feed.innerHTML = this.feed.map(f => `<div class="${f.cls}">${esc(f.text)}</div>`).join('');
   }
-  status(text) { this.el.status.textContent = text || ''; this.el.status.hidden = !text; }
+  /** the headline before the em dash, the rest under it. Both are set as text: names come from players. */
+  status(text) {
+    const el = this.el.status;
+    el.hidden = !text;
+    el.textContent = '';
+    if (!text) return;
+    const [head, ...rest] = String(text).split(' — ');
+    const b = document.createElement('b'); b.textContent = head; el.appendChild(b);
+    if (rest.length) { const s = document.createElement('span'); s.textContent = rest.join(' — '); el.appendChild(s); }
+  }
 }
 
 export function fmtTime(sec) {
