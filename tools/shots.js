@@ -36,7 +36,8 @@ for (const track of TRACK_IDS.filter(t => !ONLY || ONLY.includes(t))) {
   const page = await ctx.newPage();
   page.on('pageerror', e => console.error(track, 'pageerror', e.message));
   page.on('console', m => { if (m.text().startsWith('pose')) console.log(track, m.text()); });
-  await page.goto(base, { waitUntil: 'networkidle' });
+  // not networkidle: the client polls /api/health and the room list, so the network never goes idle
+  await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.click('#btn-create');
   await page.waitForSelector('#screen-lobby:not([hidden])');
   await page.click(`[data-track="${track}"]`);
@@ -92,7 +93,7 @@ void 0;
 for (const id of [...VEHICLE_IDS, 'all'].filter(v => !ONLY || ONLY.includes('craft'))) {
   const page = await ctx.newPage();
   page.on('pageerror', e => console.error(id, 'pageerror', e.message));
-  await page.goto(`${base}?showcase=${id}&track=vanta`, { waitUntil: 'networkidle' });   // daylight shows the hulls best
+  await page.goto(`${base}?showcase=${id}&track=vanta`, { waitUntil: 'domcontentloaded' });   // daylight shows the hulls best
   await page.waitForFunction(() => window.__agrav?.showcaseReady, null, { timeout: 30000 });
   await page.waitForTimeout(1200);
   const file = `${OUT}/craft-${id}.png`;

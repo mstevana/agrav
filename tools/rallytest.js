@@ -35,7 +35,8 @@ async function client(name) {
   const page = await browser.newPage({ viewport: { width: 900, height: 520 } });
   page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error') errors.push(`${name} console: ${m.text()}`); });
-  await page.goto(base, { waitUntil: 'networkidle' });
+  // not networkidle: the client polls /api/health, so the network never goes idle
+  await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.fill('#name', name);
   return page;
 }

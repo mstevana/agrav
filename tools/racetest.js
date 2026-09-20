@@ -24,7 +24,9 @@ async function client(name) {
   await page.addInitScript(() => { try { localStorage.setItem('agrav_settings_v1', JSON.stringify({ quality: 'low', sound: false, music: false })); } catch {} });
   page.on('pageerror', e => errors.push(`${name}: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error') errors.push(`${name} console: ${m.text()}`); });
-  await page.goto(base, { waitUntil: 'networkidle' });
+  // not networkidle: the client polls /api/health and the room list, so the network never goes idle.
+  // Module scripts have run by DOMContentLoaded, and Playwright waits for each element it acts on.
+  await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.fill('#name', name);
   return page;
 }

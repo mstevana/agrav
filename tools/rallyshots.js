@@ -37,7 +37,7 @@ const browser = await chromium.launch({
 for (const track of TRACKS) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   page.on('pageerror', e => console.error('page error:', e.message));
-  await page.goto(`http://127.0.0.1:${port}/rally/${LITE ? '?lite=1' : ''}`, { waitUntil: 'networkidle' });
+  await page.goto(`http://127.0.0.1:${port}/rally/${LITE ? '?lite=1' : ''}`, { waitUntil: 'domcontentloaded' });
   await page.fill('#name', 'Camera');
   await page.selectOption('#opt-track', track);
   await page.selectOption('#opt-laps', '7');

@@ -109,7 +109,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 page.on('pageerror', e => console.error('page error:', e.message));
 page.on('console', m => { if (m.type() === 'error') console.error('console:', m.text()); });
-await page.goto(`http://127.0.0.1:${port}/cars`, { waitUntil: 'networkidle' });
+await page.goto(`http://127.0.0.1:${port}/cars`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__ready, null, { timeout: 20000 });
 await fs.mkdir(OUT, { recursive: true });
 const name = path.join(OUT, `cars${ANGLE < 0.99 ? '-low' : ''}.png`);
