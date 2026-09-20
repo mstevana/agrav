@@ -65,3 +65,58 @@ export function mergeGeometries(geometries) {
   out.computeBoundingSphere();
   return out;
 }
+
+/**
+ * Collapse a tree of small static meshes into one mesh per material.
+ *
+ * Scenery is authored as hundreds of little groups because that is how it is
+ * easiest to think about, and hundreds of little groups is also the fastest
+ * way to bring a renderer to its knees. This bakes each mesh's world matrix
+ * into a copy of its geometry, buckets by what the material actually looks
+ * like — not by object identity, since scenery builders tend to mint a fresh
+ * material per prop — and merges each bucket. Anything that cannot be merged
+ * (an InstancedMesh, a skinned mesh, a mesh with a per-vertex attribute the
+ * merger does not carry) is passed through untouched.
+ *
+ * @param {THREE.Object3D} root
+ * @returns {THREE.Group}
+ */
+export function flatten(root) {
+  root.updateMatrixWorld(true);
+  const buckets = new Map();
+  const passthrough = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material)) { passthrough.push(o); return; }
+    const g = o.geometry;
+    if (!g || !g.attributes.position || !g.attributes.normal || !g.attributes.uv) { passthrough.push(o); return; }
+    if (g.attributes.color || g.attributes.blend) { passthrough.push(o); return; }
+    const m = o.material;
+    const key = [m.type, m.color?.getHex(), m.roughness, m.metalness, m.transparent, m.opacity,
+      m.side, m.depthWrite, m.map?.uuid ?? '', m.emissive?.getHex() ?? ''].join('|');
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, b = { material: m, geometries: [], castShadow: false, receiveShadow: false });
+    const clone = g.clone().applyMatrix4(o.matrixWorld);
+    b.geometries.push(clone);
+    b.castShadow ||= o.castShadow;
+    b.receiveShadow ||= o.receiveShadow;
+  });
+  const out = new THREE.Group();
+  for (const b of buckets.values()) {
+    const geo = mergeGeometries(b.geometries);
+    if (!geo) continue;
+    const mesh = new THREE.Mesh(geo, b.material);
+    mesh.castShadow = b.castShadow;
+    mesh.receiveShadow = b.receiveShadow;
+    out.add(mesh);
+  }
+  for (const o of passthrough) {
+    o.updateMatrixWorld(true);
+    const m = o.clone();
+    m.matrix.copy(o.matrixWorld);
+    m.matrix.decompose(m.position, m.quaternion, m.scale);
+    m.matrixAutoUpdate = true;
+    out.add(m);
+  }
+  return out;
+}

@@ -12,7 +12,7 @@
 // mirrored, which the decal transforms below account for.
 // ============================================================================
 
-import { setFromCanvases } from './surfaces.js';
+import { setFromCanvases } from '../../../shared/gfx/surfaces.js';
 import { makeRng } from '../../../shared/sim/rng.js';
 
 export const SIZE = 1024;

@@ -15,6 +15,7 @@ import { createServer } from '../server/index.js';
 import { Lobby } from '../server/lobby.js';
 import { Client } from '../agrav/src/net.js';
 import { makeBot, botInput } from '../shared/agrav/bot.js';
+import { HOT } from '../shared/net/protocol.js';
 import { PHASE, TICK_RATE } from '../shared/agrav/constants.js';
 import { VEHICLE_IDS } from '../shared/agrav/vehicles.js';
 
@@ -30,8 +31,8 @@ const SECONDS = parseInt(arg('--seconds', '90'), 10);
 
 // --- a WebSocket shim that delays and drops frames in both directions
 const RealWS = globalThis.WebSocket;
-// only the hot path (ping/pong, inputs, snapshots: type >= 20) may be dropped; control frames are reliable
-const unreliable = (data) => { const u8 = data instanceof Uint8Array ? data : new Uint8Array(data); return u8[0] >= 20; };
+// only the hot path (ping/pong, inputs, snapshots) may be dropped; control frames are reliable
+const unreliable = (data) => { const u8 = data instanceof Uint8Array ? data : new Uint8Array(data); return u8[0] >= HOT; };
 class ShimWS extends EventTarget {
   constructor(url) {
     super();

@@ -1,0 +1,14 @@
+{
+  "name": "Scrap Rally",
+  "short_name": "Scrap Rally",
+  "description": "Top-down car combat racing for up to six drivers. Win by the flag or by being the last car running.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0b10",
+  "theme_color": "#0a0b10",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

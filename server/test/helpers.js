@@ -26,8 +26,8 @@ export class TestClient {
   }
   send(type, obj) { this.chan.send(encodeJson(type, obj)); }
   sendRaw(u8) { this.chan.send(u8); }
-  async hello(name = 'tester', token) {
-    this.send(MSG.HELLO, { v: PROTOCOL_VERSION, name, token });
+  async hello(name = 'tester', token, careerKey) {
+    this.send(MSG.HELLO, { v: PROTOCOL_VERSION, name, token, careerKey });
     return this.waitFor(m => m.type === MSG.WELCOME || m.type === MSG.ERROR);
   }
   sendInput(seq, tick, bits, steer = 0) { this.sendRaw(encodeInputs([{ seq, tick, bits, steer }])); }

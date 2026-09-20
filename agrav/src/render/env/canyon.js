@@ -5,10 +5,10 @@
 import * as THREE from 'three';
 import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, flock, billboards } from './common.js';
 import { glowSprite } from '../textures.js';
-import { strataSet, sandSet, cliffSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../surfaces.js';
+import { strataSet, sandSet, cliffSet, concreteSet, metalPlateSet, waterSet, standard, triplanarBlended } from '../../../../shared/gfx/surfaces.js';
 import { rock, mesa, cliffSlab, cactusGeo, deadTreeGeo, pylonGeo, archGeo } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
-import { fbm2, ridged2, smoothstep } from '../noise.js';
+import { fbm2, ridged2, smoothstep } from '../../../../shared/gfx/noise.js';
 import { frameAt } from '../../../../shared/sim/spline.js';
 
 /** the height field (cached per track) */

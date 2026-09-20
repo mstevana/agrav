@@ -1,15 +1,16 @@
 // AGRAV — offline shell cache. The client shell (HTML, JS, three.js, shared
 // sim) is precached so the app opens instantly from the home screen; racing
 // itself needs the server, so this is about launch, not play.
-const CACHE = 'agrav-v2';
+const CACHE = 'agrav-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './src/main.js', './src/net.js', './src/input.js', './src/hud.js', './src/audio.js', './src/settings.js', './src/music.js',
   './src/render/track.js', './src/render/vehicle.js', './src/render/fx.js', './src/render/fxshaders.js', './src/render/textures.js',
-  './src/render/surfaces.js', './src/render/props.js', './src/render/terrain.js', './src/render/noise.js', './src/render/livery.js', './src/render/exhaust.js', './src/render/trails.js',
+  './src/render/props.js', './src/render/terrain.js', './src/render/livery.js', './src/render/exhaust.js', './src/render/trails.js',
   './src/render/env/index.js', './src/render/env/city.js', './src/render/env/canyon.js', './src/render/env/coast.js', './src/render/env/common.js',
   './src/render/env/sea.js', './src/render/env/hell.js', './src/render/env/moon.js', './src/render/env/jungle.js',
-  '../shared/vendor/three.module.min.js', '../shared/gfx/bloom.js', '../shared/gfx/merge.js',
+  '../shared/vendor/three.module.min.js',
+  '../shared/gfx/bloom.js', '../shared/gfx/merge.js', '../shared/gfx/noise.js', '../shared/gfx/surfaces.js', '../shared/gfx/geom.js',
   '../shared/net/protocol.js', '../shared/net/bytes.js', '../shared/net/channel.js', '../shared/net/clock.js',
   '../shared/sim/vec.js', '../shared/sim/rng.js', '../shared/sim/spline.js', '../shared/sim/ring-buffer.js',
   '../shared/agrav/module.js', '../shared/agrav/constants.js', '../shared/agrav/vehicles.js', '../shared/agrav/bot.js',

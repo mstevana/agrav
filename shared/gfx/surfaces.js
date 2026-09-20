@@ -1,5 +1,6 @@
 // ============================================================================
-// AGRAV — procedural material sets. A height field is evaluated once per
+// Procedural material sets, shared by every game's renderer. A height field is
+// evaluated once per
 // texel, and from it come the albedo, the normal map (Sobel over the height),
 // the bump map (the height itself), a roughness map and optionally an
 // emissive map. Everything is a DataTexture built on the client from a seed;
@@ -8,7 +9,7 @@
 
 import * as THREE from 'three';
 import { fbm2, ridged2, warp2, voronoi2, value2, clamp01, smoothstep } from './noise.js';
-import { makeRng } from '../../../shared/sim/rng.js';
+import { makeRng } from '../sim/rng.js';
 
 const cache = new Map();
 function memo(key, f) { if (!cache.has(key)) cache.set(key, f()); return cache.get(key); }

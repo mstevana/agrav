@@ -8,7 +8,7 @@
 // ============================================================================
 
 import * as THREE from 'three';
-import { waterSet } from '../surfaces.js';
+import { waterSet } from '../../../../shared/gfx/surfaces.js';
 
 const SEA_VERT = `
 #include <fog_pars_vertex>

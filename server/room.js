@@ -55,12 +55,14 @@ export class Room {
     if (id < 0) return session.error('full', 'room is full');
     const p = this._newPlayer(id, session.name, false);
     p.session = session;
+    p.careerKey = session.careerKey;
     this.players.set(id, p);
     if (asHost || this.hostId < 0) this.hostId = id;
     this.lobby.attach(session, this, id);
     this.game.addPlayer(this.state, id, p.profile, false);
     session.sendJson(MSG.ROOM, this.roomState(id));
     this.broadcastRoomState();
+    this._loadCareer(p);
     log.info('room', 'joined', { code: this.code, id, name: session.name });
   }
 
@@ -70,6 +72,7 @@ export class Room {
       session: null,
       ready: bot,
       profile: {},
+      careerKey: null, career: null,
       inputs: new RingBuffer(INPUT_HISTORY),
       lastSeq: 0, lastInput: null, margin: 0,
       disconnectedAt: 0, abandonTimer: null
@@ -79,12 +82,60 @@ export class Room {
   addBot(session) {
     if (!this._isHost(session)) return session.error('host', 'host only');
     if (this.phase === 'running') return;
+    if (!this._addBot()) return session.error('full', 'room is full');
+    this.broadcastRoomState();
+  }
+
+  /** seat one bot; returns false when the room is full */
+  _addBot() {
     const id = this._freeId();
-    if (id < 0) return session.error('full', 'room is full');
+    if (id < 0) return false;
     const p = this._newPlayer(id, `BOT ${id + 1}`, true);
     this.players.set(id, p);
     this.game.addPlayer(this.state, id, p.profile, true);
+    return true;
+  }
+
+  /**
+   * A game that wants a full grid says so, and every seat nobody took becomes a
+   * bot at the moment the host starts. They are ordinary room players from then
+   * on: visible, kickable and named in the results.
+   */
+  _fillBots() {
+    if (!this.game.fillBots?.(this.state, this.opts)) return;
+    while (this._addBot());
+  }
+
+  /**
+   * A player's durable record for this game (money, car, damage). It arrives
+   * after the join, so the seat starts from the module's default and is set to
+   * what the record says as soon as the store answers.
+   */
+  async _loadCareer(p) {
+    if (!this.game.career || !p.careerKey) return;
+    const out = await this.lobby.career(this.game.id, p.careerKey, null).catch(() => null);
+    if (!out?.career || this.destroyed || !this.players.has(p.id) || p.session?.closed) return;
+    p.career = out.career;
+    // the lobby wants to show what this player owns, so hand them the record too
+    p.session?.sendJson(MSG.CAREER, { game: this.game.id, career: out.career });
+    if (this.phase === 'running') return;   // the seat is already racing on what it had
+    p.profile = this.game.setCareer?.(this.state, p.id, out.career) || p.profile;
     this.broadcastRoomState();
+  }
+
+  /** the race is over: pay everyone their money and keep the damage they drove home with */
+  _settleCareers(results) {
+    if (!this.game.career?.settle) return;
+    for (const p of this.players.values()) {
+      if (p.bot || !p.career || !p.careerKey) continue;
+      try {
+        p.career = this.game.career.settle(p.career, results, p.id, this.opts);
+        this.lobby.store.set(this.game.id, p.careerKey, p.career);
+        p.session?.sendJson(MSG.CAREER, { game: this.game.id, career: p.career });
+      } catch (e) {
+        log.warn('room', 'settle failed', { code: this.code, id: p.id, err: e.message });
+      }
+    }
   }
 
   kick(session, id) {
@@ -163,6 +214,7 @@ export class Room {
     if (!p || p.session || p.abandoned) { this.lobby.detach(session); return session.sendJson(MSG.ROOM, null); }
     p.session = session;
     p.name = session.name;
+    if (session.careerKey) p.careerKey = session.careerKey;
     if (p.abandonTimer) { clearTimeout(p.abandonTimer); p.abandonTimer = null; }
     this.lobby.attach(session, this, playerId);
     if (this.phase === 'running') this.game.onReconnect(this.state, playerId, this.tick);
@@ -219,15 +271,21 @@ export class Room {
     const humans = [...this.players.values()].filter(p => !p.bot && p.session);
     if (humans.length < this.game.minPlayers) return session.error('players', 'not enough players');
     if (humans.some(p => !p.ready)) return session.error('ready', 'everyone must be ready');
+    this._fillBots();
     this.start();
   }
 
   start() {
     if (this.raced) {
-      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since)
+      // a rematch: fresh state, same players and picks (whether or not anyone touched the lobby since).
+      // A player with a durable record is seated from the record rather than from the
+      // profile they had last time, because the last race is exactly what changed it.
       this.seed = (Math.random() * 0xffffffff) >>> 0;
       this.state = this.game.createMatch(this.opts, this.seed);
-      for (const p of this.players.values()) this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+      for (const p of this.players.values()) {
+        this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+        if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
+      }
       this.raced = false;
     }
     this.phase = 'running';
@@ -353,6 +411,7 @@ export class Room {
     this.phase = 'results';
     this.raced = true;
     this.results = this.game.results(this.state);
+    this._settleCareers(this.results);
     this.broadcast(encodeJson(MSG.RESULTS, { results: this.results }));
     for (const p of [...this.players.values()]) {
       p.ready = p.bot;
@@ -370,6 +429,8 @@ export class Room {
       code: this.code, game: this.game.id, phase: this.phase, hostId: this.hostId, you: forId,
       opts: this.opts, public: this.isPublic, tick: this.tick, tickRate: this.game.tickRate,
       snapshotRate: this.game.snapshotRate, seed: this.seed,
+      fillBots: !!this.game.fillBots?.(this.state, this.opts),
+      maxPlayers: this.game.maxPlayers,
       players: [...this.players.values()].map(p => ({
         id: p.id, name: p.name, bot: p.bot, ready: p.ready, connected: !!(p.session || p.bot), profile: p.profile
       })),

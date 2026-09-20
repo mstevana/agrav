@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+// ============================================================================
+// Headless Scrap Rally: bots race each other with no server and no client, and
+// the run reports what the simulation is actually doing — lap times, how much
+// of the lap is spent against a barrier, hull left, and how often a race ends
+// with a last car standing rather than a chequered flag.
+//
+//   node tools/rallysim.js                        one race per track, six bots
+//   node tools/rallysim.js --laps 3 --races 5
+//   node tools/rallysim.js --track scrapyard --difficulty hard --cars 6
+//   node tools/rallysim.js --ladder               every car, alone, on every track
+//   node tools/rallysim.js --sweep                how races end at each difficulty
+//   node tools/rallysim.js --career               the three paths up the ladder
+// ============================================================================
+
+import rally from '../shared/rally/module.js';
+import { TRACK_IDS, getTrack } from '../shared/rally/tracks/index.js';
+import { CAR_IDS } from '../shared/rally/cars.js';
+import { buildTrack } from '../shared/rally/sim/track.js';
+import career from '../shared/rally/career.js';
+import { CARS as LADDER } from '../shared/rally/cars.js';
+
+const arg = (name, d) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : d; };
+const has = (name) => process.argv.includes(name);
+
+const LAPS = parseInt(arg('--laps', '2'), 10);
+const CARS = parseInt(arg('--cars', '6'), 10);
+const RACES = parseInt(arg('--races', '3'), 10);
+const DIFF = arg('--difficulty', 'normal');
+const TRACKS = arg('--track', null) ? [arg('--track', null)] : [...TRACK_IDS];
+const MAX_SEC = parseInt(arg('--max-seconds', '600'), 10);
+
+/** one race; returns a row per car plus how it ended */
+export function runRace({ track, laps, cars, difficulty, seed, profiles }) {
+  const race = rally.createMatch({ track, laps, botDifficulty: difficulty, fillBots: true }, seed);
+  for (let i = 0; i < cars; i++) rally.addPlayer(race, i, profiles ? profiles(i) : {}, true);
+  rally.start(race, 0);
+  const events = [];
+  const wallTicks = new Map(), slideTicks = new Map();
+  let tick = 0;
+  const limit = MAX_SEC * 60;
+  while (!rally.isOver(race) && tick < limit) {
+    tick++;
+    for (const c of race.cars) rally.applyInput(race, c.id, rally.botInput(race, c.id, tick));
+    rally.step(race, tick, events);
+    for (const c of race.cars) {
+      if (c.c.scraping || c.c.wallHit) wallTicks.set(c.id, (wallTicks.get(c.id) || 0) + 1);
+      if (c.c.sliding) slideTicks.set(c.id, (slideTicks.get(c.id) || 0) + 1);
+    }
+  }
+  const results = rally.results(race);
+  return {
+    results, tick, timedOut: tick >= limit,
+    rows: results.order.map(o => ({
+      ...o,
+      wallPct: 100 * (wallTicks.get(o.id) || 0) / Math.max(1, tick),
+      slidePct: 100 * (slideTicks.get(o.id) || 0) / Math.max(1, tick)
+    }))
+  };
+}
+
+function pct(v) { return v.toFixed(1).padStart(5); }
+function sec(v) { return v == null ? '    —' : v.toFixed(2).padStart(6); }
+
+function fieldRun() {
+  for (const track of TRACKS) {
+    const t = buildTrack(track);
+    console.log(`\n=== ${getTrack(track).name}  (${Math.round(t.length)} m, ${LAPS} laps, ${CARS} bots, ${DIFF}) ===`);
+    let elim = 0, dnf = 0, lapTimes = [];
+    for (let i = 0; i < RACES; i++) {
+      const r = runRace({ track, laps: LAPS, cars: CARS, difficulty: DIFF, seed: 1000 + i * 7919 });
+      if (r.results.byElimination) elim++;
+      if (r.timedOut) console.log(`  race ${i + 1}: TIMED OUT after ${MAX_SEC}s`);
+      for (const row of r.rows) {
+        if (!row.finished) dnf++;
+        if (row.bestLap) lapTimes.push(row.bestLap);
+      }
+      const head = r.rows[0];
+      console.log(`  race ${i + 1}: won by ${head.name || ('#' + head.id)} (${head.car})` +
+        `${r.results.byElimination ? ' — last car standing' : ` in ${sec(head.time)}s`}` +
+        `   finishers ${r.rows.filter(x => x.finished).length}/${r.rows.length}`);
+      for (const row of r.rows) {
+        console.log(`     ${String(row.place).padStart(2)} ${(row.name || '#' + row.id).padEnd(7)} ${row.car.padEnd(9)}` +
+          ` best ${sec(row.bestLap)}  hull ${String(row.hull).padStart(3)}/${row.maxHull}` +
+          `  wall ${pct(row.wallPct)}%  slide ${pct(row.slidePct)}%${row.eliminated ? '  DEAD' : ''}`);
+      }
+    }
+    const sorted = [...lapTimes].sort((a, b) => a - b);
+    if (sorted.length) {
+      const spread = 100 * (sorted[sorted.length - 1] - sorted[0]) / sorted[0];
+      console.log(`  best laps ${sec(sorted[0])}s .. ${sec(sorted[sorted.length - 1])}s  (spread ${spread.toFixed(1)}%)` +
+        `   elimination endings ${elim}/${RACES}   did not finish ${dnf}`);
+    }
+  }
+}
+
+/** every car alone on every track: the check that no tier is a dead end */
+function ladderRun() {
+  console.log(`\n=== one car alone, ${LAPS} lap(s), fully upgraded vs stock ===`);
+  for (const track of TRACKS) {
+    console.log(`\n  ${getTrack(track).name}`);
+    for (const car of CAR_IDS) {
+      const row = [];
+      for (const level of [0, 4]) {
+        const r = runRace({
+          track, laps: LAPS, cars: 1, difficulty: DIFF, seed: 4242,
+          profiles: () => ({ car, upgrades: { speed: level, handling: level, armour: level } })
+        });
+        const o = r.rows[0];
+        row.push(`L${level} ${sec(o.bestLap)}s wall ${pct(r.rows[0].wallPct)}%`);
+      }
+      console.log(`    ${car.padEnd(9)} ${row.join('   ')}`);
+    }
+  }
+}
+
+/**
+ * The number this game is tuned against: how often a race ends because somebody
+ * blew up the whole field rather than because somebody crossed the line. Racing
+ * is supposed to be the usual way to win, and killing the memorable one.
+ */
+function sweepRun() {
+  console.log(`\n=== how races end · ${RACES} races per difficulty, ${CARS} bots, ${LAPS} laps ===`);
+  const guns = ['machinegun', 'shotgun', 'minigun'];
+  for (const track of TRACKS) {
+    console.log(`\n  ${getTrack(track).name}`);
+    for (const difficulty of ['easy', 'normal', 'hard']) {
+      let elim = 0, finishers = 0, seats = 0, kills = 0, seconds = 0, damage = 0;
+      for (let i = 0; i < RACES; i++) {
+        const r = runRace({
+          track, laps: LAPS, cars: CARS, difficulty, seed: 100 + i * 991,
+          profiles: (n) => ({ weapon: guns[n % guns.length] })
+        });
+        if (r.results.byElimination) elim++;
+        finishers += r.rows.filter(x => x.finished).length;
+        seats += r.rows.length;
+        kills += r.rows.reduce((a, x) => a + (x.kills || 0), 0);
+        seconds += r.tick / 60;
+        damage += r.rows.reduce((a, x) => a + (x.maxHull - x.hull), 0);
+      }
+      console.log(`    ${difficulty.padEnd(7)} elimination endings ${String(elim).padStart(2)}/${RACES}` +
+        `   finishers ${String(finishers).padStart(2)}/${seats}` +
+        `   kills ${String(kills).padStart(3)}` +
+        `   hull lost per race ${String(Math.round(damage / RACES)).padStart(4)}` +
+        `   race ${(seconds / RACES).toFixed(0)}s`);
+    }
+  }
+}
+
+/**
+ * The brief's ladder, walked. A driver reaches the elite car after about five
+ * wins, ten second places or fifteen starts without one — so race a real car
+ * against real bots, settle the record the way the server would, buy whatever
+ * the shop will sell, and see where each path actually ends up.
+ */
+function careerRun() {
+  const top = LADDER[LADDER.length - 1];
+  console.log(`\n=== the ladder · every path buys up as soon as it can, and repairs first ===`);
+  console.log(`    the elite car is the ${top.name} at ${top.price}\n`);
+  for (const path of ['wins', 'seconds', 'starts']) {
+    let record = career.create();
+    const log = [];
+    let raceNo = 0;
+    let reached = null;
+    while (raceNo < 40 && !reached) {
+      raceNo++;
+      // race the car the record actually owns, against a full grid
+      const me = () => ({ car: record.car, upgrades: record.upgrades, bumper: record.bumper,
+                          hull: record.hull, weapon: record.weapon });
+      const r = runRace({
+        track: TRACKS[0], laps: LAPS, cars: CARS, difficulty: DIFF, seed: 700 + raceNo * 131,
+        profiles: (i) => (i === 0 ? me() : {})
+      });
+      // force the placing this path is meant to represent, so each one is the
+      // pure case rather than whatever the bots happened to allow
+      // the placing is the point of the walk, so it is imposed rather than
+      // whatever the bots happened to allow; the damage the car came home with
+      // is real, and so is the repair bill that follows
+      const row = { ...r.results.order.find(o => o.id === 0) };
+      row.place = path === 'wins' ? 1 : path === 'seconds' ? 2 : 2 + (raceNo % 5);
+      row.eliminated = false;
+      row.finished = true;
+      record = career.settle(record, { ...r.results, order: [row] }, 0, {});
+      // spend: repair, then buy the best car the money will reach
+      let out = career.apply(record, { action: 'repair' });
+      if (out.career) record = out.career;
+      for (let i = LADDER.length - 1; i > 0; i--) {
+        const want = LADDER[i];
+        if (want.id === record.car) break;
+        const bought = career.apply(record, { action: 'buyCar', car: want.id });
+        if (bought.career) { record = bought.career; log.push(`  race ${String(raceNo).padStart(2)}: bought the ${want.name} (${record.money} left)`); break; }
+      }
+      if (record.car === top.id) reached = raceNo;
+    }
+    console.log(`  ${path.padEnd(8)} ${reached ? `reached the ${top.name} after ${reached} races` : `did not reach it in ${raceNo} races (money ${record.money}, in a ${record.car})`}`);
+    for (const line of log) console.log(line);
+  }
+}
+// importable: `runRace` is used by the tests and by the career walk, so nothing
+// runs on import unless this file is what was asked for
+const invoked = process.argv[1] && process.argv[1].endsWith('rallysim.js');
+if (invoked) {
+  if (has('--career')) careerRun();
+  else if (has('--sweep')) sweepRun();
+  else if (has('--ladder')) ladderRun();
+  else fieldRun();
+}

@@ -17,6 +17,8 @@ export const config = {
   /** directory served as static files (the repo root: every game folder + shared/) */
   staticRoot: process.env.STATIC_ROOT || path.resolve(here, '..'),
   maxRooms: int(process.env.MAX_ROOMS, 64),
+  /** durable records (careers) live here; empty keeps them in memory only */
+  dataDir: process.env.DATA_DIR === '' ? '' : (process.env.DATA_DIR || path.resolve(here, '..', 'data')),
   /** a tick that runs longer than this is logged; sustained overruns shed snapshot rate */
   tickBudgetMs: int(process.env.TICK_BUDGET_MS, 8),
   /** how long a disconnected racer's vehicle waits for them before it is eliminated */

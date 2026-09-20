@@ -36,3 +36,30 @@ export default {
 
 The server appends the module's snapshot payload after its own header
 (`tick, lastInputSeq, margin, phase`) — see `shared/net/protocol.js`.
+
+## Optional hooks
+
+A module may implement these; the server checks for them and games that do not
+want them are unaffected.
+
+```js
+fillBots(state, opts) -> bool          // true: at the flag, every empty seat becomes a bot
+setCareer(state, id, career) -> profile // seat this player from their durable record (server-trusted)
+
+career: {
+  create() -> career,                            // a record for someone seen for the first time
+  apply(career, action) -> {career} | {error},   // the shop: pure, so the client can preview with it
+  settle(career, results, id, opts) -> career    // after the race: winnings, and what the match left behind
+}
+```
+
+`fillBots` is consulted when the host starts, before `start()`; the seats it adds are ordinary
+room players (visible in the lobby, kickable, named in the results), so nothing downstream has
+to know they arrived late.
+
+A `career` is a plain JSON record the server keeps in `server/store.js` under the game's id,
+addressed by a **career key**: a long-lived random string the client makes once and presents
+on `HELLO`, unrelated to the session token (which only survives a reconnect). The room loads a
+joining player's record and calls `setCareer` to seat them from it; `CAREER_ACTION` from the
+client runs `career.apply` for the shop; `career.settle` runs once when the match finishes.
+Every rule lives in the module's pure functions — the server only moves records.

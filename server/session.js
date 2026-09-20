@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { WsChannel } from '../shared/net/channel.js';
 import { MSG, PROTOCOL_VERSION, encodeJson, decodeJson, messageType, isJsonType,
          decodeInputs, decodePing, encodePong } from '../shared/net/protocol.js';
+import { isSafeKey } from './store.js';
 import { config } from './config.js';
 import { log } from './log.js';
 
@@ -21,6 +22,8 @@ export class Session {
     this.channel = channel;
     this.lobby = lobby;
     this.token = null;
+    /** the caller's own long-lived key for its persistent records; not the session token */
+    this.careerKey = null;
     this.name = 'player';
     this.room = null;       // Room
     this.playerId = -1;     // id within the room
@@ -77,6 +80,7 @@ export class Session {
       case MSG.ADD_BOT: return this.room?.addBot(this);
       case MSG.KICK: return this.room?.kick(this, m.id | 0);
       case MSG.CHAT: return this.room?.chat(this, String(m.text || '').slice(0, 200));
+      case MSG.CAREER_ACTION: return this.onCareerAction(m);
       default: return this.error('type', `unknown control message ${type}`);
     }
   }
@@ -87,6 +91,7 @@ export class Session {
       return this.close(4000, 'version');
     }
     this.name = cleanName(m.name);
+    this.careerKey = isSafeKey(m.careerKey) ? m.careerKey : null;
     const prior = m.token && this.lobby.takeToken(m.token);
     if (prior) {
       this.token = m.token;
@@ -99,6 +104,15 @@ export class Session {
     this.helloDone = true;
     this.lobby.registerToken(this.token, this);
     this.sendJson(MSG.WELCOME, { token: this.token, name: this.name, games: this.lobby.games() });
+  }
+
+  /** the garage: read the caller's record for a game, or spend in its shop */
+  async onCareerAction(m) {
+    const game = String(m?.game || '');
+    if (!this.careerKey) return this.sendJson(MSG.CAREER, { game, error: 'no-key' });
+    const out = await this.lobby.career(game, this.careerKey, m?.action ? m : null);
+    if (this.closed) return;
+    this.sendJson(MSG.CAREER, { game, ...out });
   }
 
   onHot(type, u8) {

@@ -5,11 +5,11 @@
 // a crashed saucer half buried in the regolith, still sparking.
 import * as THREE from 'three';
 import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, billboards, particleField, glowPools, swayMaterial } from './common.js';
-import { cliffSet, sandSet, concreteSet, metalPlateSet, standard, triplanarBlended } from '../surfaces.js';
+import { cliffSet, sandSet, concreteSet, metalPlateSet, standard, triplanarBlended } from '../../../../shared/gfx/surfaces.js';
 import { rock, domeGeo, loft, weld, displace, worldUv } from '../props.js';
 import { glowSprite } from '../textures.js';
 import { buildTerrain, corridor } from '../terrain.js';
-import { fbm2, fbm3, ridged2, voronoi2, smoothstep } from '../noise.js';
+import { fbm2, fbm3, ridged2, voronoi2, smoothstep } from '../../../../shared/gfx/noise.js';
 import { makePlume } from '../exhaust.js';
 import { makeRng } from '../../../../shared/sim/rng.js';
 import { mergeGeometries } from '../../../../shared/gfx/merge.js';

@@ -8,7 +8,8 @@ const loaders = {
   agrav: () => import('../shared/agrav/module.js'),
   volley: () => import('../shared/volley/module.js'),
   volley1: () => import('../shared/volley/module1.js'),
-  volley3: () => import('../shared/volley/module3.js')
+  volley3: () => import('../shared/volley/module3.js'),
+  rally: () => import('../shared/rally/module.js')
 };
 
 const cache = new Map();

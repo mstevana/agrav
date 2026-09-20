@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { makeRng } from '../../../shared/sim/rng.js';
-import { fbm2, smoothstep } from './noise.js';
+import { fbm2, smoothstep } from '../../../shared/gfx/noise.js';
 import { SPONSORS } from './livery.js';
 
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
