@@ -22,6 +22,7 @@ export const PHASE = Object.freeze({ LOBBY: 0, COUNTDOWN: 1, RACING: 2, FINISHED
 /** the race clock */
 export const COUNTDOWN_SEC = 4;      // 3, 2, 1, GO
 export const GRID_HOLD_SEC = 8;      // the grid waits this long at most for every client to build its scene
+export const CEASEFIRE_SEC = 5;      // guns are cold for this long after the flag, so the grid is a race first
 export const FINISH_GRACE_SEC = 20;  // after the first car home, the rest have this long to finish for placing
 export const RESULTS_HOLD_SEC = 6;   // the camera lingers before the room shows results
 export const ELIM_BANNER_SEC = 3;    // "last driver standing" before the same results

@@ -6,7 +6,7 @@ import rally from '../rally/module.js';
 import { wouldHitCar, weaponDef, armCar } from '../rally/weapons.js';
 import { makeDamage } from '../rally/sim/race.js';
 import { ENTITY } from '../rally/sim/snapshot.js';
-import { WEAPONS, MINE, NITRO, PAD, HITSCAN_REWIND_TICKS, CONTACT } from '../rally/constants.js';
+import { WEAPONS, MINE, NITRO, PAD, HITSCAN_REWIND_TICKS, CONTACT, CEASEFIRE_SEC, TICK_RATE } from '../rally/constants.js';
 import { frameAt } from '../sim/spline.js';
 import { IN } from '../net/protocol.js';
 
@@ -14,7 +14,9 @@ function match(n = 2, opts = {}) {
   const race = rally.createMatch({ track: 'scrapyard', laps: 3, ...opts }, 31337);
   for (let i = 0; i < n; i++) rally.addPlayer(race, i, { weapon: 'machinegun' }, true);
   rally.start(race, 0);
-  for (let t = 1; t <= 60 * 5; t++) rally.step(race, t, []);       // let the countdown go
+  // the countdown, and then the ceasefire that follows the flag: every test
+  // below this line wants a race with the guns already hot
+  for (let t = 1; t <= 60 * (5 + CEASEFIRE_SEC); t++) rally.step(race, t, []);
   return race;
 }
 /** drop a car on the road facing along it */
@@ -143,6 +145,28 @@ test('weapons: nothing aims the gun but the car — a shot never bends toward a 
   for (let i = 0; i < 60; i++) rally.step(race, race.tick + 1, []);
   assert.ok(a.ammo < weaponDef('machinegun').ammo, 'it did fire');
   assert.equal(b.hull, hullBefore, 'and the car in front is untouched, because the ray goes where the nose does');
+});
+
+test('weapons: the guns are cold for the first seconds of a race, then they are not', () => {
+  const race = match(2);
+  const [a, b] = race.cars;
+  // wind the clock back to the flag: match() has already run the countdown off
+  race.startTick = race.tick;
+  race.raceTick = 0;
+  put(race, a, 200); put(race, b, 215);
+  aimAt(a, b.c.x, b.c.z);
+  armCar(a); armCar(b);
+  const ammoBefore = a.ammo, hullBefore = b.hull;
+  hold(race, a, IN.FIRE);
+
+  for (let i = 0; i < CEASEFIRE_SEC * TICK_RATE - 2; i++) rally.step(race, race.tick + 1, []);
+  assert.equal(a.ammo, ammoBefore, 'nothing has left the barrel');
+  assert.equal(b.hull, hullBefore, 'and nobody has been hurt by a gun');
+  assert.equal(a.mines, MINE.perRace, 'the ceasefire is the guns only, not the mines');
+
+  for (let i = 0; i < 30; i++) rally.step(race, race.tick + 1, []);
+  assert.ok(a.ammo < ammoBefore, 'once the ceasefire is up the same held trigger fires');
+  assert.ok(b.hull < hullBefore, 'and it lands');
 });
 
 test('weapons: a mine arms, then hurts whoever finds it, its owner included', () => {

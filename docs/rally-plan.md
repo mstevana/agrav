@@ -141,6 +141,11 @@ during the balance pass (M6).
   and there is no sight of any kind: lining a target up is the whole skill of shooting it. The
   bots ask `wouldHitCar` before they pull the trigger, which traces the same ray the server
   will, so they hold fire rather than spraying the scenery.
+- **The guns are cold for `CEASEFIRE_SEC` after the flag.** The grid is six cars two lengths
+  apart pointing the same way, which makes the opening seconds a firing squad rather than a
+  start. A minigun may still wind up during it, because the wind-up is not a shot and making
+  one weapon arrive late to its own ceasefire would only move the unfairness. Mines and the
+  bumper are not part of it. Enforced in `stepGun` alone, so there is one rule in one place.
 - Missiles are out of scope for the first release. The snapshot's entity list is generic
   (`kind` byte, owner, position, heading, speed, flags), so a rocket is a new kind, not a new
   format.
@@ -765,3 +770,14 @@ touched felt like the game lying. Cosmetic aim is worse than none.
     the elimination endings. Re-tuned until the sweep matched what it read
     before the sight was removed: elimination endings 3 races in 72 either way,
     finishers 49 per cent against 50, kills 183 against 184.
+
+**The guns start cold.** Five seconds of ceasefire after the flag, which the brief
+never asked for and the first race made obvious: six cars two lengths apart all
+pointing the same way means the opening corner is settled by whoever was holding
+the trigger at the lights. It is one guard in `stepGun`, so bots and players are
+bound by the same rule in the same place, and the HUD counts it down where the
+ammo usually sits — a trigger that does nothing and does not say why reads as a
+bug. Over seventy-two measured races it did what it was meant to: kills down a
+sixth, finishers from 49 per cent to 54, hull lost per race from 1360 to 1290.
+Mines and the bumper are untouched, so there is still something to do with the
+first five seconds besides steer.

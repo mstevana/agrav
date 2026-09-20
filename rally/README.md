@@ -86,6 +86,11 @@ Every gun is fixed and forward. Nothing aims for you and nothing bends a shot
 toward a target: the ray goes where the nose points, so lining a car up is the
 whole skill of shooting one.
 
+**The guns are cold for the first five seconds.** Six cars start two lengths
+apart pointing the same way, so without it the first corner belongs to whoever
+held the trigger from the lights rather than to anyone's driving. The HUD counts
+it down where the ammo normally sits. Mines and the bumper are not part of it.
+
 ## Pickups
 
 Pads hold what they always hold and come back twenty seconds after being taken,

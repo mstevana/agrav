@@ -13,7 +13,7 @@
 
 import { IN } from '../net/protocol.js';
 import { ENTITY } from './sim/snapshot.js';
-import { WEAPONS, MINE, NITRO, HITSCAN_REWIND_TICKS } from './constants.js';
+import { WEAPONS, MINE, NITRO, HITSCAN_REWIND_TICKS, CEASEFIRE_SEC } from './constants.js';
 
 let nextEntityId = 1;
 export function resetEntityIds() { nextEntityId = 1; }
@@ -138,6 +138,12 @@ function stepGun(race, car, bits, dt, tick, events, hurt) {
   car.burstT = Math.max(0, car.burstT - dt);
   car.fireHeld = !!(bits & IN.FIRE);
   if (!firing || !spun || car.refireT > 0) return;
+  // Guns are cold off the line. Six cars start two car lengths apart pointing
+  // the same way, so without this the first corner is decided by whoever held
+  // the trigger from the lights rather than by anyone's driving. A minigun may
+  // still spin up during it: the wind-up is not a shot, and making one weapon
+  // arrive late to its own ceasefire would just move the unfairness.
+  if (race.raceTick < CEASEFIRE_SEC * race.tickRate) return;
 
   car.refireT = 1 / w.rate;
   car.ammo = Math.max(0, car.ammo - 1);
