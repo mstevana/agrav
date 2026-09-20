@@ -18,7 +18,10 @@ The room offers fullscreen while you wait for the start, both as the browser's o
 the tap that starts a race takes the whole screen by itself, since the browser's chrome is a large
 slice of a small one. Safari has no Fullscreen API outside video, so there it does nothing and
 installing to the home screen is the way there -- the manifest already asks for a fullscreen
-display mode.
+display mode. It asks for landscape too, and a race locks the orientation where the browser allows
+it -- only inside fullscreen, and not in Safari at all -- so a phone held upright while driving gets
+asked to turn instead. The standings hide on a touch device, since the thumb buttons sit where they
+would be; the results screen still has the order.
 Choosing a track prepares it there and then, behind a progress bar: terrain and texture sets, the
 scene itself, and every shader it will need. That last part is the long one and it is sliced across
 frames, so the lobby keeps painting -- and the backdrop becomes the track you are about to race.

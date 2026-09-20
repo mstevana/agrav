@@ -165,6 +165,10 @@ label.opt { display: flex; align-items: center; justify-content: space-between; 
 @media (max-width: 700px) { #hud-places { display: none; } #hud-minimap { display: none; }
   #hud-hull-canvas { width: calc(44px * var(--hud)); height: calc(44px * var(--hud)); }
   #hud-armour-bar { width: calc(128px * var(--hud)); } }
+/* The width rule above misses a phone held sideways -- 915 px, but with the thumb buttons down the
+   right-hand side, which is exactly where the standings sit. The buttons win: the order is on the
+   results screen either way. Keyed off touch rather than width, so it follows the controls. */
+html.touch #hud-places { display: none; }
 
 /* ---------- touch controls (shown only after a touch) */
 #touch { position: fixed; inset: 0; z-index: 3; display: none; pointer-events: none; }
@@ -186,6 +190,16 @@ html.touch #touch { display: block; }
 #results-table tr.me td { color: var(--accent); }
 #results-table tr.dead td { color: var(--dim); }
 #results-table td.place { font-weight: 900; font-size: 18px; }
+
+/* ---------- rotate prompt */
+/* A phone held upright has no room for the road or the controls. screen.orientation.lock is only
+   permitted inside fullscreen and Safari does not implement it at all, so where the lock is refused
+   we ask instead -- and only while actually driving, since the menus read fine upright. */
+#rotate { position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); padding: 24px; text-align: center; }
+@media (orientation: portrait) { html.touch.racing #rotate { display: flex; } }
+#rotate .phone { width: 52px; height: 92px; border: 3px solid var(--accent); border-radius: 10px; animation: turnit 2.4s ease-in-out infinite; }
+#rotate .big { font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; }
+@keyframes turnit { 0%, 35% { transform: rotate(0); } 65%, 100% { transform: rotate(-90deg); } }
 
 /* ---------- overlay */
 #toast { position: fixed; left: 50%; top: calc(14px + var(--sa-t)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: rgba(255,77,94,0.9); color: #fff; font-weight: 700; letter-spacing: 0.06em; z-index: 20; transition: opacity 0.3s; }
@@ -335,6 +349,7 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
 </section>
 
 <div id="overlay" hidden><div class="panel"><span class="spin"></span><span id="overlay-text">Connecting…</span><div class="row" style="margin-top:12px; justify-content:center"><button id="overlay-retry" class="btn small" hidden>Retry</button><button id="overlay-menu" class="btn small" hidden>Menu</button></div></div></div>
+<div id="rotate"><div class="phone"></div><div class="big">Turn your phone sideways</div><div class="muted">AGRAV is driven in landscape</div></div>
 <div id="toast" hidden></div>
 
 <script type="importmap">{ "imports": { "three": "../shared/vendor/three.module.min.js" } }</script>

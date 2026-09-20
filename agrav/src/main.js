@@ -26,7 +26,12 @@ import { makeBot, botInput } from '../../shared/agrav/bot.js';
 const ATTITUDE_RATE = 11;   // 1/s: how fast the hull's roll and pitch chase what the controls ask for
 
 const $ = (id) => document.getElementById(id);
-const show = (id) => { for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id; };
+// `racing` marks the screenless state -- the 3D view with nothing over it -- which is the only one
+// that needs landscape, and so the only one the rotate prompt appears in.
+const show = (id) => {
+  for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
+  document.documentElement.classList.toggle('racing', id === null);
+};
 const toast = (msg, ms = 2600) => { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, ms); };
 
 // ----------------------------------------------------------------- three ----
@@ -385,9 +390,19 @@ syncFullscreen();
  * manifest asks for a fullscreen display mode, so installing to the home screen is the way there.
  */
 function fullscreenForRace() {
-  if (!enterFullscreen || isFullscreen()) return;
   if (!document.documentElement.classList.contains('touch')) return;   // desktop keeps the button
-  Promise.resolve(enterFullscreen.call(fsRoot)).catch(() => {});       // refusal is not worth a toast here
+  if (!enterFullscreen || isFullscreen()) { lockLandscape(); return; }
+  // refusal is not worth a toast here; the lock is attempted once fullscreen is actually granted,
+  // because that is the only state the browser will allow it in
+  Promise.resolve(enterFullscreen.call(fsRoot)).then(lockLandscape, () => {});
+}
+/**
+ * Hold the phone in landscape. Only Chromium implements this, and only inside fullscreen -- Safari
+ * has no screen.orientation.lock at all -- so being refused is the ordinary case, not an error, and
+ * the rotate prompt is what covers it. Leaving fullscreen releases the lock on its own.
+ */
+function lockLandscape() {
+  try { screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch { /* unsupported */ }
 }
 for (const id of ['btn-solo', 'btn-start', 'btn-ready', 'btn-results-ready']) $(id).addEventListener('click', fullscreenForRace);
 
