@@ -237,7 +237,6 @@ export class Client {
       car.dead = rec.dead; car.finished = rec.finished;
       car.ammo = rec.ammo; car.mines = rec.mines; car.nitro = rec.nitro;
       car.weapon = rec.weapon; car.burstT = rec.burstT;
-      car.lockOn = rec.lockOn;
     }
     this._reconcile(snap);
   }
@@ -340,7 +339,7 @@ export class Client {
         speed: Math.hypot(vx, vz),
         hull: ra.hull, maxHull: ra.maxHull, lap: ra.lap, rank: ra.rank,
         dead: ra.dead, finished: ra.finished, nitro: ra.nitroT > 0,
-        weapon: ra.weapon, ammo: ra.ammo, mines: ra.mines, nitroCharges: ra.nitro, lockOn: ra.lockOn,
+        weapon: ra.weapon, ammo: ra.ammo, mines: ra.mines, nitroCharges: ra.nitro,
         firing: ra.burstT > 0,
         mine: seat.id === this.me
       });

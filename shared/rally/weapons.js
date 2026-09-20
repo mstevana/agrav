@@ -7,18 +7,13 @@
 // draws each one as a tracer streaking from the muzzle to the impact, so it
 // reads as a bullet crossing the screen without a bullet having to exist.
 //
-// The laser sight picks out the car inside the cone and hands its id to the
-// client to draw a line to. It is cosmetic: the ray goes where the car points,
-// and nothing here bends it. Choosing the target in the shared simulation is
-// what keeps the line honest about what the cone actually covers.
-//
 // Wrecks and the scenery stop a bullet. That is what turns the crusher and a
 // burnt-out shell into cover.
 // ============================================================================
 
 import { IN } from '../net/protocol.js';
 import { ENTITY } from './sim/snapshot.js';
-import { WEAPONS, MINE, NITRO, HITSCAN_REWIND_TICKS, LOCK } from './constants.js';
+import { WEAPONS, MINE, NITRO, HITSCAN_REWIND_TICKS, CEASEFIRE_SEC } from './constants.js';
 
 let nextEntityId = 1;
 export function resetEntityIds() { nextEntityId = 1; }
@@ -39,7 +34,6 @@ export function armCar(car) {
   car.fireHeld = false;
   car.mineHeld = false;
   car.nitroHeld = false;
-  car.lockOn = -1;
 }
 
 /**
@@ -57,11 +51,10 @@ export function stepWeapons(race, dt, tick, events, applyDamage) {
   };
 
   for (const car of race.cars) {
-    if (car.dead || car.finished) { car.lockOn = -1; continue; }
+    if (car.dead || car.finished) continue;
     const bits = car.disconnected ? 0 : (car.input.bits | 0);
     stepNitro(car, bits, dt);
     stepMines(race, car, bits, tick, events);
-    car.lockOn = acquireLock(race, car, tick);
     stepGun(race, car, bits, dt, tick, events, hurt);
   }
 
@@ -145,6 +138,12 @@ function stepGun(race, car, bits, dt, tick, events, hurt) {
   car.burstT = Math.max(0, car.burstT - dt);
   car.fireHeld = !!(bits & IN.FIRE);
   if (!firing || !spun || car.refireT > 0) return;
+  // Guns are cold off the line. Six cars start two car lengths apart pointing
+  // the same way, so without this the first corner is decided by whoever held
+  // the trigger from the lights rather than by anyone's driving. A minigun may
+  // still spin up during it: the wind-up is not a shot, and making one weapon
+  // arrive late to its own ceasefire would just move the unfairness.
+  if (race.raceTick < CEASEFIRE_SEC * race.tickRate) return;
 
   car.refireT = 1 / w.rate;
   car.ammo = Math.max(0, car.ammo - 1);
@@ -217,35 +216,15 @@ function hitCircle(ox, oz, dx, dz, cx, cz, r, max) {
 }
 
 /**
- * Who the laser sight is resting on: the car inside the cone, nearest by angle
- * and then by distance. Purely something to draw — the gun does not care.
+ * The car a shot from here would hit, or null. This is the same ray the server
+ * will trace when the trigger goes, against the same rewound poses, so a bot
+ * that asks first is not guessing: it holds fire until the shot is real. The
+ * range is trimmed a little so it does not open up at the very edge, where the
+ * target would be gone before the bullet arrived.
  */
-export function acquireLock(race, shooter, tick) {
+export function wouldHitCar(race, shooter, tick) {
   const w = weaponDef(shooter.weapon);
-  let best = null, bestScore = Infinity;
   const rewound = poseAt(race, tick - HITSCAN_REWIND_TICKS);
-  for (const car of race.cars) {
-    if (car.id === shooter.id || car.dead || car.finished) continue;
-    const pose = rewound?.[car.id];
-    const cx = pose ? pose.x : car.c.x, cz = pose ? pose.z : car.c.z;
-    const dx = cx - shooter.c.x, dz = cz - shooter.c.z;
-    const dist = Math.hypot(dx, dz);
-    if (dist > w.range * LOCK.rangeFactor || dist < 1e-3) continue;
-    const ahead = (dx * Math.sin(shooter.c.yaw) + dz * Math.cos(shooter.c.yaw)) / dist;
-    if (ahead < Math.cos(LOCK.cone)) continue;
-    const score = (1 - ahead) * 100 + dist / 100;
-    if (score < bestScore) { bestScore = score; best = car.id; }
-  }
-  return best === null ? -1 : best;
-}
-
-/** is a shot from here at this target one the hitscan would actually score? (the bots ask) */
-export function inKillCone(race, shooter, target, tick) {
-  const w = weaponDef(shooter.weapon);
-  const dx = target.c.x - shooter.c.x, dz = target.c.z - shooter.c.z;
-  const dist = Math.hypot(dx, dz);
-  if (dist > w.range * 0.92) return false;
-  const rewound = poseAt(race, tick - HITSCAN_REWIND_TICKS);
-  const hit = raycast(race, shooter, shooter.c.yaw, w.range, rewound);
-  return !!(hit && hit.car && hit.car.id === target.id);
+  const hit = raycast(race, shooter, shooter.c.yaw, w.range * 0.92, rewound);
+  return hit && hit.car ? hit.car : null;
 }

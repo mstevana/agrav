@@ -8,7 +8,7 @@
 
 import { frameAt } from '../../shared/sim/spline.js';
 import { TEAM_COLOURS } from './render/car.js';
-import { PHASE } from '../../shared/rally/constants.js';
+import { PHASE, CEASEFIRE_SEC, TICK_RATE } from '../../shared/rally/constants.js';
 
 export class Hud {
   constructor(canvas) {
@@ -39,7 +39,7 @@ export class Hud {
     const me = view.cars.find(c => c.mine) || view.cars[0];
     if (!me) return;
 
-    this._hull(g, me);
+    this._hull(g, me, view);
     this._readout(g, view, me);
     this._minimap(g, view, me);
     this._feed(g);
@@ -50,7 +50,7 @@ export class Hud {
   }
 
   // --- bottom left: the hull, in ten segments with a ghost of where it was
-  _hull(g, me) {
+  _hull(g, me, view) {
     const x = 22, y = this.h - 64, w = 210, h = 16;
     const f = Math.max(0, Math.min(1, me.hull / Math.max(1, me.maxHull)));
     if (this.ghost === undefined || me.hull > this.ghostHull) { this.ghost = f; this.ghostHull = me.hull; }
@@ -77,8 +77,13 @@ export class Hud {
     // laid out by measuring rather than by guessed offsets: a full magazine is
     // three digits and used to run straight into the mine count
     g.font = '600 11px system-ui, sans-serif';
+    // while the guns are cold the slot says so and counts down, because a
+    // trigger that does nothing and does not explain itself reads as a bug
+    const cold = Math.ceil((CEASEFIRE_SEC * TICK_RATE - (view?.raceTick ?? 1e9)) / TICK_RATE);
     const row = [
-      { text: `${(me.weapon || 'machinegun').toUpperCase()} ${me.ammo ?? 0}`, colour: me.ammo > 0 ? '#8b95b4' : '#ff6a5a' },
+      cold > 0 && (view?.raceTick ?? -1) >= 0
+        ? { text: `GUNS COLD ${cold}`, colour: '#ffc24a' }
+        : { text: `${(me.weapon || 'machinegun').toUpperCase()} ${me.ammo ?? 0}`, colour: me.ammo > 0 ? '#8b95b4' : '#ff6a5a' },
       { text: `MINES ${me.mines ?? 0}`, colour: (me.mines || 0) > 0 ? '#8b95b4' : '#4a5168' },
       { text: `NOS ${me.nitroCharges ?? 0}`, colour: (me.nitroCharges || 0) > 0 ? '#4ad6ff' : '#4a5168' }
     ];

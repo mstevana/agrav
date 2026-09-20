@@ -35,7 +35,7 @@ built.
 | 9 | Primaries | permanent career purchases, equipped free each race; machine gun owned from the start |
 | 10 | Guns | hitscan with rewind, drawn as tracers; mines are the only simulated entity |
 | 11 | Missiles | not in the first release; the snapshot carries a generic entity list so they can be added |
-| 12 | Laser sight | cosmetic only: shows the target in the cone, never bends the ray |
+| 12 | Laser sight | dropped after playtesting: a line the gun did not obey read as aim assist |
 | 13 | Mines | 3 per race, free for everyone, hurt the owner too, not refilled by ammo pickups |
 | 14 | Spiked bumper and upgrades | bought per car; a new car starts at level 0 without a bumper |
 | 15 | Career identity | a random key held in the browser, shown once as a transfer code; no accounts |
@@ -137,10 +137,15 @@ during the balance pass (M6).
   `HITSCAN_REWIND_TICKS`), so a hit is scored against what the shooter saw. The client draws
   each shot as a fast tracer streak from the muzzle to the impact point, so it reads as a
   bullet crossing the screen.
-- **Laser sight**: while a car is inside the gun's cone and range, the shared sim marks it as
-  the shooter's lock (nearest by angle, then distance) and the client draws the laser line to
-  it. The lock is **cosmetic**: the ray goes where the car points. Selecting the lock in the
-  shared sim keeps the client's line honest about what the cone covers.
+- **Aiming** is the car. Every gun is fixed and forward, nothing bends a shot toward anything,
+  and there is no sight of any kind: lining a target up is the whole skill of shooting it. The
+  bots ask `wouldHitCar` before they pull the trigger, which traces the same ray the server
+  will, so they hold fire rather than spraying the scenery.
+- **The guns are cold for `CEASEFIRE_SEC` after the flag.** The grid is six cars two lengths
+  apart pointing the same way, which makes the opening seconds a firing squad rather than a
+  start. A minigun may still wind up during it, because the wind-up is not a shot and making
+  one weapon arrive late to its own ceasefire would only move the unfairness. Mines and the
+  bumper are not part of it. Enforced in `stepGun` alone, so there is one rule in one place.
 - Missiles are out of scope for the first release. The snapshot's entity list is generic
   (`kind` byte, owner, position, heading, speed, flags), so a rocket is a new kind, not a new
   format.
@@ -262,7 +267,7 @@ rally/
     net.js         the network client (prediction, reconciliation, interpolation, career messages)
     input.js       keyboard / gamepad / touch → {bits, steer}
     garage.js      the shop: repair, upgrades, bumper, weapons, trade-in, transfer code
-    hud.js         hull, ammo, mines, nitro, lap, position, minimap, laser line, kill feed
+    hud.js         hull, ammo, mines, nitro, lap, position, minimap, kill feed
     audio.js       engines, guns, explosions (synthesized, as AGRAV)
     render/
       scene.js     three.js top-down perspective camera, follow + look-ahead, speed zoom, lite mode
@@ -528,7 +533,7 @@ first so every later piece rides on it.
 - `weapons.js`: machine gun, shotgun, minigun with rewind hitscan and cosmetic lock; mines;
   spiked bumper in contacts; `pickups.js` with typed pads and the cash schedule.
 - Hull, wall damage, explosions, wrecks as obstacles, last-alive win, spectating.
-- Bot combat judgement. Client: tracers, laser line, muzzle flash, explosions, kill feed, mine
+- Bot combat judgement. Client: tracers, muzzle flash, explosions, kill feed, mine
   and nitro FX, audio.
 - **Proves**: weapons and race tests green; `rallysim` reports the elimination-ending rate at
   each difficulty; nobody can score a hit outside the cone.
@@ -742,3 +747,37 @@ box on top is a car only if you already know it is one.
     where the pillars were, a door off its hinges and panels thrown clear.
   · `tools/rallycars.js` photographs the whole showroom, from the angle the
     game uses and from one low enough to see what the shapes are.
+
+**The laser sight is gone.** Decision 12 gave the gun a line to whatever sat in its
+cone, and said plainly that the line was cosmetic. On screen it did not read that
+way: a red line from your nose to another car looks like the gun is pointing at
+that car, and it is not, so every shot that went straight past the thing the line
+touched felt like the game lying. Cosmetic aim is worse than none.
+
+  · `acquireLock` is deleted, along with the `LOCK` cone, the `lockOn` field on
+    a car, the byte it took in every snapshot and the line the client drew.
+  · The bots used the lock as a cheap gate before the real check. They now ask
+    `wouldHitCar`, which traces the same ray the server will and answers with
+    the car it would hit. It is one raycast per armed bot per tick, where the
+    lock was a cone scan over every car for every car, so the sim does less
+    work than it did.
+  · The snapshot is a byte a car shorter, so `PROTOCOL_VERSION` goes to 3.
+  · Bot aggression came down, from `0.34 + skill × 0.60` to `0.24 + skill × 0.48`.
+    The old gate was accidentally restrictive: a bot only fired at whichever car
+    sat nearest the middle of its cone, so it declined shots that would have hit
+    somebody else. Asking the ray directly is better aim, and better aim over
+    seventy-two measured races was an extra fifth of the kills and four times
+    the elimination endings. Re-tuned until the sweep matched what it read
+    before the sight was removed: elimination endings 3 races in 72 either way,
+    finishers 49 per cent against 50, kills 183 against 184.
+
+**The guns start cold.** Five seconds of ceasefire after the flag, which the brief
+never asked for and the first race made obvious: six cars two lengths apart all
+pointing the same way means the opening corner is settled by whoever was holding
+the trigger at the lights. It is one guard in `stepGun`, so bots and players are
+bound by the same rule in the same place, and the HUD counts it down where the
+ammo usually sits — a trigger that does nothing and does not say why reads as a
+bug. Over seventy-two measured races it did what it was meant to: kills down a
+sixth, finishers from 49 per cent to 54, hull lost per race from 1360 to 1290.
+Mines and the bumper are untouched, so there is still something to do with the
+first five seconds besides steer.

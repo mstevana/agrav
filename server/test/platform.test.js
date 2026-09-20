@@ -162,11 +162,12 @@ test('platform: games that want neither hook are untouched', async () => {
 });
 
 test('platform: the version bump is visible, and the hot path is still binary', async () => {
-  assert.equal(PROTOCOL_VERSION, 2);
+  // Explicit, so that changing the wire has to be a decision and not a slip.
+  assert.equal(PROTOCOL_VERSION, 3);
   const L = lobby();
   const c = new TestClient(L);
-  c.send(MSG.HELLO, { v: 1, name: 'Old' });
+  c.send(MSG.HELLO, { v: PROTOCOL_VERSION - 1, name: 'Old' });
   const err = await c.waitFor(m => m.type === MSG.ERROR);
-  assert.equal(err.code, 'version', 'a client built against protocol 1 is told plainly');
+  assert.equal(err.code, 'version', 'a client built against the previous protocol is told plainly');
   L.close();
 });

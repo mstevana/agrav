@@ -3,10 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import rally from '../rally/module.js';
-import { acquireLock, inKillCone, weaponDef, armCar } from '../rally/weapons.js';
+import { wouldHitCar, weaponDef, armCar } from '../rally/weapons.js';
 import { makeDamage } from '../rally/sim/race.js';
 import { ENTITY } from '../rally/sim/snapshot.js';
-import { WEAPONS, MINE, NITRO, PAD, HITSCAN_REWIND_TICKS, LOCK, CONTACT } from '../rally/constants.js';
+import { WEAPONS, MINE, NITRO, PAD, HITSCAN_REWIND_TICKS, CONTACT, CEASEFIRE_SEC, TICK_RATE } from '../rally/constants.js';
 import { frameAt } from '../sim/spline.js';
 import { IN } from '../net/protocol.js';
 
@@ -14,7 +14,9 @@ function match(n = 2, opts = {}) {
   const race = rally.createMatch({ track: 'scrapyard', laps: 3, ...opts }, 31337);
   for (let i = 0; i < n; i++) rally.addPlayer(race, i, { weapon: 'machinegun' }, true);
   rally.start(race, 0);
-  for (let t = 1; t <= 60 * 5; t++) rally.step(race, t, []);       // let the countdown go
+  // the countdown, and then the ceasefire that follows the flag: every test
+  // below this line wants a race with the guns already hot
+  for (let t = 1; t <= 60 * (5 + CEASEFIRE_SEC); t++) rally.step(race, t, []);
   return race;
 }
 /** drop a car on the road facing along it */
@@ -130,33 +132,41 @@ test('weapons: the shotgun throws a spread and the minigun has to wind up', () =
   assert.ok(a.ammo < mini.ammo, 'but it fires once it is up to speed');
 });
 
-test('weapons: the laser sight says what is in the cone and never moves the ray', () => {
-  const race = match(3);
-  const [a, b, c] = race.cars;
-  put(race, a, 200); put(race, b, 230); put(race, c, 212);
-  aimAt(a, b.c.x, b.c.z);
-  armCar(a);
-  settle(race);
-  assert.equal(acquireLock(race, a, race.tick), c.id, 'the nearer car inside the cone wins');
-
-  // a car well off to the side is not a lock at all
-  put(race, b, 205, 40); put(race, c, 205, -40);
+test('weapons: nothing aims the gun but the car — a shot never bends toward a target', () => {
+  const race = match(2);
+  const [a, b] = race.cars;
   const f = frameAt(race.ribbon, 200);
-  put(race, a, 200);
-  a.c.yaw = Math.atan2(f.tangent.x, f.tangent.z);
+  put(race, a, 200); put(race, b, 214);            // b is sitting straight in front of a
+  a.c.yaw = Math.atan2(f.tangent.x, f.tangent.z) + 0.9;           // but the gun points well off it
+  armCar(a); armCar(b);
   settle(race);
-  assert.equal(acquireLock(race, a, race.tick), -1);
-  assert.ok(LOCK.cone < Math.PI / 4, 'the cone is narrow enough to mean something');
-
-  // and with a lock held, a shot still goes exactly where the car points
-  put(race, b, 214, 0); put(race, c, 400, 0);
-  settle(race);
-  a.c.yaw = Math.atan2(f.tangent.x, f.tangent.z) + 0.9;            // pointing away from the lock
-  armCar(b);
   const hullBefore = b.hull;
   hold(race, a, IN.FIRE);
   for (let i = 0; i < 60; i++) rally.step(race, race.tick + 1, []);
-  assert.equal(b.hull, hullBefore, 'the locked car is untouched, because the gun is not aimed at it');
+  assert.ok(a.ammo < weaponDef('machinegun').ammo, 'it did fire');
+  assert.equal(b.hull, hullBefore, 'and the car in front is untouched, because the ray goes where the nose does');
+});
+
+test('weapons: the guns are cold for the first seconds of a race, then they are not', () => {
+  const race = match(2);
+  const [a, b] = race.cars;
+  // wind the clock back to the flag: match() has already run the countdown off
+  race.startTick = race.tick;
+  race.raceTick = 0;
+  put(race, a, 200); put(race, b, 215);
+  aimAt(a, b.c.x, b.c.z);
+  armCar(a); armCar(b);
+  const ammoBefore = a.ammo, hullBefore = b.hull;
+  hold(race, a, IN.FIRE);
+
+  for (let i = 0; i < CEASEFIRE_SEC * TICK_RATE - 2; i++) rally.step(race, race.tick + 1, []);
+  assert.equal(a.ammo, ammoBefore, 'nothing has left the barrel');
+  assert.equal(b.hull, hullBefore, 'and nobody has been hurt by a gun');
+  assert.equal(a.mines, MINE.perRace, 'the ceasefire is the guns only, not the mines');
+
+  for (let i = 0; i < 30; i++) rally.step(race, race.tick + 1, []);
+  assert.ok(a.ammo < ammoBefore, 'once the ceasefire is up the same held trigger fires');
+  assert.ok(b.hull < hullBefore, 'and it lands');
 });
 
 test('weapons: a mine arms, then hurts whoever finds it, its owner included', () => {
@@ -285,7 +295,7 @@ test('weapons: the bot only pulls the trigger on a shot that would land', () => 
   armCar(a); armCar(b);
   aimAt(a, b.c.x, b.c.z);
   settle(race);
-  assert.equal(inKillCone(race, a, b, race.tick), true);
+  assert.equal(wouldHitCar(race, a, race.tick)?.id, b.id, 'the car in the way is the one it would hit');
   a.c.yaw += 0.8;
-  assert.equal(inKillCone(race, a, b, race.tick), false, 'pointing somewhere else is not a shot');
+  assert.equal(wouldHitCar(race, a, race.tick), null, 'pointing somewhere else is not a shot');
 });

@@ -13,7 +13,7 @@ import { wrapAngle } from '../sim/vec.js';
 import { IN } from '../net/protocol.js';
 import { frameYaw } from './sim/track.js';
 import { steerAuthority } from './sim/car.js';
-import { inKillCone, weaponDef } from './weapons.js';
+import { wouldHitCar, weaponDef } from './weapons.js';
 import { BOT, BOT_DIFFICULTY, CAR, MINE, NITRO, PAD } from './constants.js';
 
 export function makeBot(opts = {}) {
@@ -40,7 +40,14 @@ export function botFor(difficulty, id, seedMix = 0) {
     // from six different places across it rather than all from the middle
     gapSlot: ((id * 2 + 1) % 6) / 5,
     phase: (id * 0.37) % 1,
-    aggression: 0.34 + d.skill * 0.60
+    // How readily it takes a shot that would land. The numbers came down when
+    // the laser sight went: the old gate only fired at whichever car sat
+    // nearest the middle of the cone, so a bot declined shots that would have
+    // hit somebody else, and asking the ray directly turned that restraint
+    // into an extra fifth of a race's damage. Re-tuned against the sweep until
+    // the elimination rate, the kills and the hull lost sat back where they
+    // were before the sight was removed.
+    aggression: 0.24 + d.skill * 0.48
   });
 }
 
@@ -264,10 +271,7 @@ function combat(race, car, bot, tick, worstAhead, speed) {
   let bits = 0;
   const w = weaponDef(car.weapon);
 
-  if (car.ammo > 0 && car.lockOn >= 0 && race.rng() < bot.aggression) {
-    const target = race.byId[car.lockOn];
-    if (target && inKillCone(race, car, target, tick)) bits |= IN.FIRE;
-  }
+  if (car.ammo > 0 && wouldHitCar(race, car, tick) && race.rng() < bot.aggression) bits |= IN.FIRE;
 
   // a mine is for whoever is sitting on your bumper
   if (car.mines > 0 && tick - bot.lastMineTick > BOT.mineCooldown) {

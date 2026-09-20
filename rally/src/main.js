@@ -477,7 +477,7 @@ function drawWorld(view, dt, time) {
   }
   if (app.built) animatePads(app.built.pads, time, view.pads);
   if (app.built?.overhead?.length) animateOverhead(app.built.overhead, scene.target.x, scene.target.z);
-  fx?.update(view, dt, net.me);
+  fx?.update(view, dt);
 
   const me = view.cars.find(c => c.mine);
   if (me && !me.dead) {
