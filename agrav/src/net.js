@@ -75,16 +75,32 @@ export class Client {
   // ------------------------------------------------------------ connection --
 
   connect(url, name) {
-    this.url = url; this.name = name;
+    this.url = url;
+    let ws;
+    try { ws = new WebSocket(url); } catch (e) { return Promise.reject(e); }
+    return this._attach(new WsChannel(ws), name, (hello) => ws.addEventListener('open', hello));
+  }
+
+  /**
+   * Solo play: the lobby/room engine runs in this page (see server/solo.js) and we talk
+   * to it over a loopback channel. Prediction and interpolation are unchanged; the round
+   * trip is simply zero.
+   */
+  connectLocal(channel, name) {
+    this.url = 'local';
+    this.local = true;
+    return this._attach(channel, name, (hello) => hello());
+  }
+
+  /** shared by both transports: send HELLO once the channel is usable, resolve on WELCOME */
+  _attach(chan, name, whenReady) {
+    this.name = name;
     return new Promise((resolve, reject) => {
-      let ws;
-      try { ws = new WebSocket(url); } catch (e) { return reject(e); }
-      const chan = new WsChannel(ws);
       let settled = false;
-      ws.addEventListener('open', () => {
+      const hello = () => {
         this.chan = chan;
         chan.send(encodeJson(MSG.HELLO, { v: PROTOCOL_VERSION, name, token: this.token }));
-      });
+      };
       chan.onMessage = (u8) => {
         const type = messageType(u8);
         if (!settled && type === MSG.WELCOME) {
@@ -109,6 +125,7 @@ export class Client {
         if (!settled) { settled = true; reject(new Error('connection failed')); }
         else if (was && this.onState) this.onState('disconnected');
       };
+      whenReady(hello);
     });
   }
 

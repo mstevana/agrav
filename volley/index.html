@@ -24,27 +24,33 @@
 
   <section id="menu" class="panel">
     <h1>Volley</h1>
-    <p class="sub">Blobby 2-on-2 beach volleyball. Up to four players online, bots fill the rest.</p>
+    <p class="sub">Blobby beach volleyball. Play solo against bots, or online with up to six players.</p>
     <label>Your name <input id="name" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
     <label>Mode
       <select id="opt-mode"><option value="volley" selected>2 vs 2 (up to 4 players)</option><option value="volley1">1 vs 1</option><option value="volley3">3 vs 3 (up to 6 players)</option></select>
     </label>
     <div class="row">
-      <button id="quick" class="primary">Quick play</button>
-      <button id="create">Create room</button>
+      <button id="solo" class="primary">Play solo vs bots</button>
     </div>
-    <div class="row">
-      <input id="code" placeholder="ROOM CODE" maxlength="8" autocapitalize="characters" spellcheck="false">
-      <button id="join">Join</button>
+    <div id="online">
+      <div class="row">
+        <button id="quick">Quick play</button>
+        <button id="create">Create room</button>
+      </div>
+      <div class="row">
+        <input id="code" placeholder="ROOM CODE" maxlength="8" autocapitalize="characters" spellcheck="false">
+        <button id="join">Join</button>
+      </div>
+      <h2>Open rooms</h2>
+      <ul id="rooms"><li class="muted">No open rooms. Create one!</li></ul>
     </div>
-    <h2>Open rooms</h2>
-    <ul id="rooms"><li class="muted">No open rooms. Create one!</li></ul>
+    <p id="offlinenote" class="help hidden">Offline build — solo play only. Run the server (<code>npm start</code>) for online rooms.</p>
     <p class="help">Move ← → or A/D · Jump ↑ / W / Space (hold to jump higher) · Three touches per side</p>
   </section>
 
   <section id="lobby" class="panel hidden">
-    <h1>Room <span id="roomcode"></span></h1>
-    <p class="sub">Share this code or <a id="sharelink" href="#">this link</a> with friends.</p>
+    <h1 id="roomtitle">Room</h1>
+    <p class="sub" id="shareline">Share this code or <a id="sharelink" href="#">this link</a> with friends.</p>
     <div id="slots"></div>
     <div id="hostopts" class="opts">
       <label>Points to win

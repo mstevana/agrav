@@ -1,11 +1,14 @@
 # Volley
 
-Blobby 2-on-2 beach volleyball for up to four players, in the browser. The second game on
-the AGRAV games platform, sharing its server, lobby, netcode and reconnect for free.
+Blobby beach volleyball for up to six players, in the browser. The second game on the AGRAV
+games platform, sharing its server, lobby, netcode, bots and reconnect for free.
 
 ## Play
 
-Create a room (you become the host) or join one by four-letter code or from the public list.
+**Play solo vs bots** needs no server: the lobby and room engine runs inside the page, so the
+game works from a static deploy (GitHub Pages) or offline once installed. Online, create a
+room (you become the host) or join one by four-letter code or from the public list.
+
 Pick a mode on the menu:
 
 - **2 vs 2** — two Blue seats on the left, two Red on the right, each split into a back and a

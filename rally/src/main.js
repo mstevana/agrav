@@ -41,7 +41,7 @@ for (const w of Object.values(WEAPONS)) OPT.weapon.add(new Option(w.name, w.id))
 OPT.weapon.onchange = () => net.setProfile({ weapon: OPT.weapon.value });
 
 const app = {
-  screen: 'menu', playing: false, imReady: false, room: null,
+  screen: 'menu', playing: false, imReady: false, room: null, solo: false,
   acc: 0, lastFrame: 0, message: '', messageUntil: 0,
   spectate: -1, built: null, meshes: new Map(), wreckMeshes: new Map()
 };
@@ -95,20 +95,74 @@ async function ensureConnected() {
 
 function onDisconnected() {
   setStatus('reconnecting');
+  if (app.solo) { stopRace(); closeSoloHost(); show('menu'); return; }
   if (app.playing || net.room) { connectedName = null; ensureConnected(); }
   else { stopRace(); show('menu'); }
 }
 
+// Solo racing hosts the lobby/room engine in this page over a loopback channel
+// (server/solo.js), so a static deploy with no server is still a whole game. The
+// career is kept in localStorage there, so the garage survives a reload.
+let soloHost = null;
+async function openSoloHost() {
+  if (!soloHost) {
+    const { createSoloHost } = await import('../../server/solo.js');
+    soloHost = createSoloHost();
+  }
+  return soloHost;
+}
+function closeSoloHost() {
+  if (!soloHost) return;
+  soloHost.stop();
+  soloHost = null;
+  app.solo = false;
+}
+
 // -------------------------------------------------------------------- menu --
 async function refreshRooms() {
-  if (net.room) return;
+  if (net.room || !online) return;
   try {
     const res = await fetch('/api/rooms', { cache: 'no-store' });
     renderRooms((await res.json()).rooms);
   } catch { /* offline: leave the list alone */ }
 }
-refreshRooms();
+
+/** is there a server behind this page? a static deploy (GitHub Pages, file://) has no /api */
+let online = false;
+async function probeServer() {
+  if (new URLSearchParams(location.search).get('solo') === '1') return false;
+  try { return (await fetch('/api/health', { cache: 'no-store' })).ok; } catch { return false; }
+}
+(async () => {
+  online = await probeServer();
+  $('online').classList.toggle('hidden', !online);
+  $('online-rooms').classList.toggle('hidden', !online);
+  $('offlinenote').classList.toggle('hidden', online);
+  if (online) refreshRooms();
+})();
 setInterval(() => { if (app.screen === 'menu') refreshRooms(); }, 3000);
+
+$('solo').onclick = () => playSolo();
+
+/** connect to the in-page host and open a private race; the lobby then works as usual */
+async function playSolo() {
+  const btn = $('solo');
+  btn.disabled = true;
+  try {
+    if (net.connected) net.close();
+    const host = await openSoloHost();
+    app.solo = true;
+    await net.connectLocal(host.channel, ui.name.value.trim() || 'Driver');
+    connectedName = null;
+    setStatus('solo');
+    net.createRoom({ ...menuOpts(), fillBots: true }, false);
+  } catch {
+    closeSoloHost();
+    flash('Could not start solo racing', 1800);
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 let openRooms = [];
 function renderRooms(rooms) {
@@ -161,7 +215,11 @@ function renderGarage() {
 ui.ready.onclick = () => { app.imReady = !app.imReady; net.setReady(app.imReady); };
 ui.addbot.onclick = () => net.addBot();
 ui.start.onclick = () => net.start();
-$('leave').onclick = () => { net.leaveRoom(); stopRace(); show('menu'); history.replaceState(null, '', location.pathname); };
+$('leave').onclick = () => {
+  net.leaveRoom(); stopRace();
+  if (app.solo) { net.close(); closeSoloHost(); }
+  show('menu'); history.replaceState(null, '', location.pathname);
+};
 $('again').onclick = () => show(net.room ? 'lobby' : 'menu');
 $('fullscreen').onclick = () => { document.documentElement.requestFullscreen?.().catch(() => {}); };
 for (const sel of [OPT.lobTrack, OPT.lobLaps, OPT.lobBots, OPT.lobFill]) {
@@ -177,10 +235,15 @@ function onRoom(room) {
   const isHost = room.hostId === room.you;
   const me = room.players.find(p => p.id === room.you);
   app.imReady = !!me?.ready;
-  history.replaceState(null, '', `${location.pathname}?room=${room.code}`);
+  if (!app.solo) history.replaceState(null, '', `${location.pathname}?room=${room.code}`);
 
-  ui.roomcode.textContent = room.code;
-  ui.sharelink.href = `${location.origin}${location.pathname}?room=${room.code}`;
+  // a solo race is private to this page: no code to share, and nobody to wait for
+  // (changing a lobby option clears the ready flag, so re-arm it whenever it drops)
+  ui.roomcode.textContent = app.solo ? 'SOLO' : room.code;
+  ui.sharelink.parentElement.classList.toggle('hidden', app.solo);
+  ui.ready.classList.toggle('hidden', app.solo);
+  if (app.solo && room.phase === 'lobby' && me && !me.ready) net.setReady(true);
+  if (!app.solo) ui.sharelink.href = `${location.origin}${location.pathname}?room=${room.code}`;
   const o = room.opts || {};
   OPT.lobTrack.value = o.track || 'scrapyard';
   OPT.lobLaps.value = String(o.laps ?? 3);

@@ -204,14 +204,20 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
       <button id="btn-settings" class="btn">Settings</button>
     </div>
     <div class="row">
-      <button id="btn-create" class="btn primary" style="flex:1">Create race</button>
-      <input id="join-code" class="code" type="text" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters">
-      <button id="btn-join" class="btn">Join</button>
+      <button id="btn-solo" class="btn primary" style="flex:1">Race solo vs bots</button>
     </div>
-    <div>
-      <h2>Open races</h2>
-      <div id="rooms"><div class="muted">Looking for races…</div></div>
+    <div id="online-only" class="col">
+      <div class="row">
+        <button id="btn-create" class="btn" style="flex:1">Create race</button>
+        <input id="join-code" class="code" type="text" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters">
+        <button id="btn-join" class="btn">Join</button>
+      </div>
+      <div>
+        <h2>Open races</h2>
+        <div id="rooms"><div class="muted">Looking for races…</div></div>
+      </div>
     </div>
+    <div id="offline-note" class="muted" hidden>Offline build — solo racing against bots. Run the server (<code>npm start</code>) for online races.</div>
     <div id="settings" class="col">
       <h2>Settings</h2>
       <label class="opt">Graphics <select id="set-quality"><option value="auto">Auto</option><option value="high">High</option><option value="low">Low</option></select></label>

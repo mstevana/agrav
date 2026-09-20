@@ -5,7 +5,6 @@
 // new socket re-attaches to the same player (mid-race reconnect).
 // ============================================================================
 
-import crypto from 'node:crypto';
 import { WsChannel } from '../shared/net/channel.js';
 import { MSG, PROTOCOL_VERSION, encodeJson, decodeJson, messageType, isJsonType,
          decodeInputs, decodePing, encodePong } from '../shared/net/protocol.js';
@@ -100,7 +99,7 @@ export class Session {
       if (prior.room) prior.room.reattach(this, prior.playerId);
       return;
     }
-    this.token = crypto.randomBytes(12).toString('base64url');
+    this.token = randomToken();
     this.helloDone = true;
     this.lobby.registerToken(this.token, this);
     this.sendJson(MSG.WELCOME, { token: this.token, name: this.name, games: this.lobby.games() });
@@ -140,6 +139,15 @@ export class Session {
     this.channel.close(code, reason);
     this.onClose();
   }
+}
+
+/** 96 bits of base64url, from Web Crypto — the same call works in Node and in the browser. */
+function randomToken(bytes = 12) {
+  const b = new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(b);
+  let s = '';
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export function cleanName(raw) {

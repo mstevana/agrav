@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { JsonFileStore, MemoryStore, isSafeKey } from '../store.js';
+import { MemoryStore, isSafeKey } from '../store.js';
+import { JsonFileStore } from '../store-file.js';
 
 const tmp = () => fs.mkdtemp(path.join(os.tmpdir(), 'agrav-store-'));
 

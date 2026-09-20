@@ -5,6 +5,10 @@ AGRAV games platform, sharing its server, lobby, netcode and reconnect for free.
 
 ## Race
 
+**Race solo vs bots** needs no server: the lobby and room engine runs inside the page, so the
+game works from a static deploy (GitHub Pages) or offline once installed, career and all —
+the garage is kept in `localStorage` there instead of on the server.
+
 Create a race (you become the host) or join one by four-letter code or from the
 public list. The host picks the circuit, the lap count and how hard the bots
 drive. **Every seat nobody takes becomes a bot when the host starts**, so one

@@ -10,9 +10,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { Lobby } from './lobby.js';
+import { createFileStore, configuredDataDir } from './store-file.js';
 import { Session } from './session.js';
 import { log } from './log.js';
 
@@ -22,10 +24,14 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.wasm': 'application/wasm', '.woff2': 'font/woff2'
 };
-const HIDDEN = new Set(['node_modules', 'server', 'deploy', 'data', 'package.json', 'package-lock.json']);
+// `server/` is served: solo play imports the room/lobby/session engine into the page
+// (server/solo.js), exactly as a static deploy serves it. Nothing there holds secrets —
+// `data/` (the durable records) stays hidden.
+const HIDDEN = new Set(['node_modules', 'deploy', 'data', 'package.json', 'package-lock.json']);
 
 export function createServer(lobby = new Lobby()) {
-  const root = path.resolve(config.staticRoot);
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(config.staticRoot || path.join(here, '..'));
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -95,9 +101,11 @@ function serveStatic(root, pathname, res) {
 
 // run directly (not imported by a test)
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  const { server, lobby } = createServer();
+  // only the real server keeps records on disk; the in-page engine (solo play) and the
+  // tests use the in-memory store the Lobby makes for itself
+  const { server, lobby } = createServer(new Lobby({ store: createFileStore() }));
   server.listen(config.port, config.host, () => {
-    log.info('server', `listening on http://${config.host}:${config.port}  (static root ${config.staticRoot})`);
+    log.info('server', `listening on http://${config.host}:${config.port}  (static root ${path.resolve(config.staticRoot || '.')}, data ${configuredDataDir() || 'in memory'})`);
   });
   const shutdown = (sig) => {
     log.info('server', `${sig}: shutting down`);

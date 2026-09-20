@@ -1,6 +1,7 @@
 // AGRAV — offline shell cache. The client shell (HTML, JS, three.js, shared
-// sim) is precached so the app opens instantly from the home screen; racing
-// itself needs the server, so this is about launch, not play.
+// sim) is precached so the app opens instantly from the home screen. Solo
+// racing runs entirely in the page, so an installed copy plays offline; only
+// online races need the server.
 const CACHE = 'agrav-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
@@ -12,6 +13,8 @@ const ASSETS = [
   '../shared/vendor/three.module.min.js',
   '../shared/gfx/bloom.js', '../shared/gfx/merge.js', '../shared/gfx/noise.js', '../shared/gfx/surfaces.js', '../shared/gfx/geom.js',
   '../shared/net/protocol.js', '../shared/net/bytes.js', '../shared/net/channel.js', '../shared/net/clock.js',
+  '../server/solo.js', '../server/lobby.js', '../server/room.js', '../server/session.js',
+  '../server/games.js', '../server/store.js', '../server/config.js', '../server/log.js',
   '../shared/sim/vec.js', '../shared/sim/rng.js', '../shared/sim/spline.js', '../shared/sim/ring-buffer.js',
   '../shared/agrav/module.js', '../shared/agrav/constants.js', '../shared/agrav/vehicles.js', '../shared/agrav/bot.js',
   '../shared/agrav/sim/race.js', '../shared/agrav/sim/vehicle.js', '../shared/agrav/sim/weapons.js', '../shared/agrav/sim/snapshot.js',

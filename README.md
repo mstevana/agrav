@@ -16,6 +16,7 @@ Three games ship today:
 
 ```
 server/     Node 22 · rooms, sessions, lobby, static files, /api, /ws · one dependency (ws)
+            the room/lobby engine also runs in the browser for solo play (solo.js)
 shared/     net protocol + transport, sim primitives, gfx helpers, and shared/<game>/ per game
 agrav/      the AGRAV client (PWA)
 volley/     the Volley client (PWA)
@@ -34,6 +35,30 @@ npm start            # http://localhost:8080  → the launcher; /agrav/ and /vol
 
 Open the same URL on a phone on the same network and play yourself. Rooms are joined by a
 four-letter code or from the public list on the menu; the host can add bots.
+
+## Playing without a server
+
+All three games also run **solo against bots with no server at all**, so the whole repo can
+be published as static files — GitHub Pages, any CDN, even `file://`. The menu's first
+button (*Play solo vs bots* / *Race solo vs bots*) is all it takes.
+
+This is not a second implementation. The page imports the very same room, lobby and session
+modules the Node server runs and wires them to the client over `LoopbackChannel`, the
+in-process transport the server tests use (see [`server/solo.js`](server/solo.js)). The
+client keeps its prediction, reconciliation and interpolation; the round trip is simply
+zero, and the bots are the ones the server always ran.
+
+Nothing the page imports touches a `node:` builtin, which a test enforces: paths are left
+unresolved in `config.js`, tokens come from Web Crypto, and the on-disk record store lives
+apart in `store-file.js`, which only the Node entry point loads. In the page, Scrap Rally's
+career is kept in `localStorage` instead, so the garage survives a reload.
+
+Each client probes `/api/health` on load: with a server behind it the online half of the
+menu appears, and without one (a static deploy) the menu is solo-only. `?solo=1` forces
+solo play anywhere.
+
+`.github/workflows/pages.yml` runs the tests and publishes the site to GitHub Pages on
+every push to `main`. There is no build step — the files are served exactly as written.
 
 ## Architecture in one paragraph
 
@@ -57,7 +82,8 @@ WebTransport path can be added without touching game code.
 2. `<game>/` — the client: `index.html`, `src/`, a manifest and service worker.
 3. One line in [`server/games.js`](server/games.js).
 
-The room, lobby, sessions, reconnect, snapshots and bots-in-the-lobby all come for free.
+The room, lobby, sessions, reconnect, snapshots, bots-in-the-lobby and solo play all come
+for free.
 
 Two more things a game can ask for, and neither costs the others anything:
 
@@ -71,7 +97,7 @@ Two more things a game can ask for, and neither costs the others anything:
 ## Tools
 
 ```sh
-npm test                       # node --test: shared sim + server (154 tests, all three games)
+npm test                       # node --test: shared sim + server (all three games)
 
 # AGRAV
 node tools/tracklint.js        # every track: width, radius, overlap, banking, pads, jumps

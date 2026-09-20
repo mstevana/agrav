@@ -207,8 +207,9 @@ audio.onTrack = (title) => { if (ui.screen === 'race') hud.say(`♪ ${title}`, '
 window.addEventListener('keydown', (e) => { if (e.code === 'KeyN' && ui.screen === 'race') audio.nextTrack(); });
 const input = new Input(renderer.domElement);
 const hud = new Hud();
-let ui = { screen: 'menu', ready: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
+let ui = { screen: 'menu', ready: false, solo: false, soloFilled: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
 let menuOrbit = 0;
+const SOLO_BOTS = 7;   // opponents on a solo grid
 
 function serverUrl() {
   if (settings.server) return settings.server.replace(/^http/, 'ws').replace(/\/?$/, '') + (settings.server.endsWith('/ws') ? '' : '/ws');
@@ -228,6 +229,41 @@ async function ensureConnected() {
   }
 }
 
+// Solo racing hosts the lobby/room engine in this page over a loopback channel
+// (server/solo.js), so a static deploy with no server at all is still playable.
+let soloHost = null;
+async function openSoloHost() {
+  if (!soloHost) {
+    const { createSoloHost } = await import('../../server/solo.js');
+    soloHost = createSoloHost();
+  }
+  return soloHost;
+}
+function closeSoloHost() {
+  if (!soloHost) return;
+  soloHost.stop();
+  soloHost = null;
+  ui.solo = false;
+  ui.soloFilled = false;
+}
+
+/** is there a server behind this page? a static deploy (GitHub Pages, file://) has no /api */
+let online = false;
+async function probeServer() {
+  if (new URLSearchParams(location.search).get('solo') === '1') return false;
+  try {
+    const base = settings.server ? settings.server.replace(/^ws/, 'http').replace(/\/ws$/, '') : '';
+    const res = await fetch(base + '/api/health', { cache: 'no-store' });
+    return res.ok;
+  } catch { return false; }
+}
+(async () => {
+  online = await probeServer();
+  $('online-only').hidden = !online;
+  $('offline-note').hidden = online;
+  if (online) refreshRooms();
+})();
+
 // ------------------------------------------------------------------- menu ----
 $('name').value = settings.name;
 $('name').addEventListener('change', () => setSetting('name', $('name').value.trim().slice(0, 16)));
@@ -246,6 +282,27 @@ $('set-touch').value = settings.touchSteer; $('set-touch').addEventListener('cha
 $('set-server').value = settings.server; $('set-server').addEventListener('change', (e) => { setSetting('server', e.target.value.trim()); client.close(); });
 audio.muted = !settings.sound; audio.musicOn = settings.music;
 
+$('btn-solo').addEventListener('click', () => { unlockAudio(); playSolo(); });
+
+/** connect to the in-page host, open a private race and fill the grid with bots */
+async function playSolo() {
+  const btn = $('btn-solo');
+  btn.disabled = true;
+  try {
+    if (client.connected) client.close();
+    const host = await openSoloHost();
+    ui.solo = true;
+    ui.soloFilled = false;
+    await client.connectLocal(host.channel, $('name').value.trim() || 'player');
+    client.createRoom({ track: settings.track || 'meridian', laps: 3 }, false);
+  } catch (e) {
+    closeSoloHost();
+    toast('Could not start solo racing');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 $('btn-create').addEventListener('click', async () => { unlockAudio(); if (await ensureConnected()) client.createRoom({ track: 'meridian', laps: 3 }, true); });
 $('btn-join').addEventListener('click', async () => {
   unlockAudio();
@@ -258,7 +315,7 @@ $('overlay-retry').addEventListener('click', () => reconnect());
 $('overlay-menu').addEventListener('click', () => { $('overlay').hidden = true; leaveToMenu(); });
 
 async function refreshRooms() {
-  if (ui.screen !== 'menu') return;
+  if (ui.screen !== 'menu' || !online) return;
   try {
     const base = settings.server ? settings.server.replace(/^ws/, 'http').replace(/\/ws$/, '') : '';
     const res = await fetch(base + '/api/rooms', { cache: 'no-store' });
@@ -269,7 +326,7 @@ async function refreshRooms() {
     for (const b of el.querySelectorAll('[data-join]')) b.addEventListener('click', async () => { unlockAudio(); if (await ensureConnected()) client.joinRoom(b.dataset.join); });
   } catch { $('rooms').innerHTML = '<div class="muted">Server unreachable.</div>'; }
 }
-setInterval(refreshRooms, 3000); refreshRooms();
+setInterval(refreshRooms, 3000);
 
 function unlockAudio() { audio.ensure(); if (audio.ready) audio.setMusicMode(ui.screen === 'race' ? 'race' : 'menu'); }
 input.onAny = unlockAudio;
@@ -322,6 +379,7 @@ syncFullscreen();
 
 function leaveToMenu() {
   ui.screen = 'menu'; ui.ready = false; ui.results = null;
+  if (ui.solo) { client.close(); closeSoloHost(); }
   show('screen-menu'); hud.show(false);
   audio.stopAllEngines(); audio.setMusicMode('menu');
   refreshRooms();
@@ -330,12 +388,24 @@ function leaveToMenu() {
 function renderLobby(room) {
   const me = room.players.find(p => p.id === room.you);
   const isHost = room.hostId === room.you;
-  $('lobby-code').textContent = room.code;
+  $('lobby-code').textContent = ui.solo ? 'SOLO' : room.code;
+  // solo has nobody to wait for: stay ready (changing an option clears the flag) and fill
+  // the grid with bots once — every addBot echoes a room update, so this must not repeat
+  if (ui.solo && room.phase === 'lobby') {
+    if (me && !me.ready) client.setReady(true);
+    if (!ui.soloFilled) {
+      ui.soloFilled = true;
+      const want = SOLO_BOTS - room.players.filter(p => p.bot).length;
+      for (let i = 0; i < want; i++) client.addBot();
+    }
+  }
   $('lobby-track-name').textContent = `${TRACKS[room.opts.track]?.name || ''} · ${room.opts.laps} LAPS${room.public ? ' · PUBLIC' : ' · PRIVATE'}`;
   prewarm(room.opts.track);
   $('host-opts').style.display = isHost ? '' : 'none';
   $('laps').textContent = room.opts.laps;
   $('btn-public').classList.toggle('on', !!room.public);
+  $('btn-public').hidden = ui.solo;
+  $('btn-ready').hidden = ui.solo;
   $('tracks').innerHTML = TRACK_IDS.map(id => `<div class="card${room.opts.track === id ? ' sel' : ''}" data-track="${id}"><div class="name">${TRACKS[id].name}</div><div class="team">${TRACKS[id].theme}</div></div>`).join('');
   for (const c of $('tracks').querySelectorAll('[data-track]')) c.addEventListener('click', () => client.setOpts({ track: c.dataset.track }));
   const myVehicle = me?.profile?.vehicle || ui.vehicle;
@@ -366,7 +436,11 @@ client.onRoom = (room) => {
 };
 client.onChat = (m) => { const c = $('chat'); c.insertAdjacentHTML('beforeend', `<div><b>${esc(m.from)}</b> ${esc(m.text)}</div>`); c.scrollTop = c.scrollHeight; if (ui.screen === 'race') hud.say(`${m.from}: ${m.text}`); };
 client.onError = (m) => toast(m.message || m.code);
-client.onState = (s) => { if (s === 'disconnected' && ui.screen !== 'menu') reconnect(); };
+client.onState = (s) => {
+  if (s !== 'disconnected') return;
+  if (ui.solo) { closeSoloHost(); if (ui.screen !== 'menu') leaveToMenu(); return; }
+  if (ui.screen !== 'menu') reconnect();
+};
 client.onResults = (results) => { ui.results = results; showResults(results); };
 client.onEvents = ({ events }) => { for (const e of events) onEvent(e); };
 

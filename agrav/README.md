@@ -4,7 +4,10 @@ Anti-gravity combat racing for up to twelve players, in the browser.
 
 ## Race
 
-Create a race (you become the host) or join one by code or from the public list. The host
+**Race solo vs bots** needs no server: the lobby and room engine runs inside the page, so the
+game works from a static deploy (GitHub Pages) or offline once installed — a full grid of
+seven bots, every track, every craft. Online, create a race (you become the host) or join one
+by code or from the public list. The host
 picks the track and the lap count, can add bots and starts once everyone is ready. Three
 laps by default. **Zero health eliminates you**: the craft explodes and you spectate
 (tap or click to follow another racer) until the race ends. A race ends when every

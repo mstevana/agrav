@@ -1,7 +1,7 @@
 // Offline shell for Scrap Rally. The simulation, the renderer and the vendored
-// three.js are all static files, so a cached copy is a playable game the moment
-// a server is reachable again.
-const CACHE = 'scrap-rally-v2';
+// three.js are all static files, and solo racing hosts the room engine in the
+// page, so a cached copy is a whole game with no server at all.
+const CACHE = 'scrap-rally-v3';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './icons/icon.svg',
   './src/main.js', './src/net.js', './src/input.js', './src/hud.js',
@@ -10,6 +10,8 @@ const SHELL = [
   '../shared/vendor/three.module.min.js',
   '../shared/gfx/noise.js', '../shared/gfx/surfaces.js', '../shared/gfx/geom.js', '../shared/gfx/merge.js',
   '../shared/net/protocol.js', '../shared/net/bytes.js', '../shared/net/channel.js', '../shared/net/clock.js',
+  '../server/solo.js', '../server/lobby.js', '../server/room.js', '../server/session.js',
+  '../server/games.js', '../server/store.js', '../server/config.js', '../server/log.js',
   '../shared/sim/vec.js', '../shared/sim/rng.js', '../shared/sim/spline.js', '../shared/sim/ring-buffer.js',
   '../shared/rally/module.js', '../shared/rally/constants.js', '../shared/rally/cars.js', '../shared/rally/career.js',
   '../shared/rally/weapons.js', '../shared/rally/pickups.js', '../shared/rally/bot.js',

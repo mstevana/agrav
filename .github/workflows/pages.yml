@@ -1,0 +1,60 @@
+# Publish the games to GitHub Pages as a static site.
+#
+# There is no build step: the repo is already a set of ES modules served as they are
+# written. Pages cannot run the Node server, so the deployed site has no /api and no
+# /ws — the clients detect that and offer solo play, which hosts the room/lobby engine
+# inside the page (server/solo.js). Online play still needs `npm start` somewhere.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one deploy at a time; let a run in progress finish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          # everything the browser loads: the launcher, both clients, the shared sim and
+          # net layer, and the engine the page hosts for solo play
+          cp index.html _site/
+          cp -r agrav volley rally shared server _site/
+          rm -rf _site/server/test
+          # Pages runs Jekyll by default, which would skip files starting with _ or .
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

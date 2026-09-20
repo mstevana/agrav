@@ -12,11 +12,12 @@ import { DT, TEAM_NAMES } from '../../shared/volley/constants.js';
 const $ = (id) => document.getElementById(id);
 const ui = {
   menu: $('menu'), lobby: $('lobby'), over: $('over'), status: $('status'), banner: $('banner'),
-  name: $('name'), code: $('code'), rooms: $('rooms'), slots: $('slots'), roomcode: $('roomcode'),
+  name: $('name'), code: $('code'), rooms: $('rooms'), slots: $('slots'), roomtitle: $('roomtitle'), shareline: $('shareline'),
   sharelink: $('sharelink'), hostopts: $('hostopts'), lobbymsg: $('lobbymsg'),
   ready: $('ready'), addbot: $('addbot'), start: $('start'),
   optPoints: $('opt-points'), optBots: $('opt-bots'), optPublic: $('opt-public'), optMode: $('opt-mode'),
   overtitle: $('overtitle'), overscore: $('overscore'),
+  solo: $('solo'), online: $('online'), offlinenote: $('offlinenote'),
 };
 
 const MODE_LABEL = { volley: '2v2', volley1: '1v1', volley3: '3v3' };
@@ -29,7 +30,24 @@ const app = {
   bannerUntil: 0,
   acc: 0,
   lastFrame: 0,
+  solo: false,        // this match is hosted in the page, not on a server
 };
+
+// Solo play hosts the lobby/room engine in the page over a loopback channel, so the
+// game runs with no server at all — that is what makes a static deploy playable.
+let soloHost = null;
+async function openSoloHost() {
+  if (soloHost) return soloHost;
+  const { createSoloHost } = await import('../../server/solo.js');
+  soloHost = createSoloHost();
+  return soloHost;
+}
+function closeSoloHost() {
+  if (!soloHost) return;
+  soloHost.stop();
+  soloHost = null;
+  app.solo = false;
+}
 
 const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 const net = new Client();
@@ -69,6 +87,13 @@ async function ensureConnected() {
 
 function onDisconnected() {
   setStatus('disconnected');
+  if (app.solo) {   // the in-page host went away; there is nothing to reconnect to
+    stopGame();
+    app.room = null;
+    closeSoloHost();
+    show('menu');
+    return;
+  }
   if (app.playing || net.room) {
     // reattach: reconnecting with the same token resumes the room server-side
     connectedName = null;
@@ -77,23 +102,59 @@ function onDisconnected() {
 }
 
 async function refreshRooms() {
-  if (net.room) return;
+  if (net.room || !online) return;
   try {
     const res = await fetch('/api/rooms', { cache: 'no-store' });
     const { rooms } = await res.json();
     renderRooms(rooms);
   } catch { /* offline: leave the list as is */ }
 }
-refreshRooms();
+
+// Is there a server behind this page? A static deploy (GitHub Pages, file://) has no
+// /api, so the online half of the menu is hidden and solo play is the whole game.
+let online = false;
+const params = new URLSearchParams(location.search);
+async function probeServer() {
+  if (params.get('solo') === '1') return false;
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' });
+    return res.ok;
+  } catch { return false; }
+}
+(async () => {
+  online = await probeServer();
+  ui.online.classList.toggle('hidden', !online);
+  ui.offlinenote.classList.toggle('hidden', online);
+  if (online) {
+    refreshRooms();
+    const wanted = params.get('room');   // deep link ?room=CODE joins straight away
+    if (wanted && await ensureConnected()) net.joinRoom(wanted.toUpperCase());
+  }
+})();
 setInterval(() => { if (app.screen === 'menu') refreshRooms(); }, 3000);
 
-// deep link ?room=CODE joins straight away
-(async () => {
-  const wanted = new URLSearchParams(location.search).get('room');
-  if (wanted && await ensureConnected()) net.joinRoom(wanted.toUpperCase());
-})();
-
 // ---------------- menu ----------------
+ui.solo.onclick = () => playSolo();
+
+/** connect to the in-page host and open a private room; the lobby then works as usual */
+async function playSolo() {
+  ui.solo.disabled = true;
+  try {
+    if (net.connected) net.close();
+    const host = await openSoloHost();
+    app.solo = true;
+    await net.connectLocal(host.channel, ui.name.value.trim() || 'Player');
+    connectedName = null;   // the loopback session is not the online one
+    setStatus('solo');
+    net.createRoom(readGame(), readOpts(), false);
+  } catch (e) {
+    closeSoloHost();
+    flash('Could not start solo play', 1800);
+  } finally {
+    ui.solo.disabled = false;
+  }
+}
+
 $('quick').onclick = () => quickPlay();
 $('create').onclick = async () => { if (await ensureConnected()) net.createRoom(readGame(), readOpts(), ui.optPublic.checked); };
 $('join').onclick = async () => { const c = ui.code.value.trim().toUpperCase(); if (c && await ensureConnected()) net.joinRoom(c); };
@@ -131,7 +192,14 @@ function readOpts() {
 ui.ready.onclick = () => { app.imReady = !app.imReady; net.setReady(app.imReady); };
 ui.addbot.onclick = () => net.addBot();
 ui.start.onclick = () => net.start();
-$('leave').onclick = () => { net.leaveRoom(); app.room = null; stopGame(); show('menu'); history.replaceState(null, '', location.pathname); };
+$('leave').onclick = () => {
+  net.leaveRoom();
+  app.room = null;
+  stopGame();
+  if (app.solo) { net.close(); closeSoloHost(); }
+  show('menu');
+  history.replaceState(null, '', location.pathname);
+};
 $('rematch').onclick = () => show(net.room ? 'lobby' : 'menu');
 for (const sel of [ui.optPoints, ui.optBots]) sel.onchange = () => net.setOpts(readOpts());
 ui.optPublic.onchange = () => net.setOpts(readOpts());
@@ -144,10 +212,14 @@ function onRoom(room) {
   const isHost = room.hostId === room.you;
   const me = room.players.find((p) => p.id === room.you);
   app.imReady = !!(me && me.ready);
-  history.replaceState(null, '', `${location.pathname}?room=${room.code}`);
+  if (!app.solo) history.replaceState(null, '', `${location.pathname}?room=${room.code}`);
 
-  ui.roomcode.textContent = room.code;
-  ui.sharelink.href = `${location.origin}${location.pathname}?room=${room.code}`;
+  // a solo room is private to this page: no code to share, and we are ready by default
+  ui.roomtitle.textContent = app.solo ? 'Solo match' : `Room ${room.code}`;
+  ui.shareline.classList.toggle('hidden', app.solo);
+  if (!app.solo) ui.sharelink.href = `${location.origin}${location.pathname}?room=${room.code}`;
+  // solo has nobody to wait for, so stay ready — changing a lobby option clears the flag
+  if (app.solo && room.phase === 'lobby' && me && !me.ready) { app.imReady = true; net.setReady(true); }
   const opts = room.opts || {};
   ui.optPoints.value = String(opts.pointsToWin ?? 15);
   ui.optBots.value = opts.botDifficulty || 'normal';
@@ -157,6 +229,8 @@ function onRoom(room) {
   ui.addbot.classList.toggle('hidden', !isHost);
   ui.start.classList.toggle('hidden', !isHost);
   ui.ready.textContent = app.imReady ? 'Not ready' : 'Ready';
+  ui.ready.classList.toggle('hidden', app.solo);   // nobody to wait for in solo play
+  ui.optPublic.parentElement.classList.toggle('hidden', app.solo);
 
   renderSlots(room);
 
@@ -164,6 +238,7 @@ function onRoom(room) {
   const hostName = room.players.find((p) => p.id === room.hostId)?.name || 'the host';
   const mode = MODE_LABEL[room.game] || '2v2';
   if (room.phase === 'running') ui.lobbymsg.textContent = 'Match in progress…';
+  else if (app.solo) ui.lobbymsg.textContent = `${mode} · solo play, no server. Every empty seat is a bot — press Start.`;
   else if (isHost) ui.lobbymsg.textContent = `${mode} · ${humans} player${humans === 1 ? '' : 's'} here. Add bots to fill the court, then start. Empty seats also play as bots.`;
   else ui.lobbymsg.textContent = `${mode} · ready up. Waiting for ${escapeHtml(hostName)} to start.`;
 

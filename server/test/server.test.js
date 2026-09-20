@@ -24,8 +24,15 @@ test('websocket handshake, ping/pong, health and static files', async () => {
   const readme = await fetch(`http://127.0.0.1:${port}/README.md`);
   assert.equal(readme.status, 200);
   assert.match(readme.headers.get('content-type'), /markdown/);
-  assert.equal((await fetch(`http://127.0.0.1:${port}/server/index.js`)).status, 404);
+  // the engine is served on purpose: solo play imports it into the page (server/solo.js),
+  // and a static deploy serves the same files
+  const solo = await fetch(`http://127.0.0.1:${port}/server/solo.js`);
+  assert.equal(solo.status, 200);
+  assert.match(solo.headers.get('content-type'), /javascript/);
+  // what must still never be served
   assert.equal((await fetch(`http://127.0.0.1:${port}/../etc/passwd`)).status, 404);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/node_modules/ws/package.json`)).status, 404);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/package.json`)).status, 404);
   assert.equal((await fetch(`http://127.0.0.1:${port}/shared/net/protocol.js`)).status, 200);
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
