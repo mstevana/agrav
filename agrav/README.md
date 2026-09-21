@@ -86,10 +86,15 @@ half the flame's own length so it can never fold back through itself, and with n
 standing still, or a frame rate too low to have laid one -- it simply straightens. Shields and weapons are shaders too
 (`src/render/fxshaders.js`): hex-cell shield skins with a fresnel rim, a scanning band and a ripple
 spreading from where a hit lands; rockets and missiles as white-cored bolts with streaks and fading
-ribbon trails (missiles carry a plume); mines that pulse red once armed; noise-eroded fireballs with
-a shock ring; minigun tracers as stretched bolts. The same sponsors advertise along every track: a banner under each
-light gantry, roadside billboards on posts beyond the barriers in the canyon and on the coast, and
-sponsor spots in rotation on the city's wall screens and holo boards.
+ribbon trails (missiles carry a plume); noise-eroded fireballs with a shock ring; minigun tracers as
+stretched bolts. A **minigun burst** is a turret, not a bare tracer (`src/render/minigun.js`): a
+hatch in the craft's accent opens on the spine, a six-barrel gun rises through it, trains on the car
+the shot will actually hit — the same cone test the sim scores with, so it points at nothing when
+the nose is not lined up — spins up, fires from its muzzle, and sinks back when the ammo runs out.
+It is hidden while it is stowed, so a craft that is not shooting costs nothing to draw. Mines pulse
+red once armed. The same sponsors advertise along every track: a banner under each light gantry,
+roadside billboards on posts beyond the barriers in the canyon and on the coast, and sponsor spots
+in rotation on the city's wall screens and holo boards.
 
 | Craft | Shape | Livery |
 |---|---|---|

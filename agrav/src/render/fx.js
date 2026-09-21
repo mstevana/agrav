@@ -190,15 +190,28 @@ export class Fx {
   /** world position of a ribbon point */
   world(s, t, h) { const w = toWorld(this.ribbon, s, t, h); return new THREE.Vector3(w.x, w.y, w.z); }
 
-  /** game event → effect. poseOf(id) gives the display pose of a racer */
-  onEvent(e, poseOf) {
+  /**
+   * game event → effect. poseOf(id) gives the display pose of a racer; muzzleOf(id) gives the
+   * world position and direction of its minigun barrel, when the turret is up.
+   */
+  onEvent(e, poseOf, muzzleOf = null) {
     switch (e.t) {
       case 'boom': this.explosion(this.world(e.s, e.tt, e.h + 0.8), e.wall ? 0.8 : 1.2, e.hit != null ? 0xffd080 : 0xffa060); break;
       case 'dead': { const p = poseOf(e.id); if (p) this.explosion(this.world(p.s, p.t, p.h + 1), 3.2, 0xff8040); break; }
       case 'hit': { const p = poseOf(e.id); if (p && this.enabled) this.sparks(this.world(p.s, p.t, p.h + 1.2), 10, e.source === 'minigun' ? 0xfff1a0 : 0xffb060, 8); break; }
       case 'absorb': { const p = poseOf(e.id); if (p) { const a = e.by != null ? poseOf(e.by) : null; this.shieldHit(e.id, a ? this.world(a.s, a.t, a.h + 1) : this.world(p.s - 6, p.t, p.h + 1)); } break; }
       case 'wall': { const p = poseOf(e.id); if (p && this.enabled) { const f = frameAt(this.ribbon, p.s); const side = p.t > 0 ? 1 : -1; this.sparks(this.world(p.s, side * (f.width / 2 - 0.5), p.h + 0.8), 8, 0xffe0a0, 10); } break; }
-      case 'shot': { const p = poseOf(e.id); if (p) { const a = this.world(p.s + 3, p.t, p.h + 1.2); const b = this.world(p.s + Math.min(e.range, 150), p.t + Math.tan(p.yaw) * Math.min(e.range, 150), p.h + 1.2); this.tracer(a, b); } break; }
+      case 'shot': {
+        const p = poseOf(e.id); if (!p) break;
+        const m = muzzleOf?.(e.id);                                   // out of the barrel once the gun is up
+        const reach = Math.min(e.range, 150);
+        const from = m ? m.pos : this.world(p.s + 3, p.t, p.h + 1.2);
+        let to = null;
+        if (e.hit >= 0) { const q = poseOf(e.hit); if (q) to = this.world(q.s, q.t, q.h + 1.2); }
+        if (!to) to = m ? m.pos.clone().addScaledVector(m.dir, reach) : this.world(p.s + reach, p.t + Math.tan(p.yaw) * reach, p.h + 1.2);
+        this.tracer(from, to);
+        break;
+      }
       case 'pickup': { const p = poseOf(e.id); if (p) this.pickupFlash(this.world(p.s, p.t, p.h), 0x2df1ff); break; }
       case 'use': { const p = poseOf(e.id); if (p) this.pickupFlash(this.world(p.s, p.t, p.h), e.item === 'health' ? 0x5cff8a : e.item === 'speed' ? 0xffd54a : 0x2df1ff); break; }
       case 'lap': case 'finish': case 'go': break;

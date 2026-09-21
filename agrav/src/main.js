@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { BloomComposer } from '../../shared/gfx/bloom.js';
 import { TRACKS, TRACK_IDS } from '../../shared/agrav/tracks/index.js';
 import { VEHICLES } from '../../shared/agrav/vehicles.js';
-import { PHASE, TICK_RATE, DT, HOVER_HEIGHT, VF } from '../../shared/agrav/constants.js';
+import { PHASE, TICK_RATE, DT, HOVER_HEIGHT, VF, WEAPON } from '../../shared/agrav/constants.js';
 import { toWorld, frameAt, deltaS } from '../../shared/sim/spline.js';
 import { wrapAngle } from '../../shared/sim/vec.js';
 import { IN } from '../../shared/net/protocol.js';
@@ -18,6 +18,7 @@ import { audio } from './audio.js';
 import { settings, setSetting, applyDocumentSettings, QualityGovernor } from './settings.js';
 import { buildTrack, prewarmTrack, poseObject } from './render/track.js';
 import { buildCraft, animateCraft, updateTrails, disposeTrails } from './render/vehicle.js';
+import { flashMinigun, minigunMuzzle } from './render/minigun.js';
 import { buildEnvironment, prewarmEnvironment } from './render/env/index.js';
 import { skyEnvironment, markShadows } from './render/env/common.js';
 import { Fx } from './render/fx.js';
@@ -37,8 +38,12 @@ const toast = (msg, ms = 2600) => { const t = $('toast'); t.textContent = msg; t
 // ----------------------------------------------------------------- three ----
 // ?lite=1: no scenery, no bloom, half resolution — for headless tests and very weak devices
 const LITE = new URLSearchParams(location.search).has('lite');
-// ?showcase=<vehicleId|all>: no menu, one craft (or the whole grid) posed on the Meridian straight
+// ?showcase=<vehicleId|all>: no menu, one craft (or the whole grid) posed on a straight. &track=<id>
+// picks the track, &at=<metres> the point on the lap, &gun deploys the minigun -- between them the
+// photographer (tools/shots.js) can frame any part of any map without racing to it.
 const SHOWCASE = new URLSearchParams(location.search).get('showcase');
+const SHOWCASE_GUN = new URLSearchParams(location.search).has('gun');            // photograph the minigun deployed
+const SHOWCASE_AT = +(new URLSearchParams(location.search).get('at') ?? 60);     // and from anywhere on the lap
 const SHOWCASE_TRACK = new URLSearchParams(location.search).get('track') || 'meridian';
 const renderer = new THREE.WebGLRenderer({ antialias: !LITE, powerPreference: 'high-performance' });
 renderer.setPixelRatio(LITE ? 0.5 : Math.min(window.devicePixelRatio, 2));
@@ -521,16 +526,21 @@ function hitBearing(e) {
   const ds = deltaS(client.ribbon, mine.s, them.s);
   return wrapAngle(Math.atan2(them.t - mine.t, ds) - mine.yaw);
 }
+// Where a craft's minigun barrel is and which way it points, for the tracer to leave from. Null
+// while the gun is still coming up out of its hatch, and fx falls back to the nose line.
+const _muzzlePos = new THREE.Vector3(), _muzzleDir = new THREE.Vector3(), _muzzle = { pos: _muzzlePos, dir: _muzzleDir };
+const muzzleOf = (id) => { const c = scene.crafts?.get(id); return c && minigunMuzzle(c, _muzzlePos, _muzzleDir) ? _muzzle : null; };
+
 function onEvent(e) {
   if (!scene.fx) return;
-  scene.fx.onEvent(e, poseOf);
+  scene.fx.onEvent(e, poseOf, muzzleOf);
   const p = poseOf(e.id ?? e.a);
   const pos = p ? scene.fx.world(p.s, p.t, p.h) : null;
   const me = client.me;
   switch (e.t) {
     case 'go': audio.play('go'); hud.say('GO', 'good'); break;
     case 'fire': audio.play(e.item === 'mine' ? 'mine' : e.item, pos); break;
-    case 'shot': audio.play('minigun', pos); break;
+    case 'shot': audio.play('minigun', pos); flashMinigun(scene.crafts.get(e.id)); break;
     case 'hit': if (e.dmg < 1) break; audio.play('hit', pos); if (e.id === me) { hud.hitFrom(hitBearing(e)); if (e.source !== 'wall' || e.dmg >= 4) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); } break;
     case 'absorb': audio.play('absorb', pos); break;
     case 'boom': audio.play('boom', scene.fx.world(e.s, e.tt, e.h)); break;
@@ -611,6 +621,7 @@ function frame(now) {
 }
 
 // showcase: static craft on the start straight, three-quarter front camera
+const SHOWCASE_ANIM = { throttle: true, abL: false, abR: false, boost: false, speedFrac: 0.6, dead: false, firing: SHOWCASE_GUN, aimAt: null };
 let showcaseT = 0;
 function renderShowcase(dt) {
   if (!scene.three) {
@@ -620,22 +631,22 @@ function renderShowcase(dt) {
     ids.forEach((id, i) => {
       const c = craftFor(i, VEHICLES.some(v => v.id === id) ? id : 'corsair');
       const row = Math.floor(i / 2), col = i % 2;
-      const s = ids.length === 1 ? 60 : 70 - row * 9, t = ids.length === 1 ? 0 : (col - 0.5) * 11;
+      const s = ids.length === 1 ? SHOWCASE_AT : SHOWCASE_AT + 10 - row * 9, t = ids.length === 1 ? 0 : (col - 0.5) * 11;
       poseObject(c.group, scene.ribbon, s, t, 0, 0, 0, HOVER_HEIGHT);
-      animateCraft(c, { throttle: true, abL: false, abR: false, boost: false, speedFrac: 0.6, dead: false });
+      animateCraft(c, SHOWCASE_ANIM);
     });
     // a soft key light so the hulls read under any theme's sky
-    const key = new THREE.PointLight(0xfff4e0, 60, 60, 1.6); const kw = toWorld(scene.ribbon, 64, -6, 9); key.position.set(kw.x, kw.y, kw.z); scene.three.add(key);
+    const key = new THREE.PointLight(0xfff4e0, 60, 60, 1.6); const kw = toWorld(scene.ribbon, SHOWCASE_AT + 4, -6, 9); key.position.set(kw.x, kw.y, kw.z); scene.three.add(key);
     window.__agrav.showcaseReady = true;
   }
   showcaseT += dt;
   const single = SHOWCASE !== 'all';
-  const cw = single ? toWorld(scene.ribbon, 60 + 6.2, 4.6, 2.4) : toWorld(scene.ribbon, 88, 12, 8);
-  const lw = single ? toWorld(scene.ribbon, 59.6, -0.2, 0.9) : toWorld(scene.ribbon, 58, 0, 1);
+  const cw = single ? toWorld(scene.ribbon, SHOWCASE_AT + 6.2, 4.6, 2.4) : toWorld(scene.ribbon, SHOWCASE_AT + 28, 12, 8);
+  const lw = single ? toWorld(scene.ribbon, SHOWCASE_AT - 0.4, -0.2, 0.9) : toWorld(scene.ribbon, SHOWCASE_AT - 2, 0, 1);
   camera.position.set(cw.x, cw.y, cw.z);
   camera.lookAt(lw.x, lw.y, lw.z);
   if (Math.abs(camera.fov - 50) > 0.1) { camera.fov = 50; camera.updateProjectionMatrix(); }
-  for (const c of scene.crafts.values()) { for (const sp of c.exhaust) sp.material.opacity = 0.8 + Math.sin(showcaseT * 20) * 0.15; }
+  for (const c of scene.crafts.values()) { animateCraft(c, SHOWCASE_ANIM, dt); for (const sp of c.exhaust) sp.material.opacity = 0.8 + Math.sin(showcaseT * 20) * 0.15; }
   followSun(camera); scene.env?.update(dt, camera);
   scene.fx?.update(dt);
   bloom.render(scene.three, camera);
@@ -653,6 +664,29 @@ function readInput() {
   return human.bits & IN.FIRE ? { bits: bot.bits | IN.FIRE, steer: bot.steer } : bot;
 }
 
+/**
+ * The car a burst is trained on: the nearest one ahead that is inside the gun's cone, which is the
+ * same test `stepMinigun` picks its victim with — so the barrel points at whatever the shot will
+ * actually hit, and at nothing when the nose is not lined up.
+ */
+const _aimAt = new THREE.Vector3();
+function gunTarget(pool, from, id) {
+  const M = WEAPON.minigun;
+  let best = null, bd = M.range;
+  for (const p of pool) {
+    if (p.id === id) continue;
+    const o = client.race.byId[p.id];
+    if (!o || o.dead || o.finished) continue;
+    const ds = deltaS(client.ribbon, from.s, p.s);
+    if (ds <= 1 || ds > bd) continue;
+    if (Math.abs((p.t - from.t) - Math.tan(from.yaw) * ds) > M.spread + ds * M.cone) continue;
+    bd = ds; best = p;
+  }
+  if (!best) return null;
+  const w = toWorld(client.ribbon, best.s, best.t, best.h + HOVER_HEIGHT + 0.4);
+  return _aimAt.set(w.x, w.y, w.z);
+}
+
 function renderRace(dt) {
   const race = client.race;
   if (!race || !scene.three) return;
@@ -665,6 +699,9 @@ function renderRace(dt) {
 
   // craft
   const seen = new Set();
+  const aimPool = [];
+  if (me && myPose) aimPool.push({ id: me.id, s: myPose.s, t: myPose.t, h: myPose.h });
+  for (const p of others.racers) aimPool.push({ id: p.id, s: p.s, t: p.t, h: p.h });
   const place = (r, pose, isMe) => {
     seen.add(r.id);
     const c = craftFor(r.id, r.vehicle);
@@ -695,7 +732,9 @@ function renderRace(dt) {
     c.visPitch = (c.visPitch ?? pitchWant) + (pitchWant - (c.visPitch ?? pitchWant)) * k;
     const bob = Math.sin(performance.now() * 0.004 + r.id) * 0.08;
     poseObject(c.group, ribbon, pose.s, pose.t, pose.h, pose.yaw, c.visRoll, HOVER_HEIGHT + bob, c.visPitch);
-    animateCraft(c, { throttle: !!(bits & IN.THROTTLE), abL: !!(bits & IN.AIRBRAKE_L), abR: !!(bits & IN.AIRBRAKE_R), boost: !!(flags & VF.BOOST), speedFrac: Math.min(1, speed / r.stats.topSpeed), dead }, dt);
+    const firing = (latest?.byId[r.id]?.burstT ?? 0) > 0;
+    animateCraft(c, { throttle: !!(bits & IN.THROTTLE), abL: !!(bits & IN.AIRBRAKE_L), abR: !!(bits & IN.AIRBRAKE_R), boost: !!(flags & VF.BOOST), speedFrac: Math.min(1, speed / r.stats.topSpeed), dead,
+      firing, aimAt: firing ? gunTarget(aimPool, pose, r.id) : null }, dt);
     c.shield.visible = !!(flags & VF.SHIELD) && !dead;
     return c;
   };

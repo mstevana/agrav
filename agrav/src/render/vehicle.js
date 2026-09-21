@@ -17,6 +17,7 @@ import { liverySet, ATLAS } from './livery.js';
 import { fbm3 } from '../../../shared/gfx/noise.js';
 import { makePlume, animatePlume, plumePoint, bendPlume } from './exhaust.js';
 import { EngineTrail } from './trails.js';
+import { makeMinigun, animateMinigun } from './minigun.js';
 
 const protos = new Map();
 const L = BASE.length, W = BASE.width;
@@ -54,7 +55,7 @@ const spine = (z0, z1, y, w, h) => loft([{ p: z0, b0: y, w: w * 0.3, h: h * 0.3,
 const slab = (x, y, z0, z1, w, h, uv = ATLAS.misc) => loft([{ p: z0, a0: x, b0: y, w: w * 0.7, h: h * 0.7, k: 4 }, { p: z0 + 0.15, a0: x, b0: y, w, h, k: 4 }, { p: z1 - 0.15, a0: x, b0: y, w, h, k: 4 }, { p: z1, a0: x, b0: y, w: w * 0.85, h: h * 0.85, k: 4 }], { axis: 'z', segments: 12, uv });
 
 // --------------------------------------------------------------- the six --
-// Each returns { livery: [geo], metal: [geo], glass: [geo], nozzles: [{x,y,z,r}], flaps: {x, y, z, w}, canopyZ }
+// Each returns { livery: [geo], metal: [geo], glass: [geo], nozzles: [{x,y,z,r}], flaps: {x, y, z, w}, gun: {y, z} }
 
 const HULLS = {
   kestrel() {   // slim centre body, long forward-swept pontoons, thin joining wing, twin small nozzles
@@ -64,7 +65,7 @@ const HULLS = {
       fin(0, 2.3, 0.7, 1.25, 0.9, 0.35, 0.35), spine(-0.2, 2.4, 0.78, 0.16, 0.12)
     ];
     for (const sd of [-1, 1]) livery.push(loft([{ p: -2.9, a0: sd * 1.3, b0: 0.32, w: 0.08, h: 0.06, k: 2 }, { p: -2.2, a0: sd * 1.32, b0: 0.34, w: 0.26, h: 0.2, k: 2.4, flat: 0.4 }, { p: 0, a0: sd * 1.34, b0: 0.36, w: 0.3, h: 0.24, k: 2.6, flat: 0.4 }, { p: 1.8, a0: sd * 1.32, b0: 0.36, w: 0.26, h: 0.22, k: 2.6, flat: 0.4 }, { p: 2.4, a0: sd * 1.3, b0: 0.36, w: 0.14, h: 0.14, k: 2 }], { axis: 'z', segments: 16, uv: ATLAS.pontoon }));
-    return { livery, metal: [nacelle(-0.42, 0.44, 2.2, 3.25, 0.22), nacelle(0.42, 0.44, 2.2, 3.25, 0.22)], glass: [canopy(-1.0, 1.5, 0.28, 0.22, 0.74)], nozzles: [{ x: -0.42, y: 0.44, z: 3.25, r: 0.2 }, { x: 0.42, y: 0.44, z: 3.25, r: 0.2 }], flaps: { x: 1.0, y: 0.56, z: 1.35, w: 0.5 } };
+    return { livery, metal: [nacelle(-0.42, 0.44, 2.2, 3.25, 0.22), nacelle(0.42, 0.44, 2.2, 3.25, 0.22)], glass: [canopy(-1.0, 1.5, 0.28, 0.22, 0.74)], nozzles: [{ x: -0.42, y: 0.44, z: 3.25, r: 0.2 }, { x: 0.42, y: 0.44, z: 3.25, r: 0.2 }], flaps: { x: 1.0, y: 0.56, z: 1.35, w: 0.5 }, gun: { y: 0.93, z: 0.6 } };
   },
   talon() {     // short blunt nose, wide delta deck, one big engine with a broad slot, intakes beside the canopy
     const livery = [
@@ -72,7 +73,7 @@ const HULLS = {
       fin(-1.35, 2.2, 0.7, 1.05, 0.7, 0.3, 0.3, 0.08), fin(1.35, 2.2, 0.7, 1.05, 0.7, 0.3, 0.3, 0.08)
     ];
     const metal = [loft([{ p: 1.4, b0: 0.5, w: 0.7, h: 0.3, k: 3 }, { p: 2.4, b0: 0.5, w: 0.85, h: 0.32, k: 3.2 }, { p: 3.3, b0: 0.5, w: 0.8, h: 0.26, k: 3.2 }], { axis: 'z', segments: 20, uv: ATLAS.nacelle }), slab(-0.85, 0.66, -1.4, 0.3, 0.22, 0.14), slab(0.85, 0.66, -1.4, 0.3, 0.22, 0.14)];
-    return { livery, metal, glass: [canopy(-1.5, 1.4, 0.34, 0.24, 0.7)], nozzles: [{ x: -0.35, y: 0.5, z: 3.3, r: 0.26 }, { x: 0.35, y: 0.5, z: 3.3, r: 0.26 }], flaps: { x: 1.1, y: 0.62, z: 2.2, w: 0.6 } };
+    return { livery, metal, glass: [canopy(-1.5, 1.4, 0.34, 0.24, 0.7)], nozzles: [{ x: -0.35, y: 0.5, z: 3.3, r: 0.26 }, { x: 0.35, y: 0.5, z: 3.3, r: 0.26 }], flaps: { x: 1.1, y: 0.62, z: 2.2, w: 0.6 }, gun: { y: 0.77, z: 0.4 } };
   },
   vantage() {   // catamaran: two full hulls, a bridge deck with the canopy, pylon nacelles, forward planes
     const livery = [];
@@ -80,7 +81,7 @@ const HULLS = {
     livery.push(body([[-1.6, 0.6, 0.6, 0.08, 3.2, 0.3], [-0.8, 0.62, 1.1, 0.14, 3.4, 0.3], [0.6, 0.62, 1.15, 0.15, 3.4, 0.3], [2.0, 0.6, 1.0, 0.13, 3.4, 0.3], [2.6, 0.58, 0.8, 0.1, 3.2, 0.3]]));
     livery.push(wing(-1.3, 1.3, 0.42, () => -2.2, (s) => 0.5 - s * 0.15, 0.04));
     livery.push(fin(0, 2.3, 0.72, 1.15, 0.7, 0.3, 0.35, 0.08));
-    return { livery, metal: [nacelle(-0.55, 0.85, 1.2, 3.2, 0.26), nacelle(0.55, 0.85, 1.2, 3.2, 0.26)], glass: [canopy(-0.4, 1.4, 0.3, 0.24, 0.76)], nozzles: [{ x: -0.55, y: 0.85, z: 3.2, r: 0.24 }, { x: 0.55, y: 0.85, z: 3.2, r: 0.24 }], flaps: { x: 1.0, y: 0.72, z: 1.9, w: 0.5 } };
+    return { livery, metal: [nacelle(-0.55, 0.85, 1.2, 3.2, 0.26), nacelle(0.55, 0.85, 1.2, 3.2, 0.26)], glass: [canopy(-0.4, 1.4, 0.3, 0.24, 0.76)], nozzles: [{ x: -0.55, y: 0.85, z: 3.2, r: 0.24 }, { x: 0.55, y: 0.85, z: 3.2, r: 0.24 }], flaps: { x: 1.0, y: 0.72, z: 1.9, w: 0.5 }, gun: { y: 0.76, z: 0.8 } };
   },
   bulwark() {   // heavy slab, stepped armour, ram nose, four stubby nozzles, low thick fin
     const livery = [
@@ -89,7 +90,7 @@ const HULLS = {
     ];
     const metal = [slab(0, 0.98, -1.2, 1.4, 1.15, 0.07), slab(-0.8, 0.9, -2.2, 0.6, 0.3, 0.1), slab(0.8, 0.9, -2.2, 0.6, 0.3, 0.1)];
     for (const x of [-1.05, -0.45, 0.45, 1.05]) metal.push(nacelle(x, 0.46, 2.5, 3.35, 0.2));
-    return { livery, metal, glass: [canopy(-1.5, 1.3, 0.4, 0.2, 0.86)], nozzles: [-1.05, -0.45, 0.45, 1.05].map(x => ({ x, y: 0.46, z: 3.35, r: 0.18 })), flaps: { x: 1.25, y: 0.9, z: 2.2, w: 0.5 } };
+    return { livery, metal, glass: [canopy(-1.5, 1.3, 0.4, 0.2, 0.86)], nozzles: [-1.05, -0.45, 0.45, 1.05].map(x => ({ x, y: 0.46, z: 3.35, r: 0.18 })), flaps: { x: 1.25, y: 0.9, z: 2.2, w: 0.5 }, gun: { y: 1.04, z: 0.3 } };
   },
   reaper() {    // knife nose, forward-canted side fins, tall sharp tail, nacelles under the wings
     const livery = [
@@ -98,7 +99,7 @@ const HULLS = {
       fin(0, 2.35, 0.8, 1.55, 1.0, 0.3, 0.7, 0.09), spine(-0.4, 2.3, 0.84, 0.18, 0.14),
       fin(-1.1, 0.2, 0.5, 1.0, 0.7, 0.25, -0.5, 0.06), fin(1.1, 0.2, 0.5, 1.0, 0.7, 0.25, -0.5, 0.06)
     ];
-    return { livery, metal: [nacelle(-0.95, 0.28, 1.1, 3.3, 0.28), nacelle(0.95, 0.28, 1.1, 3.3, 0.28), slab(-0.62, 0.5, -0.9, 0.5, 0.16, 0.12), slab(0.62, 0.5, -0.9, 0.5, 0.16, 0.12)], glass: [canopy(-1.2, 1.5, 0.3, 0.22, 0.78)], nozzles: [{ x: -0.95, y: 0.28, z: 3.3, r: 0.26 }, { x: 0.95, y: 0.28, z: 3.3, r: 0.26 }], flaps: { x: 1.2, y: 0.5, z: 1.9, w: 0.5 } };
+    return { livery, metal: [nacelle(-0.95, 0.28, 1.1, 3.3, 0.28), nacelle(0.95, 0.28, 1.1, 3.3, 0.28), slab(-0.62, 0.5, -0.9, 0.5, 0.16, 0.12), slab(0.62, 0.5, -0.9, 0.5, 0.16, 0.12)], glass: [canopy(-1.2, 1.5, 0.3, 0.22, 0.78)], nozzles: [{ x: -0.95, y: 0.28, z: 3.3, r: 0.26 }, { x: 0.95, y: 0.28, z: 3.3, r: 0.26 }], flaps: { x: 1.2, y: 0.5, z: 1.9, w: 0.5 }, gun: { y: 1.01, z: 0.6 } };
   },
   corsair() {   // teardrop fuselage, swept wing, tall fin, nacelles blended into the wing roots
     const livery = [
@@ -106,7 +107,7 @@ const HULLS = {
       wing(-1.55, 1.55, 0.44, (s) => 0.9 + s * 0.9, (s) => 1.9 - s * 1.1, 0.1),
       fin(0, 2.4, 0.85, 1.55, 0.95, 0.35, 0.6, 0.08), spine(-0.5, 2.4, 0.88, 0.2, 0.14)
     ];
-    return { livery, metal: [nacelle(-0.72, 0.36, 0.9, 3.3, 0.3), nacelle(0.72, 0.36, 0.9, 3.3, 0.3), slab(-0.66, 0.55, -1.0, 0.3, 0.16, 0.12), slab(0.66, 0.55, -1.0, 0.3, 0.16, 0.12)], glass: [canopy(-1.25, 1.5, 0.32, 0.24, 0.8)], nozzles: [{ x: -0.72, y: 0.36, z: 3.3, r: 0.28 }, { x: 0.72, y: 0.36, z: 3.3, r: 0.28 }], flaps: { x: 1.2, y: 0.5, z: 1.75, w: 0.5 } };
+    return { livery, metal: [nacelle(-0.72, 0.36, 0.9, 3.3, 0.3), nacelle(0.72, 0.36, 0.9, 3.3, 0.3), slab(-0.66, 0.55, -1.0, 0.3, 0.16, 0.12), slab(0.66, 0.55, -1.0, 0.3, 0.16, 0.12)], glass: [canopy(-1.25, 1.5, 0.32, 0.24, 0.8)], nozzles: [{ x: -0.72, y: 0.36, z: 3.3, r: 0.28 }, { x: 0.72, y: 0.36, z: 3.3, r: 0.28 }], flaps: { x: 1.2, y: 0.5, z: 1.75, w: 0.5 }, gun: { y: 1.05, z: 0.6 } };
   }
 };
 
@@ -136,6 +137,7 @@ function prototype(def) {
   const rings = parts.nozzles.map(n => { const r = new THREE.TorusGeometry(n.r * 0.9, n.r * 0.16, 6, 16); r.translate(n.x, n.y, n.z); return r; });
   g.add(new THREE.Mesh(mergeGeometries(rings), new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 0.5, metalness: 0.8 })));
   g.userData.parts = parts;
+  g.userData.metal = metal;
   protos.set(def.id, g);
   return g;
 }
@@ -163,15 +165,19 @@ export function buildCraft(vehicleId) {
   const flapL = new THREE.Mesh(flapGeo, flapMat), flapR = new THREE.Mesh(flapGeo, flapMat);
   flapL.position.set(-fp.x, fp.y, fp.z); flapR.position.set(fp.x, fp.y, fp.z);
   group.add(flapL, flapR);
+  // the minigun turret: stowed under a hatch on the spine until a burst starts, wearing the same
+  // accent as the airbrakes on its hatch and the hull's own alloy on the gun
+  const gun = makeMinigun(parts.gun, proto.userData.metal, flapMat);
+  group.add(gun.group);
   // a point light under the hull washes the track in team colour
   const light = new THREE.PointLight(def.colour, 0, 14, 2);
   light.position.set(0, -0.5, 0);
   group.add(light);
   // World-space engine trails, one per nozzle; the scene owner adds their meshes beside the group.
-  // Each is paired with its plume and emitted from that plume's tip, so the ribbon starts where the
-  // fire ends instead of being born inside it — which also means it starts at the flame's thin end.
+  // Each is paired with its plume and emitted at that plume's nozzle, so the ribbon and the fire
+  // share their first few metres and the fire can be bent along the path the ribbon records.
   const trails = parts.nozzles.map((n, i) => ({ trail: new EngineTrail(def.colour, 0.22 + n.r * 0.7), plume: flames[i] }));
-  return { group, exhaust, flames, flapL, flapR, light, colour: def.colour, def, trails, thrust: null };
+  return { group, exhaust, flames, flapL, flapR, light, gun, colour: def.colour, def, trails, thrust: null };
 }
 
 /** call once per frame after the craft is posed: grows the trails from the flame tips toward the camera's view */
@@ -195,7 +201,7 @@ export function disposeTrails(craft) { for (const t of craft.trails) t.trail.dis
 
 /** per-frame animation of a craft's dressing. Everything here eases: the throttle is a switch, the engine is not. */
 const THRUST_RATE = 9, FLAP_RATE = 18;
-export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead }, dt = 1 / 60) {
+export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead, firing = false, aimAt = null }, dt = 1 / 60) {
   const t = performance.now() * 0.001;
   const wantThrust = dead ? 0 : throttle ? (boost ? 1.4 : 0.55 + speedFrac * 0.45) : 0.12;
   craft.thrust = craft.thrust === null ? wantThrust : craft.thrust + (wantThrust - craft.thrust) * (1 - Math.exp(-dt * THRUST_RATE));
@@ -212,5 +218,6 @@ export function animateCraft(craft, { throttle, abL, abR, boost, speedFrac, dead
   // the scene on the frame you died. The light stays visible at zero intensity instead, which costs
   // nothing to render and keeps the count still.
   craft.dead = !!dead;
-  for (const ch of craft.group.children) if (ch !== craft.light) ch.visible = !dead;
+  for (const ch of craft.group.children) if (ch !== craft.light && ch !== craft.gun.group) ch.visible = !dead;
+  animateMinigun(craft.gun, craft, { firing, aimAt, dead }, dt);   // owns its own visibility: stowed means not drawn
 }
