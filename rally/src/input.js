@@ -95,5 +95,30 @@ export class Input {
   }
 }
 
-const HANDLED = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
-  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyM', 'KeyN']);
+/**
+ * What every control is called and what it is bound to, for the screen that
+ * tells a driver which key does what. `sample` above is still the one that
+ * decides; this says the same thing in words, and `keys` here is also what the
+ * browser is told not to scroll the page with, so a binding that is listed is
+ * a binding that works. shared/test/rally-controls.test.js presses everything
+ * named here and checks the right bit comes out, which is what stops the two
+ * drifting apart.
+ */
+export const CONTROLS = Object.freeze([
+  { what: 'Steer', keys: ['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'], pad: 'Stick or d-pad' },
+  { what: 'Throttle', bit: IN.THROTTLE, keys: ['ArrowUp', 'KeyW'], pad: 'RT or A' },
+  { what: 'Brake, then reverse', bit: IN.BRAKE, keys: ['ArrowDown', 'KeyS'], pad: 'LT or X' },
+  { what: 'Fire', bit: IN.FIRE, keys: ['Space'], pad: 'RB or Y' },
+  { what: 'Drop a mine', bit: IN.MINE, keys: ['KeyM'], pad: 'B' },
+  { what: 'Nitro', bit: IN.NITRO, keys: ['KeyN', 'ShiftLeft'], pad: 'LB' }
+]);
+
+/** how a key code reads on a key */
+export const keyLabel = (code) => code.startsWith('Key') ? code.slice(3)
+  : code.startsWith('Arrow') ? { ArrowLeft: '\u2190', ArrowRight: '\u2192', ArrowUp: '\u2191', ArrowDown: '\u2193' }[code]
+  : code === 'Space' ? 'Space'
+  : code === 'ShiftLeft' ? 'Shift'
+  : code;
+
+// every key the game uses is a key the page must not also act on
+const HANDLED = new Set(CONTROLS.flatMap(c => c.keys));

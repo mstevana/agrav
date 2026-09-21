@@ -56,6 +56,13 @@
   .seat.empty .who { color: var(--dim); font-style: italic; }
   .seat.me { border-color: var(--accent); }
   .muted { color: var(--dim); font-size: 13px; }
+  .keys { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; align-items: baseline; }
+  .keys .what { font-size: 13px; }
+  .keys .bound { text-align: right; }
+  .keys kbd { display: inline-block; min-width: 22px; padding: 2px 6px; margin-left: 5px; text-align: center;
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: rgba(120,160,255,0.07);
+    font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); }
+  .keys .pad { display: block; font-size: 11px; color: var(--dim); margin-top: 2px; }
   .locked { opacity: 0.55; }
   #status { position: fixed; top: 10px; left: 12px; z-index: 6; font-size: 11px; color: var(--dim);
     letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
@@ -178,6 +185,9 @@
       <button id="fullscreen">Fullscreen</button>
       <button id="leave">Leave</button>
     </div>
+
+    <h2>Controls</h2>
+    <div class="keys" id="controls"></div>
   </div>
 </div>
 

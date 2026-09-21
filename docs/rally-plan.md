@@ -858,3 +858,16 @@ renderer, and the simulation was right about all of them.
     not firing now has no clock at all, so the next burst starts one shot in
     credit and the streak is drawn on the frame the snapshot says the trigger
     went. `rallytest` measures it with a fixed step and fails over 34 ms.
+
+**Nothing told a driver which key does what.** The HUD counted the mines and the
+nitro bottles down and never said what spends them. The lobby now lists every
+control under the buttons, and the list is drawn from a table exported by the
+input code rather than written out beside it: `shared/test/rally-controls.test.js`
+presses every key the table names and checks the right bit comes out, so a
+listed binding is a working binding. Moving the mine key without touching the
+list fails the test.
+
+The panel went below Ready and Start rather than above them. Above, on a phone,
+it pushed both off the bottom of the screen — measured at 390 by 780, where
+Ready moved from 659 to 945 — and the keys are reference while the buttons are
+what you came for.

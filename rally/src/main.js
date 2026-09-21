@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { Client } from './net.js';
-import { Input } from './input.js';
+import { Input, CONTROLS, keyLabel } from './input.js';
 import { Hud } from './hud.js';
 import { Scene, isLite } from './render/scene.js';
 import { buildTrackScene, animatePads, animateOverhead } from './render/track.js';
@@ -23,7 +23,7 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   menu: $('menu'), lobby: $('lobby'), over: $('over'), garage: $('garage'), status: $('status'),
   name: $('name'), code: $('code'), rooms: $('rooms'), seats: $('seats'), roomcode: $('roomcode'),
-  sharelink: $('sharelink'), hostopts: $('hostopts'), lobbymsg: $('lobbymsg'),
+  sharelink: $('sharelink'), hostopts: $('hostopts'), lobbymsg: $('lobbymsg'), controls: $('controls'),
   ready: $('ready'), addbot: $('addbot'), start: $('start'),
   overtitle: $('overtitle'), oversub: $('oversub'), overrows: $('overrows'), overmoney: $('overmoney'),
   touch: $('touch')
@@ -229,9 +229,22 @@ for (const sel of [OPT.lobTrack, OPT.lobLaps, OPT.lobBots, OPT.lobFill]) {
   });
 }
 
+/**
+ * What each control is, written out of the same table the input code binds from,
+ * so a key that is listed is a key that works. Drawn once: it never changes.
+ */
+function renderControls() {
+  if (!ui.controls || ui.controls.childElementCount) return;
+  ui.controls.innerHTML = CONTROLS.map(c =>
+    `<div class="what">${c.what}</div>` +
+    `<div class="bound">${c.keys.map(k => `<kbd>${keyLabel(k)}</kbd>`).join('')}` +
+    (c.pad ? `<span class="pad">${c.pad}</span>` : '') + '</div>').join('');
+}
+
 function onRoom(room) {
   app.room = room;
   if (!room) return;
+  renderControls();
   const isHost = room.hostId === room.you;
   const me = room.players.find(p => p.id === room.you);
   app.imReady = !!me?.ready;

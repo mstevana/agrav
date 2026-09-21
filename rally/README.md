@@ -91,6 +91,22 @@ apart pointing the same way, so without it the first corner belongs to whoever
 held the trigger from the lights rather than to anyone's driving. The HUD counts
 it down where the ammo normally sits. Mines and the bumper are not part of it.
 
+## Controls
+
+| | Keyboard | Gamepad |
+|---|---|---|
+| Steer | arrows, or A and D | stick or d-pad |
+| Throttle | up arrow, or W | RT or A |
+| Brake, then reverse | down arrow, or S | LT or X |
+| Fire | space | RB or Y |
+| Drop a mine | M | B |
+| Nitro | N or left shift | LB |
+
+Holding the brake at rest backs the car up, so there is no separate reverse to
+find. On a phone there are on-screen buttons for all of it. The lobby lists the
+lot, drawn from the same table the input code binds from, so a key that is
+listed is a key that works.
+
 ## Pickups
 
 Pads hold what they always hold and come back twenty seconds after being taken,
