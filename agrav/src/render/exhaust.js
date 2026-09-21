@@ -4,16 +4,31 @@
 // edge up with scrolling noise, thins toward the tip and fades where the
 // surface turns away from the eye, so the plume reads as glowing gas rather
 // than a painted cone. Throttle and boost drive its length and heat.
+//
+// It is not rigid. The vertex shader bends it along the path the engine has
+// just taken -- the same path the trail is laid on -- so turning hard sweeps
+// the fire round behind the craft instead of leaving a cone bolted to its
+// back, and the fire and the ribbon read as one plume.
 // ============================================================================
 
 import * as THREE from 'three';
 
 const VERT = `
+// where the engine's path was a third, two thirds and a full flame-length back, as sideways
+// offsets in the plume's own space. bend[0] is always zero: the nozzle is bolted to the craft.
+uniform vec3 bend[4];
 varying vec2 vUv; varying vec3 vN; varying vec3 vV;
 void main() {
   vUv = uv;
   vN = normalize(normalMatrix * normal);
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  // uv.y runs 0 at the nozzle to 1 at the tip, so it is also the distance along the bend.
+  // Stepped with mix() rather than indexing bend[] with a computed value, which not every
+  // GLSL version will take.
+  float a = uv.y * 3.0;
+  vec3 off = mix(mix(bend[0], bend[1], clamp(a, 0.0, 1.0)),
+                 mix(bend[2], bend[3], clamp(a - 2.0, 0.0, 1.0)),
+                 clamp(a - 1.0, 0.0, 1.0));
+  vec4 mv = modelViewMatrix * vec4(position + off, 1.0);
   vV = normalize(-mv.xyz);
   gl_Position = projectionMatrix * mv;
 }`;
@@ -50,7 +65,8 @@ export function makePlume(colour, r, seed = 0) {
   geo.translate(0, 0, 0.5);
   const mat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
-    uniforms: { time: { value: 0 }, colour: { value: new THREE.Color(colour) }, heat: { value: 0.6 }, seed: { value: seed } },
+    uniforms: { time: { value: 0 }, colour: { value: new THREE.Color(colour) }, heat: { value: 0.6 }, seed: { value: seed },
+      bend: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] } },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
   });
   const m = new THREE.Mesh(geo, mat);
@@ -83,5 +99,29 @@ const _at = new THREE.Vector3();
 export function plumePoint(plume, z, out) {
   return (out || _at).set(0, 0, z).applyMatrix4(plume.matrixWorld);
 }
-/** where the fire ends and the moving part of the trail begins */
-export const plumeTip = (plume, out) => plumePoint(plume, 1, out);
+
+/**
+ * Bend the fire along the path its engine just took. `samples` are three world points -- a third,
+ * two thirds and a full flame-length back -- which become sideways offsets in the plume's own
+ * space. Sideways only: the z component is dropped, because displacing the tube along its own axis
+ * would stretch it and fold it through itself, and the length is already `scale.z`'s job.
+ *
+ * The inverse is taken once and reused; worldToLocal would invert the matrix for each sample.
+ */
+const _inv = new THREE.Matrix4(), _p = new THREE.Vector3();
+const MAX_SWEEP = 0.5;   // of the flame's own length, so it can sweep hard but never fold back
+export function bendPlume(plume, samples) {
+  const bend = plume.material.uniforms.bend.value;
+  _inv.copy(plume.matrixWorld).invert();
+  // The plume's scale is (1, 1, len), so sideways offsets come out of the inverse in metres while
+  // its length is 1 along z. The cap has to be in metres too, or it would mean something different
+  // on a long flame than on a short one.
+  const len = plume.userData.len || plume.scale.z || 1;
+  for (let i = 0; i < 3; i++) {
+    _p.copy(samples[i]).applyMatrix4(_inv);
+    const cap = MAX_SWEEP * len * ((i + 1) / 3);
+    const mag = Math.hypot(_p.x, _p.y);
+    const k = mag > cap ? cap / mag : 1;
+    bend[i + 1].set(_p.x * k, _p.y * k, 0);   // the straight cone already sits on the axis here
+  }
+}
