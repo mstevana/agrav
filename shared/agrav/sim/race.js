@@ -13,7 +13,7 @@ import { getTrack, TRACK_IDS } from '../tracks/index.js';
 import { makeVehicleState, stepVehicle, environmentDamage } from './vehicle.js';
 import { rollItem, useItem, stepProjectiles, stepMinigun, resetProjectileIds } from './weapons.js';
 import { ITEMS, PAD, GRID, PHASE, CONTACT, HIT_SLOW, COUNTDOWN_SEC, GRID_HOLD_SEC, FINISH_GRACE_SEC, RESULTS_HOLD_SEC,
-         TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS, DIFFICULTY_IDS } from '../constants.js';
+         TICK_RATE, HISTORY_TICKS, HITSCAN_REWIND_TICKS, DIFFICULTY_IDS, BOT_DIFFICULTY } from '../constants.js';
 
 const ribbonCache = new Map();
 export function ribbonFor(trackId) {
@@ -51,9 +51,23 @@ export function createRace(opts, seed = 1) {
   };
 }
 
+/**
+ * The craft a racer actually drives. A hard bot gets a few percent more top speed and acceleration
+ * than the same craft gives a human -- medium already uses all of it, so this is the only room left
+ * for hard to be harder. vehicleStats() hands back a fresh object, so the copy mutates nothing.
+ *
+ * The client builds its own race from the same room options (see agrav/src/net.js), so it derives
+ * the identical numbers without any of this having to travel over the wire.
+ */
+function statsFor(vehicle, bot, race) {
+  const stats = vehicleStats(vehicle);
+  const mult = bot ? (BOT_DIFFICULTY[race.opts.botDifficulty]?.speed ?? 1) : 1;
+  return mult === 1 ? stats : { ...stats, topSpeed: stats.topSpeed * mult, accel: stats.accel * mult };
+}
+
 export function addRacer(race, id, profile = {}, bot = false) {
   removeRacer(race, id);
-  const stats = vehicleStats(profile.vehicle);
+  const stats = statsFor(profile.vehicle, bot, race);
   const r = {
     id, bot, vehicle: stats.id, stats, name: profile.name || '',
     v: makeVehicleState(stats),
@@ -81,7 +95,7 @@ export function removeRacer(race, id) {
 export function setRacerProfile(race, id, m) {
   const r = race.byId[id];
   if (!r) return null;
-  const stats = vehicleStats(m.vehicle);
+  const stats = statsFor(m.vehicle, r.bot, race);   // a bot that changes craft keeps its level
   r.vehicle = stats.id; r.stats = stats; r.v.stats = stats;
   r.hp = r.maxHp = stats.maxHp;
   if (typeof m.name === 'string') r.name = m.name.slice(0, 16);

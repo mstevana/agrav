@@ -11,9 +11,12 @@ by code or from the public list. The host
 picks the track, the lap count and how hard the bots drive -- easy, medium or hard -- can add
 bots and starts once everyone is ready. Three laps by default. Bots run on the server, so their
 level belongs to the room rather than to your client; it is remembered, so a solo race starts
-where you left off. Difficulty mostly sets the pace a bot will hold, and with it how tidily it
-drives and aims: the same grid laps Neon Meridian in about 43 s on easy, 40 s on medium and
-39 s on hard. **Zero health eliminates you**: the craft explodes and you spectate
+where you left off. Medium is the bot this game always had. Easy holds a lower pace -- the share
+of the craft it will use -- because that, rather than driving skill, is what sets a bot's lap
+time: a bot is at full throttle except when a corner makes it brake. Medium is already using all
+of the craft, so **hard bots drive a craft five percent faster than the one in your hands**; that
+is deliberate, and the only thing hard adds. The same grid laps Neon Meridian in about 43 s on
+easy, 38 s on medium and 37 s on hard. **Zero health eliminates you**: the craft explodes and you spectate
 (tap or click to follow another racer) until the race ends. A race ends when every
 surviving craft has finished, or 45 seconds after the first one did. Finished craft keep
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.

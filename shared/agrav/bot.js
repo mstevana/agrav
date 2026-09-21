@@ -36,7 +36,7 @@ export function makeBot(opts = {}) {
  */
 export function botFor(difficulty, id) {
   const d = BOT_DIFFICULTY[difficulty] || BOT_DIFFICULTY.normal;
-  return makeBot({ skill: d.skill + ((id * 37) % 5) * 0.03, pace: d.pace, noise: d.noise,
+  return makeBot({ skill: d.skill + ((id * 37) % 5) * 0.05, pace: d.pace, noise: d.noise,
                    lane: ((id % 5) - 2) * 2.2, phase: id * 0.37 });
 }
 
@@ -127,7 +127,11 @@ export function botInput(race, r, bot, tick) {
   const available = st.turnRate * turnScale;              // rad/s with no airbrake
   const needed = Math.abs(worst) * speed;                 // rad/s to follow the bend
   let bits = IN.THROTTLE;
-  if (speed > st.topSpeed * bot.pace) bits &= ~IN.THROTTLE;   // off the throttle, coasting, not braking
+  // Off the throttle, coasting, not braking. Skipped entirely at full pace, so medium and hard are
+  // the uncapped driver exactly rather than one that clips at its own top speed. The boost has to
+  // be in the ceiling either way: turbo raises the craft's top speed, and a cap that ignored it
+  // cut the throttle the moment a bot used one, cancelling the turbo it had just picked up.
+  if (bot.pace < 1 && speed > st.topSpeed * bot.pace * (v.boostT > 0 ? WEAPON.speed.mult : 1)) bits &= ~IN.THROTTLE;
   let airMult = 1;
   if (needed > available * 0.72 * bot.skill) {
     bits |= worst > 0 ? IN.AIRBRAKE_R : IN.AIRBRAKE_L;

@@ -68,13 +68,18 @@ export const PAD = Object.freeze({ radiusS: 3.5, radiusT: 2.6, respawnSec: 6 });
 /**
  * How well the bots drive, chosen per room. `skill` is the dial bot.js already had: how far ahead
  * it aims, how late it brakes, how hard it steers and how much it leads a shot. `noise` wanders
- * the line it wants. `normal` is exactly what every bot was before this was choosable, so the
- * default grid, the balance tool and the bot tests all measure what they measured before.
+ * the line it wants. `pace` is the share of the craft it will use, which is what actually sets a
+ * bot's lap time -- skill only buys a tidier line, since a bot is on full throttle except when a
+ * corner makes it brake. `normal` is exactly the bot everyone had before the setting existed.
+ *
+ * Medium is therefore already using all of the craft, so hard cannot be faster on pace: `speed`
+ * scales the top speed and acceleration of a bot's craft above what the same craft gives a human.
+ * That is deliberate, and the only thing hard adds.
  */
 export const BOT_DIFFICULTY = Object.freeze({
-  easy:   { pace: 0.82, skill: 0.76, noise: 0.30 },
-  normal: { pace: 0.91, skill: 0.85, noise: 0.20 },
-  hard:   { pace: 1.00, skill: 0.97, noise: 0.13 }
+  easy:   { pace: 0.82, skill: 0.76, noise: 0.30, speed: 1.00 },
+  normal: { pace: 1.00, skill: 0.85, noise: 0.20, speed: 1.00 },
+  hard:   { pace: 1.00, skill: 0.90, noise: 0.15, speed: 1.05 }
 });
 export const DIFFICULTY_IDS = Object.freeze(Object.keys(BOT_DIFFICULTY));
 
