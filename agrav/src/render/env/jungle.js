@@ -13,13 +13,68 @@ import { cliffSet, sandSet, concreteSet, metalPlateSet, facadeSet, standard, tri
 import { rock, domeGeo, treeGeo, palmGeo, mangroveGeo, coralGeo, grassGeo, loft, tower, sweep, frameRuns, worldUv } from '../props.js';
 import { buildTerrain, corridor } from '../terrain.js';
 import { fbm2, voronoi2, ridged2, smoothstep } from '../../../../shared/gfx/noise.js';
-import { makeSea } from './sea.js';
+import { makeSea, carveMask } from './sea.js';
 import { frameQuat } from '../track.js';
 import { makeRng } from '../../../../shared/sim/rng.js';
 import { mergeGeometries } from '../../../../shared/gfx/merge.js';
 
 const SEA_LEVEL = 0;
 const isSub = (f) => f.pos.y < SEA_LEVEL - 2;
+const tubeR = (f) => f.width / 2 + 4;
+/** the runs of frames the glass tunnel covers, a little past where the road surfaces at each end */
+const tunnelRuns = (ribbon) => frameRuns(ribbon, isSub).map(([a, b]) => [(a - 3 + ribbon.count) % ribbon.count, (b + 3) % ribbon.count]);
+/** the tunnel's cross-section: a half-circle arch dropped just under the road, open at the bottom */
+function tunnelProfile() {
+  const prof = [];
+  for (let k = 0; k <= 16; k++) { const ang = Math.PI * (1 - k / 16); prof.push({ t: (f) => Math.cos(ang) * tubeR(f), h: (f) => Math.sin(ang) * tubeR(f) - 1.1 }); }
+  return prof;
+}
+
+/**
+ * Where a tunnel run cuts the sea surface, as closed rings of [x, z] — the holes the water has to
+ * leave for it. Only the frames whose arch has its crown above the water and its rims below cut
+ * anything: deeper down the arch is wholly submerged and the sea above it is right, so each dive
+ * gives two rings, one per mouth. The ends run a little past the end frame, so the hole's straight
+ * edge hides inside the concrete portal ring instead of showing beside it.
+ */
+function waterlineRings(ribbon, i0, i1, prof, level) {
+  const count = ((i1 - i0 + ribbon.count) % ribbon.count) + 1;
+  const rings = [];
+  let left = null, right = null;
+  const flush = () => { if (left && left.length > 1) rings.push([...left, ...right.reverse()]); left = right = null; };
+  for (let n = 0; n < count; n++) {
+    const f = ribbon.frames[(i0 + n) % ribbon.count];
+    const pts = prof.map(q => {
+      const t = typeof q.t === 'function' ? q.t(f) : q.t, h = typeof q.h === 'function' ? q.h(f) : q.h;
+      return { t, x: f.pos.x + f.right.x * t + f.up.x * h, y: f.pos.y + f.right.y * t + f.up.y * h, z: f.pos.z + f.right.z * t + f.up.z * h };
+    });
+    const cuts = [];
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k];
+      if ((a.y - level) * (b.y - level) >= 0) continue;
+      const u = (level - a.y) / (b.y - a.y);
+      cuts.push({ t: a.t + (b.t - a.t) * u, x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u });
+    }
+    if (cuts.length < 2) { flush(); continue; }
+    cuts.sort((p, q) => p.t - q.t);
+    const lo = cuts[0], hi = cuts[cuts.length - 1], out = n === 0 ? -1.5 : n === count - 1 ? 1.5 : 0;
+    if (!left) { left = []; right = []; }
+    left.push([lo.x + f.tangent.x * out, lo.z + f.tangent.z * out]);
+    right.push([hi.x + f.tangent.x * out, hi.z + f.tangent.z * out]);
+  }
+  flush();
+  return rings;
+}
+
+const carveCache = new WeakMap();   // ribbon -> the sea's hole mask; ribbons are cached per track
+function carveFor(ribbon, bounds) {
+  if (!carveCache.has(ribbon)) {
+    const rings = [];
+    for (const [i0, i1] of tunnelRuns(ribbon)) rings.push(...waterlineRings(ribbon, i0, i1, tunnelProfile(), SEA_LEVEL));
+    carveCache.set(ribbon, carveMask(bounds, rings));
+  }
+  return carveCache.get(ribbon);
+}
 
 /** the height field: jungle hills inland, a beach, a reef and a deep basin wherever the road dives (cached per track) */
 function terrainFor(ribbon, env) {
@@ -49,7 +104,7 @@ function terrainFor(ribbon, env) {
   return terrain;
 }
 
-export function prewarmJungle(ribbon, track) { const env = track.env; terrainFor(ribbon, env); cliffSet(env.cliff); sandSet(env.sand); concreteSet(0x8a8a82); metalPlateSet(env.metal); for (let i = 0; i < 3; i++) facadeSet(200 + i, 0x2df1ff, 6, 12); }
+export function prewarmJungle(ribbon, track) { const env = track.env; carveFor(ribbon, terrainFor(ribbon, env).bounds); cliffSet(env.cliff); sandSet(env.sand); concreteSet(0x8a8a82); metalPlateSet(env.metal); for (let i = 0; i < 3; i++) facadeSet(200 + i, 0x2df1ff, 6, 12); }
 
 /** scrolling caustic lines for the sea floor */
 function causticTexture() {
@@ -92,20 +147,18 @@ export function buildJungle(scene, ribbon, track) {
   const wind = { value: 0 }, current = { value: 0 };
 
   // ------------------------------------------------------------------- sea --
-  const { mesh: sea, material: seaMat } = makeSea(terrain, env, sunPos, { level: SEA_LEVEL, doubleSide: true, shallow: 0x2aa7a0 });
+  const { mesh: sea, material: seaMat } = makeSea(terrain, env, sunPos, { level: SEA_LEVEL, doubleSide: true, shallow: 0x2aa7a0, carve: carveFor(ribbon, terrain.bounds) });
   group.add(sea);
 
   // ---------------------------------------------------------- glass tunnels --
-  const runs = frameRuns(ribbon, isSub).map(([a, b]) => [(a - 3 + ribbon.count) % ribbon.count, (b + 3) % ribbon.count]);
+  const runs = tunnelRuns(ribbon);
   const glass = new THREE.MeshPhysicalMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.5 });
   const metal = standard(metalPlateSet(env.metal), { bumpScale: 0.05, metalness: 0.6, roughness: 0.45 });
   const concrete = standard(concreteSet(0x8a8a82), { bumpScale: 0.1 });
   const ribGeos = [], portalGeos = [];
-  const tubeR = (f) => f.width / 2 + 4;
   const seaAreas = [];   // { x, z, r, deep } — where the underwater dressing goes
   for (const [i0, i1] of runs) {
-    const prof = [];
-    for (let k = 0; k <= 16; k++) { const ang = Math.PI * (1 - k / 16); prof.push({ t: (f) => Math.cos(ang) * tubeR(f), h: (f) => Math.sin(ang) * tubeR(f) - 1.1 }); }
+    const prof = tunnelProfile();
     const tube = new THREE.Mesh(sweep(ribbon, i0, i1, prof, { uvScale: 9 }), glass);
     tube.frustumCulled = false; tube.userData.noShadow = true; tube.renderOrder = 5;
     group.add(tube);

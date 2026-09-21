@@ -209,9 +209,12 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   tapir, blue morphos over the road. Under the sea the road runs in a ribbed glass tunnel: the
   fog turns deep blue, the sand darkens with depth, two caustic sheets crawl over it at different
   scales, light shafts hang and sway in the water, silt drifts through it and bubbles rise off the
-  reef. Around you are corals and sea fans, kelp, four fish schools, a dolphin pod that breaches,
-  manta rays, two whales, turtles and the lit domes and towers of a sunken city; one dolphin and
-  one ray circle each tunnel closely enough to meet you at the glass. Above water, pollen hangs in
+  reef. Where a tunnel comes up through the surface the sea is cut away around it: the shader
+  carries a signed-distance mask of the four mouths in the same bounds-UV space as the shoreline
+  texture, so the water stops at the glass and foams along it instead of lying across the inside of
+  the tunnel. Around you are corals and sea fans, kelp, four fish schools, a dolphin pod that
+  breaches, manta rays, two whales, turtles and the lit domes and towers of a sunken city; one
+  dolphin and one ray circle each tunnel closely enough to meet you at the glass. Above water, pollen hangs in
   shafts of sun through the canopy and mist sits in the hollows, and the sloths, monkeys, iguanas
   and tapirs all move.
 - **Track furniture** (`src/render/track.js`): a concrete deck under the road, rumble-strip
