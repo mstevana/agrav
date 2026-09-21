@@ -27,6 +27,7 @@ import { deltaS, wrapS } from '../../shared/sim/spline.js';
 import { wrapAngle } from '../../shared/sim/vec.js';
 import { makeVehicleState, stepVehicle } from '../../shared/agrav/sim/vehicle.js';
 import { vehicleStats } from '../../shared/agrav/vehicles.js';
+import { separateFromCraft } from '../../shared/agrav/sim/race.js';
 import { ribbonFor } from '../../shared/agrav/sim/race.js';
 import { PHASE, DT, TICK_RATE } from '../../shared/agrav/constants.js';
 
@@ -323,10 +324,19 @@ export class Client {
 
   // ------------------------------------------------------------------ view --
 
-  /** per-frame: decay the correction offset */
+  /** per-frame: decay the correction offset, and gather what my craft must not be drawn inside */
   frame(dt) {
     const k = Math.exp(-dt / SMOOTH_TAU);
     this.smooth.s *= k; this.smooth.t *= k; this.smooth.h *= k; this.smooth.yaw *= k;
+    // built once a frame: myPose() is asked for several times over, by the renderer, the HUD and
+    // the engine audio, and each would otherwise rebuild this
+    const blockers = this._blockers = [];
+    const me = this.race?.byId[this.me];
+    if (!me || me.dead || me.finished) return;
+    for (const o of this.othersPoses().racers) {
+      const r = this.race.byId[o.id];
+      if (r && !r.dead && !r.finished) blockers.push({ s: o.s, t: o.t, h: o.h || 0, length: r.stats.length, width: r.stats.width, armor: r.stats.armor });
+    }
   }
 
   /**
@@ -363,8 +373,17 @@ export class Client {
     // s and t advance by vs/vt per tick (see stepVehicle); extrapolate those for smooth
     // render-rate motion. yaw has no persisted rate and steps <0.04 rad/tick, so leave it.
     const frac = this.lastTickTime ? Math.min(DT, Math.max(0, (this.clock.now() - this.lastTickTime) / 1000)) : 0;
-    return { s: wrapS(this.ribbon, p.s + p.vs * frac + this.smooth.s), t: p.t + p.vt * frac + this.smooth.t, h: p.h + this.smooth.h, yaw: wrapAngle(p.yaw + this.smooth.yaw),
+    const pose = { s: wrapS(this.ribbon, p.s + p.vs * frac + this.smooth.s), t: p.t + p.vt * frac + this.smooth.t, h: p.h + this.smooth.h, yaw: wrapAngle(p.yaw + this.smooth.yaw),
       vs: p.vs, vt: p.vt, W: p.W, bits: p.bits, steer: p.steer, grounded: p.grounded, scraping: p.scraping };
+    // Prediction steps my craft alone against the track, so it happily drives through everyone
+    // until the server says otherwise -- three metres deep, on a third of the frames, measured.
+    // The separation belongs here rather than in the prediction: the craft being drawn around me
+    // are interpolated, a moment in the past, so pushing the *prediction* out of them puts it
+    // somewhere the server never agrees with, and reconciliation drags it back with a hard snap.
+    // Moving only the drawn pose keeps the netcode's arithmetic exactly as it was.
+    const me = this.race?.byId[this.me];
+    if (me && this._blockers?.length) separateFromCraft(this.ribbon, pose, me.stats, this._blockers);
+    return pose;
   }
 
   /** interpolated poses of everyone else (and projectiles) at the render time */

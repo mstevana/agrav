@@ -68,7 +68,10 @@ binary snapshot 30 times a second to each player, with the newest input it saw a
 that input arrived. The client runs the same simulation code for its own craft
 (prediction), replaces its state with the server's on every snapshot and replays the inputs
 the server has not seen yet (reconciliation), blends any difference over ~100 ms, and draws
-everyone else a few ticks in the past between two snapshots (interpolation). A clock
+everyone else a few ticks in the past between two snapshots (interpolation). That prediction
+steps the local craft alone against the track, so the pose handed to the renderer is pushed clear
+of the craft drawn around it -- only the drawn pose, because those craft are a moment in the past
+and moving the prediction to suit them puts it where the server never agrees. A clock
 estimates the server tick from ping round trips and stamps inputs just far enough ahead to
 arrive on time, resyncing from the server-measured margin when the estimate is off. The
 minigun is lag-compensated against a 250 ms pose history. Transport is WebSocket behind a

@@ -264,6 +264,34 @@ export function rankRacers(race) {
   sorted.forEach((r, i) => { r.rank = i; });
 }
 
+/**
+ * Push one craft out of any it is inside -- position only, one craft's share of the correction.
+ *
+ * The server resolves contacts properly, moving both hulls and trading velocity, yaw and damage.
+ * The client cannot: it predicts its own craft alone, against the track, so without this it drives
+ * clean through everyone until the server's correction lands and is blended in. Measured, that let
+ * the local craft sit three metres inside another -- half a craft -- on a third of the frames
+ * drawn. Only the displacement is copied here, and only this craft's weighted share of it, so the
+ * prediction lands where the server will put it rather than somewhere it has to be dragged back
+ * from. The rest stays the server's to decide.
+ *
+ * `others` carry { s, t, h, length, width, armor } -- the poses actually being drawn. `weight` is
+ * how much of the overlap this craft takes: the server splits it between the two hulls by armour,
+ * but a client can only move its own, and the other's share is already in the pose it is drawing,
+ * so the whole of what is left is this one's to clear.
+ */
+export function separateFromCraft(ribbon, v, stats, others, weight = 1) {
+  for (const o of others) {
+    const ds = deltaS(ribbon, v.s, o.s), dt = o.t - v.t;
+    const halfL = (stats.length + o.length) / 2 * 0.85;
+    const halfW = (stats.width + o.width) / 2 * 0.95;
+    if (Math.abs(ds) >= halfL || Math.abs(dt) >= halfW || Math.abs(v.h - o.h) > 2.5) continue;
+    const penS = halfL - Math.abs(ds), penT = halfW - Math.abs(dt);
+    if (penT < penS) v.t -= (dt >= 0 ? 1 : -1) * penT * weight;
+    else v.s = wrapS(ribbon, v.s - (ds >= 0 ? 1 : -1) * penS * weight);
+  }
+}
+
 function resolveContacts(race, events, applyDamage) {
   const rs = race.racers;
   for (let i = 0; i < rs.length; i++) {
