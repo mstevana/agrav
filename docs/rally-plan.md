@@ -801,3 +801,19 @@ and hull.
     race and checks the seat's `maxHull` moved with the record — it reads 260
     before and 294 after — then buys a car when one is affordable. Removing the
     fix makes it fail, which is the only way to know a regression test works.
+
+**The career read path never ran.** `lobby.career` takes the whole message as its
+action and then compared that object to the string `'get'`, which is never true,
+so every read fell through to the shop's `apply` and came back `{error: 'unknown'}`
+with the record attached. Nothing showed it: the client never sends a bare read,
+because the room hands the record over unprompted when a player joins. The
+platform test sent one and only ever looked at `.career`.
+
+Fixing the comparison exposed the other half. The re-seat added for the car bug
+was gated on there being no error, and a read had always carried one — so making
+reads succeed would have made every read disturb the room, which on the results
+screen means throwing away the finished race and re-rolling the seed for the next
+one. `lobby.career` now says `changed: true` when a record actually moved, the
+session re-seats on that alone, and the flag is stripped before the reply goes out.
+The test for it runs on the results screen with the finished race still in place,
+because anywhere else it passes whether or not the code is right.

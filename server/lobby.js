@@ -128,11 +128,18 @@ export class Lobby {
     if (!game?.career) return { error: 'game' };
     let career = await this.store.get(gameId, key);
     if (!career) { career = game.career.create(); this.store.set(gameId, key, career); }
-    if (!action || action === 'get') return { career };
+    // A read is no action at all, or the one that names itself. `action` is the
+    // whole message, so this has to look inside it: comparing the message to a
+    // string never matched, and every read fell through to the shop and came
+    // back 'unknown'.
+    const kind = action?.action;
+    if (!kind || kind === 'get') return { career };
     const out = game.career.apply(career, action);
     if (out.error) return { error: out.error, career };
     this.store.set(gameId, key, out.career);
-    return { career: out.career };
+    // `changed` is for the caller, not the wire: only a record that actually
+    // moved should disturb a seat.
+    return { career: out.career, changed: true };
   }
 
   close() {

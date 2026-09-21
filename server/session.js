@@ -112,9 +112,11 @@ export class Session {
     const out = await this.lobby.career(game, this.careerKey, m?.action ? m : null);
     if (this.closed) return;
     // a purchase has to reach the seat as well as the store, or the next race
-    // is run in the car the player just traded away
-    if (!out.error && out.career && this.room?.game?.id === game) this.room.setCareerRecord(this, out.career);
-    this.sendJson(MSG.CAREER, { game, ...out });
+    // is run in the car the player just traded away; a read changes nothing
+    // and must not disturb one
+    const { changed, ...reply } = out;
+    if (changed && this.room?.game?.id === game) this.room.setCareerRecord(this, out.career);
+    this.sendJson(MSG.CAREER, { game, ...reply });
   }
 
   onHot(type, u8) {

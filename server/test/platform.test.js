@@ -81,6 +81,8 @@ test('platform: a career is created on first sight, spent in the shop and kept',
   c.send(MSG.CAREER_ACTION, { game: 'careertest', action: 'get' });
   const first = await c.waitFor(m => m.type === MSG.CAREER);
   assert.deepEqual(first.career, { money: 0, car: 'vagabond', races: 0 });
+  assert.equal(first.error, undefined, 'reading a record is not an error');
+  assert.equal(first.changed, undefined, 'and the reply says nothing the client has no use for');
 
   c.send(MSG.CAREER_ACTION, { game: 'careertest', action: 'buy' });
   const broke = await c.next(MSG.CAREER);
@@ -101,6 +103,20 @@ test('platform: a career is created on first sight, spent in the shop and kept',
   const paid = await c.waitFor(m => m.type === MSG.CAREER && m.career.races === 1);
   assert.equal(paid.career.money, 2500, 'the winner was paid at the finish');
 
+  // A read is a read. On the results screen a purchase throws the finished race
+  // away and builds the next one, which is the whole point of it; merely asking
+  // what the record says must not, or every glance at the shop re-rolls the
+  // race everyone is about to start.
+  const live = L.rooms.get(room.code);
+  assert.equal(live.phase, 'results', 'the room is on the results screen');
+  const seedBefore = live.seed, stateBefore = live.state;
+  c.send(MSG.CAREER_ACTION, { game: 'careertest', action: 'get' });
+  await c.next(MSG.CAREER);
+  await settle();
+  assert.equal(live.seed, seedBefore, 'reading a record does not re-roll the next race');
+  assert.equal(live.state, stateBefore, 'nor rebuild it');
+  assert.equal(live.phase, 'results', 'nor walk the room off the results screen');
+
   c.send(MSG.CAREER_ACTION, { game: 'careertest', action: 'buy' });
   const bought = await c.next(MSG.CAREER);
   assert.equal(bought.career.car, 'stiletto');
@@ -111,6 +127,7 @@ test('platform: a career is created on first sight, spent in the shop and kept',
   // what the next race is built from, on the server and on every client
   const reseated = await c.waitFor(m => m.type === MSG.ROOM && m.players[0].profile?.car === 'stiletto');
   assert.equal(reseated.players[0].profile.car, 'stiletto', 'the seat now shows the car that was just bought');
+
   L.close();
 });
 
