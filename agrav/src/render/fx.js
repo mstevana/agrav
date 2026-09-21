@@ -138,15 +138,42 @@ export class Fx {
     for (const p of list) {
       seen.add(p.id);
       let m = this.projectiles.get(p.id);
+      const fresh = !m;
       if (!m) m = this.spent[p.kind]?.pop();
       if (m) { m.visible = true; this.projectiles.set(p.id, m); }
       if (!m) { m = this._buildProjectile(p.kind); this.projectiles.set(p.id, m); }
       poseObject(m, this.ribbon, p.s, p.t, p.h, p.yaw, 0, p.kind === 'mine' ? 0.7 : 0.9);
-      if (p.kind === 'mine') { m.rotation.y += 0.05; m.userData.shell.material.uniforms.armed.value = p.armed ? 1 : 0; m.userData.sprite.material.opacity = p.armed ? 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8)) : 0.15; }
+      if (p.kind === 'mine') {
+        m.rotation.y += 0.05;
+        m.userData.shell.material.uniforms.armed.value = p.armed ? 1 : 0;
+        // Unarmed used to mean a dim 0.15, which is invisible at racing speed -- and the unarmed
+        // half second is exactly the moment the driver who dropped it is looking. It strobes hard
+        // while it arms instead, then settles to the slow pulse an armed mine has always had.
+        const sp = m.userData.sprite, v = p.armed ? 1.6 : 2.4;
+        sp.material.opacity = p.armed ? 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8)) : Math.abs(Math.sin(this.time * 26));
+        sp.scale.set(v, v, 1);
+        if (fresh && !p.armed) this.mineDrop(m.position);
+      }
     }
     // A spent rocket is parked, not destroyed: disposing its materials would release their compiled
     // shader programs, so the very next shot of the same kind would compile them again.
     for (const [id, m] of this.projectiles) if (!seen.has(id)) { m.visible = false; this.spent[m.userData.kind]?.push(m); this.projectiles.delete(id); }
+  }
+
+  /**
+   * A mine hitting the road. You drop it behind you at two hundred klicks and it is gone from the
+   * mirror before you can register it, so the drop itself is the feedback: a flash, a ring that
+   * opens on the road around it, and a scatter of sparks. The ring outlives the flash by a good
+   * half second, which is what you actually see as you pull away. Fired when the mine first
+   * appears rather than on the event, so it lands on the mine as drawn instead of where the
+   * dropper has already got to.
+   */
+  mineDrop(at) {
+    const f = this._take(this.pool.flares);
+    f.size = 0.3; f.o.position.copy(at); f.o.material.opacity = 1;
+    const r = this._take(this.pool.rings);
+    r.size = 0.75; r.o.position.copy(at); r.o.position.y -= 0.35; r.o.material.uniforms.color.value.set(0xff5030);
+    if (this.enabled) this.sparks(at, 10, 0xff8050, 5);
   }
 
   explosion(pos, size = 1, colour = 0xffc070) {

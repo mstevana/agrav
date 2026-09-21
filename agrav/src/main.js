@@ -539,7 +539,7 @@ function onEvent(e) {
   const me = client.me;
   switch (e.t) {
     case 'go': audio.play('go'); hud.say('GO', 'good'); break;
-    case 'fire': audio.play(e.item === 'mine' ? 'mine' : e.item, pos); break;
+    case 'fire': audio.play(e.item === 'mine' ? 'mine' : e.item, pos); if (e.item === 'mine' && e.id === me) hud.say('MINE DROPPED', 'good'); break;
     case 'shot': audio.play('minigun', pos); flashMinigun(scene.crafts.get(e.id)); break;
     case 'hit': if (e.dmg < 1) break; audio.play('hit', pos); if (e.id === me) { hud.hitFrom(hitBearing(e)); if (e.source !== 'wall' || e.dmg >= 4) hud.say(`−${e.dmg} from ${e.by >= 0 ? nameOf(e.by) : e.source}`, 'me'); } break;
     case 'absorb': audio.play('absorb', pos); break;

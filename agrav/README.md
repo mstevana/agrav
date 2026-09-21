@@ -91,10 +91,13 @@ stretched bolts. A **minigun burst** is a turret, not a bare tracer (`src/render
 hatch in the craft's accent opens on the spine, a six-barrel gun rises through it, trains on the car
 the shot will actually hit — the same cone test the sim scores with, so it points at nothing when
 the nose is not lined up — spins up, fires from its muzzle, and sinks back when the ammo runs out.
-It is hidden while it is stowed, so a craft that is not shooting costs nothing to draw. Mines pulse
-red once armed. The same sponsors advertise along every track: a banner under each light gantry,
-roadside billboards on posts beyond the barriers in the canyon and on the coast, and sponsor spots
-in rotation on the city's wall screens and holo boards.
+It is hidden while it is stowed, so a craft that is not shooting costs nothing to draw. A **mine**
+leaves the rack with a flash and a ring opening on the road where it lands, and strobes hard for the
+half second it takes to arm before settling to the slow red pulse of a live one: you drop it behind
+you at two hundred klicks, and the drop itself has to be the feedback. The same sponsors advertise
+along every track: a banner under each light gantry, roadside billboards on posts beyond the
+barriers in the canyon and on the coast, and sponsor spots in rotation on the city's wall screens
+and holo boards.
 
 | Craft | Shape | Livery |
 |---|---|---|
