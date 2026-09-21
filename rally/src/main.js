@@ -445,7 +445,8 @@ function frame(now) {
     while (app.acc >= DT && steps++ < 6) { app.acc -= DT; net.tickInput(input.sample(DT)); }
   }
 
-  const view = app.playing ? net.viewState() : null;
+  // how far the frame sits into the tick that has not happened yet
+  const view = app.playing ? net.viewState(app.acc / DT) : null;
   if (view) drawWorld(view, dt, now / 1000);
   scene.render();
   hud.draw(view, { message: now < app.messageUntil ? app.message : '', spectating: app.spectate >= 0 ? nameOf(app.spectate) : null });

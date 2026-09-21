@@ -834,3 +834,27 @@ every rebuild now goes through `_reseat`, so there is one place to forget it in
 rather than three, and a fourth rebuild site cannot quietly reintroduce it. The
 car was never affected: the picker falls back to whatever is already seated, and a
 driver never re-asserts their car in the lobby.
+
+**Three things the client was doing to your own car.** All three were in the
+renderer, and the simulation was right about all of them.
+
+  · **It twitched.** Prediction advances in whole ticks; the screen does not.
+    The own car was drawn wherever the last whole tick left it, while everyone
+    else was interpolated against the real-time clock, so your car alone
+    quantised to sixty steps a second and beat against the frame rate. It now
+    keeps the pose the tick started from and the frame is drawn between the two.
+  · **It drove through people.** The prediction is one car stepped on its own:
+    it knows the barrier and the scenery and nothing about the rest of the
+    field, so your car went into other cars until the next snapshot hauled it
+    out. The renderer now declines to draw it inside anybody, against the
+    positions on screen. Doing the same thing to the prediction instead — the
+    first attempt — put the reconciliation error up from three centimetres to
+    two and a half metres, and `rallynet` refused it. The prediction has to stay
+    exactly what the server will replay.
+  · **The trigger lagged.** The client draws a shot when its own clock for that
+    car accrues one whole interval of the weapon's fire rate, and that clock
+    started at zero, so every burst waited out an interval before anything
+    appeared: 117 ms on the machine gun, 667 ms on the shotgun. A car that is
+    not firing now has no clock at all, so the next burst starts one shot in
+    credit and the streak is drawn on the frame the snapshot says the trigger
+    went. `rallytest` measures it with a fixed step and fails over 34 ms.

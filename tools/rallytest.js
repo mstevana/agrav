@@ -92,6 +92,37 @@ try {
   if (stats.predError > 1.5) fail(`prediction error of ${stats.predError.toFixed(2)} m is too large on a local socket`);
   if (stats.corrections > 0) fail(`${stats.corrections} hard corrections on a local socket`);
 
+  // How long after the snapshot says a car is firing does a shot appear. Driven
+  // with a fixed step rather than real frames, so the answer does not depend on
+  // how fast the machine running this happens to be. The client used to make
+  // each gun wait out one whole interval of its own fire rate before drawing
+  // anything, which is a tenth of a second on the machine gun and two thirds of
+  // a second on the shotgun — long enough to read as a broken trigger.
+  const fireLag = await host.evaluate(() => {
+    const fx = window.__rally.fx();
+    const DT = 1 / 60;
+    const out = {};
+    for (const weapon of ['machinegun', 'shotgun', 'minigun']) {
+      fx.tracers.length = 0;
+      fx.fireClocks.clear();
+      const view = { cars: [{ id: 42, x: 0, z: 0, yaw: 0, radius: 1.9, weapon,
+        ammo: 40, firing: true, dead: false, finished: false, speed: 0 }], wrecks: [], entities: [] };
+      let frames = -1;
+      for (let i = 1; i <= 300 && frames < 0; i++) {
+        fx._tracers(view, DT);
+        if (fx.tracers.length) frames = i;
+      }
+      out[weapon] = frames < 0 ? Infinity : Math.round(frames * DT * 1000);
+    }
+    fx.tracers.length = 0;
+    fx.fireClocks.clear();
+    return out;
+  });
+  step(`first shot drawn after: ${Object.entries(fireLag).map(([w, ms]) => `${w} ${ms} ms`).join(', ')}`);
+  for (const [w, ms] of Object.entries(fireLag)) {
+    if (ms > 34) fail(`${w} waits ${ms} ms before it draws a shot; the trigger should be the same frame`);
+  }
+
   if (SHOTS) {
     await fs.mkdir(SHOTS, { recursive: true });
     await host.screenshot({ path: `${SHOTS}/rally-race.png` });

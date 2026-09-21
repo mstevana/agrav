@@ -81,6 +81,7 @@ export class Client {
     this.seq = 0;
     this.lastTick = 0;
     this.pred = null;           // my own car, stepped locally
+    this.predPrev = { x: 0, z: 0, yaw: 0 };   // where it was a whole tick ago
     this.blend = null;          // {x, z, yaw, until} what is left of the last correction
     this.lastSnapTime = 0;
     this.headerPhase = PHASE.LOBBY;
@@ -204,7 +205,7 @@ export class Client {
     }
     rally.start(this.state, 0);
     const mine = this.state.byId[this.me];
-    if (mine) this.pred = mine.c;
+    if (mine) { this.pred = mine.c; this.predPrev = { x: mine.c.x, z: mine.c.z, yaw: mine.c.yaw }; }
   }
 
   // ------------------------------------------------------------- snapshots --
@@ -258,6 +259,9 @@ export class Client {
 
     this.pending = this.pending.filter(p => p.tick > snap.tick && p.tick <= snap.tick + 90);
     for (const p of this.pending) stepCar(this.track, this.pred, p.input, DT);
+    // a replay is not a tick: there is no half-step to interpolate out of, so
+    // the previous pose becomes wherever the replay finished
+    this.predPrev.x = this.pred.x; this.predPrev.z = this.pred.z; this.predPrev.yaw = this.pred.yaw;
 
     const dx = wasX - this.pred.x, dz = wasZ - this.pred.z;
     const err = Math.hypot(dx, dz);
@@ -283,6 +287,11 @@ export class Client {
     this.send(encodeInputs(this.pending.slice(-3).map(p => ({ seq: p.seq, tick: p.tick, bits: p.input.bits, steer: p.input.steer }))));
     const me = this.state.byId[this.me];
     if (this.pred && me && !me.dead) {
+      // Prediction advances in whole ticks; the screen does not. Keeping the
+      // pose this tick started from lets a frame be drawn between two of them,
+      // which is the difference between a car that moves and a car that
+      // twitches sixty times a second.
+      this.predPrev.x = this.pred.x; this.predPrev.z = this.pred.z; this.predPrev.yaw = this.pred.yaw;
       stepCar(this.track, this.pred, input, DT, this.headerPhase === PHASE.COUNTDOWN);
     }
   }
@@ -300,7 +309,7 @@ export class Client {
    * whatever is left of the last correction), everyone else between the two
    * snapshots that bracket a moment a few ticks ago.
    */
-  viewState() {
+  viewState(alpha = 1) {
     if (!this.state || !this.latest) return null;
     const renderTick = this.serverTickNow() - INTERP_TICKS;
     let a = null, b = null;
@@ -325,7 +334,13 @@ export class Client {
       const rb = b ? b.cars.find(r => r.id === seat.id) : null;
       let x, z, yaw, vx, vz, sliding;
       if (seat.id === this.me && this.pred) {
-        x = this.pred.x + bx; z = this.pred.z + bz; yaw = this.pred.yaw + byaw;
+        // between the tick that has been predicted and the one before it, so a
+        // frame that lands mid-tick is drawn mid-tick
+        const f = Math.max(0, Math.min(1, alpha));
+        const p0 = this.predPrev, p1 = this.pred;
+        x = p0.x + (p1.x - p0.x) * f + bx;
+        z = p0.z + (p1.z - p0.z) * f + bz;
+        yaw = p0.yaw + shortestAngle(p0.yaw, p1.yaw) * f + byaw;
         vx = this.pred.vx; vz = this.pred.vz; sliding = this.pred.sliding;
       } else if (rb) {
         x = mix(ra.x, rb.x); z = mix(ra.z, rb.z); yaw = ra.yaw + shortestAngle(ra.yaw, rb.yaw) * u;
@@ -344,6 +359,29 @@ export class Client {
         mine: seat.id === this.me
       });
     }
+    // The prediction is one car stepped on its own: it knows about the barrier
+    // and the scenery, and nothing at all about the rest of the field, so it
+    // will happily drive through somebody until the next snapshot hauls it out.
+    // The server decides what a shunt does to both cars, and it does it
+    // properly — this only declines to draw mine inside anybody, against the
+    // positions the player can actually see. Nothing here reaches the
+    // prediction, which has to stay exactly what the server will replay:
+    // separating there instead put the reconciliation error up from three
+    // centimetres to two and a half metres.
+    const mine = cars.find(c => c.mine);
+    if (mine && !mine.dead) {
+      for (const other of cars) {
+        if (other === mine || other.dead) continue;
+        const reach = mine.radius + other.radius;
+        const dx = mine.x - other.x, dz = mine.z - other.z;
+        const d = Math.hypot(dx, dz);
+        if (d >= reach || d < 1e-4) continue;
+        const push = reach - d;
+        mine.x += (dx / d) * push;
+        mine.z += (dz / d) * push;
+      }
+    }
+
     return {
       cars, wrecks: this.latest.wrecks, entities: this.latest.entities, pads: this.latest.pads,
       phase: this.headerPhase, raceTick: this.raceTick, laps: this.state.opts.laps,

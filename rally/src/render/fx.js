@@ -62,8 +62,14 @@ export class Fx {
     for (const car of view.cars) {
       if (car.dead || car.finished) { this.fireClocks.delete(car.id); continue; }
       const w = WEAPONS[car.weapon] || WEAPONS.machinegun;
-      if (!car.firing || car.ammo <= 0) { this.fireClocks.set(car.id, 0); continue; }
-      let owed = (this.fireClocks.get(car.id) || 0) + dt * w.rate;
+      // A car that is not firing has no clock at all, so the next burst starts
+      // one whole shot in credit and the first streak is drawn on the frame the
+      // snapshot says the trigger went. Starting from zero made the client wait
+      // out its own accrual first — a tenth of a second on the machine gun, and
+      // two thirds of a second on the shotgun, which reads as the gun being
+      // broken rather than slow.
+      if (!car.firing || car.ammo <= 0) { this.fireClocks.delete(car.id); continue; }
+      let owed = (this.fireClocks.get(car.id) ?? 1) + dt * w.rate;
       let shots = 0;
       while (owed >= 1 && shots < 4) { owed -= 1; shots++; this._shoot(car, w, view); }
       this.fireClocks.set(car.id, owed);
