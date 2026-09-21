@@ -817,3 +817,20 @@ one. `lobby.career` now says `changed: true` when a record actually moved, the
 session re-seats on that alone, and the flag is stripped before the reply goes out.
 The test for it runs on the results screen with the finished race still in place,
 because anywhere else it passes whether or not the code is right.
+
+**Changing a room option took your gun away.** What a seat owns lives in the match
+state, because that is where `setProfile` looks to refuse a gun nobody bought. The
+room rebuilds the match in three places and only two of them put ownership back:
+the rematch did, an option change did not. So after the host touched the track,
+the laps or the difficulty, the lobby picker fell back to the loadout of a player
+with no record at all — whose only gun is the machine gun — and a driver who asked
+for the minigun took to the grid without it. Nothing said so. The garage healed it,
+because that path re-seats from the record, so the bug only bit between an option
+change and the next visit to the shop, which is exactly when people pick a gun and
+press ready.
+
+The one-line fix would have been to copy the missing line into `setOpts`. Instead
+every rebuild now goes through `_reseat`, so there is one place to forget it in
+rather than three, and a fourth rebuild site cannot quietly reintroduce it. The
+car was never affected: the picker falls back to whatever is already seated, and a
+driver never re-asserts their car in the lobby.

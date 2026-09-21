@@ -220,6 +220,36 @@ test('rally: you can only take to the grid what your record owns', async () => {
   L.close();
 });
 
+test('rally: a gun you bought is still yours after the host changes the track', async () => {
+  const L = lobby();
+  L.store.set('rally', 'GUNKEY00002', {
+    money: 0, car: 'warden', hull: 470, weapon: 'machinegun', weapons: ['machinegun', 'minigun']
+  });
+  const c = new TestClient(L);
+  await c.hello('Ann', undefined, 'GUNKEY00002');
+  c.send(MSG.CREATE_ROOM, { game: 'rally', opts: {}, public: false });
+  const room = await c.waitFor(m => m.type === MSG.ROOM);
+  const r = L.rooms.get(room.code);
+  await c.waitFor(m => m.type === MSG.ROOM && m.state.cars.some(x => x.car === 'warden'));
+
+  // Changing an option rebuilds the match, and what a seat owns lives in the
+  // match. Losing it means the picker falls back to the loadout of a player
+  // with no record at all, whose only gun is the machinegun — so the minigun
+  // in the record goes quietly unpickable and you start the race without it.
+  c.send(MSG.SET_OPTS, { opts: { track: 'ridge' } });
+  await settle(); await settle();
+  c.send(MSG.SET_PROFILE, { weapon: 'minigun' });
+  await settle();
+  assert.equal(r.state.byId[0].weapon, 'minigun', 'the minigun is still on the menu after a track change');
+
+  c.send(MSG.READY, { ready: true });
+  await settle();
+  c.send(MSG.START, {});
+  await c.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  assert.equal(r.state.byId[0].weapon, 'minigun', 'and it is the gun that goes to the grid');
+  L.close();
+});
+
 test('rally: the grid waits for every client to build its scene, but not forever', async () => {
   const L = lobby();
   const host = new TestClient(L), slow = new TestClient(L);

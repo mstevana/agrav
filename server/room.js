@@ -280,11 +280,8 @@ export class Room {
     this._leaveResults();
     if (typeof isPublic === 'boolean') { this.isPublic = isPublic; if (!Object.keys(opts).length) return this.broadcastRoomState(); }
     this.opts = this.game.validateOpts({ ...this.opts, ...opts });
-    this.state = this.game.createMatch(this.opts, this.seed);
-    for (const p of this.players.values()) {
-      this.game.addPlayer(this.state, p.id, p.profile, p.bot);
-      p.ready = p.bot;
-    }
+    this._reseat();
+    for (const p of this.players.values()) p.ready = p.bot;
     this.broadcastRoomState();
   }
 
@@ -309,13 +306,27 @@ export class Room {
   _rebuildAfterRace() {
     if (!this.raced) return false;
     this.seed = (Math.random() * 0xffffffff) >>> 0;
+    this._reseat();
+    this.raced = false;
+    return true;
+  }
+
+  /**
+   * Build a fresh match and seat everyone in it: their profile, and for anyone
+   * with a durable record whatever that record says on top.
+   *
+   * The record part is not decoration. A module may keep things in the match
+   * state that belong to the player rather than to the race — Scrap Rally keeps
+   * what each seat owns there, so it can refuse a gun nobody bought — and a
+   * rebuild throws all of it away. Every rebuild goes through here, so there is
+   * one place to forget it in rather than three.
+   */
+  _reseat() {
     this.state = this.game.createMatch(this.opts, this.seed);
     for (const p of this.players.values()) {
       this.game.addPlayer(this.state, p.id, p.profile, p.bot);
       if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
     }
-    this.raced = false;
-    return true;
   }
 
   start() {
