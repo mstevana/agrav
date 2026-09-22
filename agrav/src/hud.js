@@ -26,6 +26,7 @@ export class Hud {
       damage: $('hud-damage'), arc: $('hud-damage-arc'),
       item: $('hud-item'), itemGlyph: $('hud-item-glyph'), itemLabel: $('hud-item-label'), itemAmmo: $('hud-item-ammo'),
       countdown: $('hud-countdown'), feed: $('hud-feed'), banner: $('hud-banner'), net: $('hud-net'), status: $('hud-status'),
+      lock: $('hud-lock'),
       time: $('hud-time'), minimap: $('hud-minimap'), places: $('hud-places')
     };
     this.feed = [];
@@ -35,6 +36,7 @@ export class Hud {
     this.hullCtx = this.el.hullCanvas.getContext('2d');
     this.ghostPct = 1; this.ghostAt = 0;
     this.arcAt = -1e9; this.arcAngle = 0;
+    this.lockOn = false; this.lockBearing = null;
     this.lastPct = 1;
     // this runs every frame, so nothing below is written unless it actually moved: a full-screen
     // gradient reassigned per frame costs a whole-viewport repaint and it shows on a weak client
@@ -92,6 +94,16 @@ export class Hud {
     this.el.arc.style.background = `linear-gradient(${(180 + bearing * 180 / Math.PI).toFixed(0)}deg, rgba(255,70,70,0.5), transparent 38%)`;
   }
 
+  /**
+   * A missile is chasing me: the banner goes up and stays up until it is gone, and the ring round
+   * the hull carries where it is coming from. `bearing` is radians in craft space like `hitFrom`'s,
+   * or null while the missile itself has not reached the interpolated list yet.
+   */
+  lock(on, bearing) {
+    if (!!on !== this.lockOn) { this.el.lock.hidden = !on; this.el.root.classList.toggle('locked', !!on); this.lockOn = !!on; }
+    this.lockBearing = on ? (bearing ?? this.lockBearing) : null;
+  }
+
   /** the hull silhouette, tinted and scorched by how much of it is left */
   drawHull(pct, colour) {
     const g = this.hullCtx;
@@ -117,6 +129,12 @@ export class Hud {
       g.beginPath();
       g.arc(64, 64, 60, this.arcAngle - Math.PI / 2 - 0.5, this.arcAngle - Math.PI / 2 + 0.5);
       g.strokeStyle = `rgba(255,90,90,${(1 - age).toFixed(3)})`; g.lineWidth = 7; g.lineCap = 'round'; g.stroke();
+    }
+    // and inside it, held rather than fading, the bearing of whatever has a lock on us
+    if (this.lockOn && this.lockBearing != null) {
+      g.beginPath();
+      g.arc(64, 64, 50, this.lockBearing - Math.PI / 2 - 0.45, this.lockBearing - Math.PI / 2 + 0.45);
+      g.strokeStyle = 'rgba(255,60,70,0.95)'; g.lineWidth = 5; g.lineCap = 'round'; g.stroke();
     }
   }
 
@@ -148,7 +166,8 @@ export class Hud {
       const arc = +(Math.max(0, 1 - (now - this.arcAt) / ARC_HOLD) * 0.7).toFixed(2);
       if (arc !== w.arc) { e.arc.style.opacity = arc; w.arc = arc; }
       // the silhouette only changes with the hull or a live arc, and it is a canvas, not the DOM
-      const hull = fill + (arc > 0 ? 1e4 + arc : 0);
+      // a live lock bearing swings, so it joins the key: the ring is redrawn when it actually moves
+      const hull = fill + (arc > 0 ? 1e4 + arc : 0) + (this.lockOn ? 1e6 + Math.round((this.lockBearing ?? 0) * 40) : 0);
       if (hull !== w.hull) { this.drawHull(pct, VEHICLES.find(v => v.id === me.vehicle)?.colour ?? 0x3fd1ff); w.hull = hull; }
       e.item.classList.toggle('has', me.item !== 'none');
       e.itemGlyph.textContent = ITEM_GLYPH[me.item] || '';

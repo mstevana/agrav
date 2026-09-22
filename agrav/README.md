@@ -133,6 +133,12 @@ and holo boards.
   a glass tunnel past a sunken city, a mangrove beach, then a second dive into a three-quarter
   spiral (three right-handers in a row) that climbs until the tunnel crosses over its own entry.
 
+A missile announces itself to the craft it is chasing: **MISSILE LOCK** over the road, a bearing
+held on the ring round the hull, and an alarm that beeps faster the closer it gets. The lock is a
+flag on the snapshot rather than something the client works out, because the projectile on the wire
+says where a missile is and not who it wants -- from the cockpit a missile flying past and one
+coming for you look identical.
+
 Getting hit costs speed as well as hull: a rocket scrubs 14 %, a missile 20 %, a mine 28 %, each
 minigun round about 1 %. Craft-to-craft contact is mass-weighted (armour is mass): the heavier
 hull gives way less, side swipes scrub sliding speed and twist both hulls, nose-to-tail shoves the
@@ -162,7 +168,7 @@ or a mine ahead as well as on a missile already locked on.
 | Item | |
 |---|---|
 | Rockets ×3 | fast and straight; hold fire for the burst |
-| Missile | locks the nearest craft ahead and homes; a shield absorbs it |
+| Missile | locks the nearest craft ahead and homes; the target is warned; a shield absorbs it |
 | Minigun | two seconds of hitscan, lag-compensated |
 | Mines ×3 | dropped behind you; arm after half a second; live 30 s |
 | Repair | +40 health |

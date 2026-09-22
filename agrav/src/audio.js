@@ -83,6 +83,8 @@ class Audio {
       case 'boom': this._burst(pos, { dur: 0.7, from: 600, to: 40, vol: 1.0, q: 0.5 }); this._tone(pos, { freq: 80, to: 30, dur: 0.6, type: 'sine', vol: 0.6 }); break;
       case 'bigboom': this._burst(pos, { dur: 1.4, from: 900, to: 30, vol: 1.2, q: 0.5 }); this._tone(pos, { freq: 60, to: 20, dur: 1.2, type: 'sine', vol: 0.8 }); break;
       case 'hit': if (this._limit(name, 50)) this._burst(pos, { dur: 0.12, from: 2500, to: 500, vol: 0.5, q: 1.5 }); break;
+      // the cockpit's own alarm, so it is not placed in the world: a lock is about you, not a spot
+      case 'lock': this._tone(null, { freq: 1480, dur: 0.07, type: 'square', vol: 0.22 }); setTimeout(() => this.ctx && this._tone(null, { freq: 1150, dur: 0.09, type: 'square', vol: 0.2 }), 80); break;
       case 'absorb': this._tone(pos, { freq: 1200, to: 600, dur: 0.2, type: 'triangle', vol: 0.3 }); break;
       case 'wall': if (this._limit(name, 120)) this._burst(pos, { dur: 0.25, from: 3000, to: 600, vol: clamp((opts.force || 10) / 40, 0.2, 0.8), q: 0.8 }); break;
       case 'scrape': if (this._limit(name, 200)) this._burst(pos, { dur: 0.22, from: 5000, to: 3000, vol: 0.18, q: 0.6 }); break;

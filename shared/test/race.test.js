@@ -206,6 +206,28 @@ test('a pad hands out an item once and respawns later', () => {
   assert.ok(!ev2.some(e => e.t === 'pickup'), 'pad is spent');
 });
 
+test('the racer a missile is chasing is told, so the cockpit can warn them', () => {
+  // The projectile on the wire carries where a missile is, not who it wants. Without this the
+  // client cannot tell a missile flying past from one coming for it, so the lock goes to the target.
+  const st = race({ track: 'meridian', laps: 3 }, 2);
+  module.start(st, 0);
+  run(st, COUNTDOWN_SEC * TICK_RATE + 120, throttle);
+  const [me, them] = st.racers;
+  them.v.s = me.v.s + 60; them.v.t = me.v.t; them.v.h = me.v.h;   // dead ahead, inside the lock cone
+  const flags = (id) => module.decodeSnapshot(module.encodeSnapshot(st, id)).racers[0].flags;
+  assert.ok(!(flags(them.id) & VF.LOCKED), 'nothing is chasing anyone yet');
+  me.item = 'missile'; me.ammo = 1;
+  const ev = run(st, 2, (r) => (r.id === me.id ? { bits: IN.FIRE | IN.THROTTLE, steer: 0 } : throttle()));
+  assert.ok(ev.some(e => e.t === 'fire' && e.item === 'missile'), 'it went');
+  const missile = st.projectiles.find(p => p.kind === 'missile');
+  assert.equal(missile.target, them.id, 'and it locked on');
+  assert.ok(flags(them.id) & VF.LOCKED, 'so the target is warned');
+  assert.ok(!(flags(me.id) & VF.LOCKED), 'and the shooter is not');
+  // the warning lasts exactly as long as the missile does
+  st.projectiles.length = 0;
+  assert.ok(!(flags(them.id) & VF.LOCKED), 'gone with it');
+});
+
 test('a contact raises a flag the client can see, and holds it past the hulls parting', () => {
   // The local craft cannot predict a collision: it draws the others in the past, so its prediction
   // drives straight through a hull the server has it stopped against. The flag is how it finds out,

@@ -15,6 +15,10 @@ export function encodeRaceSnapshot(race, forId) {
   w.u8(race.racers.length);
   // recipient first, so a reconciliation can stop after the first record
   const ordered = [...race.racers].sort((a, b) => (a.id === forId ? -1 : b.id === forId ? 1 : 0));
+  // who a missile is chasing. The projectile record carries the missile, not its lock, and a client
+  // cannot tell a missile flying past from one coming for it -- so the lock is told to the target.
+  const locked = new Set();
+  for (const p of race.projectiles) if (p.kind === 'missile' && p.target >= 0) locked.add(p.target);
   for (const r of ordered) {
     const v = r.v;
     let flags = 0;
@@ -29,6 +33,7 @@ export function encodeRaceSnapshot(race, forId) {
     if (r.burstT > 0) flags |= VF.FIRING;
     if (v.scraping) flags |= VF.SCRAPE;
     if (v.contactT > 0) flags |= VF.CONTACT;
+    if (locked.has(r.id)) flags |= VF.LOCKED;
     if (r.disconnected) flags |= VF.DISCONNECTED;
     if (r.bot) flags |= VF.BOT;
     w.u8(r.id).u16(flags);

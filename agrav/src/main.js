@@ -665,6 +665,27 @@ function readInput() {
 }
 
 /**
+ * A missile with my name on it: the server flags the lock (it knows which racer each missile is
+ * chasing; the projectile on the wire does not say), and the nearest missile that is not mine gives
+ * the bearing to put on the HUD ring. The alarm repeats while it holds, quicker as it closes.
+ */
+const _lockAt = new THREE.Vector3();
+let lockBeepAt = 0;
+function missileLock(pool, mine, flags) {
+  if (!(flags & VF.LOCKED) || !mine) { hud.lock(false, null); return; }
+  let near = null, nd = Infinity;
+  for (const p of pool) {
+    if (p.kind !== 'missile' || p.owner === client.me) continue;
+    const ds = Math.abs(deltaS(client.ribbon, mine.s, p.s));
+    if (ds < nd) { nd = ds; near = p; }
+  }
+  const bearing = near ? wrapAngle(Math.atan2(near.t - mine.t, deltaS(client.ribbon, mine.s, near.s)) - mine.yaw) : null;   // 0 is dead ahead, as hitBearing has it
+  hud.lock(true, bearing);
+  const now = performance.now(), gap = nd < 70 ? 220 : nd < 160 ? 380 : 620;
+  if (now - lockBeepAt > gap) { lockBeepAt = now; audio.play('lock', null); }
+}
+
+/**
  * The car a burst is trained on: the nearest one ahead that is inside the gun's cone, which is the
  * same test `stepMinigun` picks its victim with — so the barrel points at whatever the shot will
  * actually hit, and at nothing when the nose is not lined up.
@@ -741,6 +762,8 @@ function renderRace(dt) {
   if (me && myPose) place(me, myPose, true);
   for (const p of others.racers) { const r = race.byId[p.id]; if (r) place(r, p, false); }
   for (const [id, c] of scene.crafts) if (!seen.has(id)) { removeCraft(c); scene.crafts.delete(id); }
+
+  missileLock(others.projectiles, myPose, latest?.byId[client.me]?.flags ?? 0);
 
   // projectiles, pads
   scene.fx.setProjectiles(others.projectiles);

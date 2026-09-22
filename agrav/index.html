@@ -162,6 +162,14 @@ label.opt { display: flex; align-items: center; justify-content: space-between; 
 #hud-status span { font-size: 0.95em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg); opacity: 0.85; }
 #hud-status[hidden] { display: none; }
 @keyframes statuspulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.74; } }
+/* A missile has your name on it. Loud, above the centre so it does not sit over the road, and
+   paired with a red edge wash; the bearing goes on the hull ring beside the arc a hit leaves. */
+#hud-lock { left: 50%; top: 19%; transform: translate(-50%, -50%); text-align: center; color: var(--bad);
+  padding: 6px 22px; border-radius: 12px; background: rgba(28, 2, 6, 0.5); border: 2px solid rgba(255, 60, 70, 0.7);
+  animation: lockpulse 0.5s steps(2, end) infinite; }
+#hud-lock b { font-size: 1.5em; font-weight: 900; letter-spacing: 0.18em; text-shadow: 0 0 18px rgba(255, 60, 70, 0.8); }
+#hud-lock[hidden] { display: none; }
+@keyframes lockpulse { 0% { opacity: 1; } 50% { opacity: 0.45; } }
 #hud-places { right: calc(12px + var(--sa-r)); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px; font-size: 0.72em; letter-spacing: 0.06em; }
 .place { display: flex; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--dim); }
 .place span { width: 1.4em; text-align: right; font-weight: 800; color: var(--fg); }
@@ -324,6 +332,7 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
   <div id="hud-countdown" hidden>3</div>
   <div id="hud-banner" hidden></div>
   <div id="hud-status" hidden></div>
+  <div id="hud-lock" hidden><b>MISSILE LOCK</b></div>
   <div id="hud-places"></div>
   <div id="hud-damage"></div>
   <div id="hud-damage-arc"></div>
