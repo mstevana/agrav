@@ -61,8 +61,12 @@ export function createRace(opts, seed = 1) {
  */
 function statsFor(vehicle, bot, race) {
   const stats = vehicleStats(vehicle);
-  const mult = bot ? (BOT_DIFFICULTY[race.opts.botDifficulty]?.speed ?? 1) : 1;
-  return mult === 1 ? stats : { ...stats, topSpeed: stats.topSpeed * mult, accel: stats.accel * mult };
+  const d = bot ? BOT_DIFFICULTY[race.opts.botDifficulty] : null;
+  const speed = d?.speed ?? 1, accel = d?.accel ?? 1, turn = d?.turn ?? 1;
+  if (speed === 1 && accel === 1 && turn === 1) return stats;   // easy and medium drive your craft exactly
+  return { ...stats,
+    topSpeed: stats.topSpeed * speed, accel: stats.accel * accel,
+    turnRate: stats.turnRate * turn, grip: stats.grip * turn };
 }
 
 export function addRacer(race, id, profile = {}, bot = false) {

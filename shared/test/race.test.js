@@ -91,6 +91,24 @@ test('bot difficulty is a validated room option', () => {
   assert.equal(module.validateOpts({ botDifficulty: { toString: () => 'hard' } }).botDifficulty, 'normal');
 });
 
+test('the hard edge lands on the bots only, and only on the craft', () => {
+  // What hard buys is a better craft than the one in your hands -- top speed, wind-up and how much
+  // it can carry through a bend. A human on the same hull gets none of it, at any difficulty.
+  const stats = (botDifficulty, bot) => {
+    const st = module.createMatch({ track: 'meridian', laps: 1, botDifficulty }, 3);
+    module.addPlayer(st, 0, { vehicle: 'corsair' }, bot);
+    return st.racers[0].stats;
+  };
+  const human = stats('hard', false), normal = stats('normal', true), hard = stats('hard', true);
+  assert.deepEqual(human, stats('normal', false), 'difficulty never touches a human craft');
+  assert.deepEqual(normal, human, 'and medium bots drive exactly the craft you drive');
+  assert.ok(hard.topSpeed > normal.topSpeed, 'hard bots are faster flat out');
+  assert.ok(hard.accel > normal.accel * 1.1, 'and wind up harder out of a corner');
+  assert.ok(hard.turnRate > normal.turnRate && hard.grip > normal.grip, 'and turn and hold on better');
+  assert.equal(hard.armor, normal.armor, 'but they are no tougher');
+  assert.equal(hard.damage, normal.damage, 'and their guns hit no harder');
+});
+
 test('harder bots lap faster', () => {
   // Pace is what the setting is for, so lap time is what this measures -- not distance covered,
   // which combat and eliminations muddle. Several seeds, because one bot race proves nothing.
@@ -114,6 +132,8 @@ test('harder bots lap faster', () => {
   assert.ok(normal < easy, `medium ${normal.toFixed(1)}s should beat easy ${easy.toFixed(1)}s`);
   // the gap has to be worth choosing between, not a rounding difference
   assert.ok(easy - hard > 2, `only ${(easy - hard).toFixed(1)}s between easy and hard`);
+  // hard is not just a tidier medium: the craft edge is worth better than two seconds a lap here
+  assert.ok(normal - hard > 2, `only ${(normal - hard).toFixed(1)}s between medium and hard`);
 });
 
 test('zero health eliminates; a dead racer stops and ranks below the living', () => {

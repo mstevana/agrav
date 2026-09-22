@@ -14,9 +14,13 @@ level belongs to the room rather than to your client; it is remembered, so a sol
 where you left off. Medium is the bot this game always had. Easy holds a lower pace -- the share
 of the craft it will use -- because that, rather than driving skill, is what sets a bot's lap
 time: a bot is at full throttle except when a corner makes it brake. Medium is already using all
-of the craft, so **hard bots drive a craft five percent faster than the one in your hands**; that
-is deliberate, and the only thing hard adds. The same grid laps Neon Meridian in about 43 s on
-easy, 38 s on medium and 37 s on hard. **Zero health eliminates you**: the craft explodes and you spectate
+of the craft, so what hard adds is **a better craft than the one in your hands** -- five percent
+more top speed, close to twenty percent more acceleration out of a corner, and ten percent more
+turn rate and grip, so it carries more through a bend and straightens earlier. That is deliberate,
+and the only thing hard adds beyond a tidier line; it is never tougher and its guns never hit
+harder. The same grid laps Neon Meridian in about 43 s on easy, 38 s on medium and 36 s on hard,
+and hard is a couple of seconds a lap clear of medium on every track.
+**Zero health eliminates you**: the craft explodes and you spectate
 (tap or click to follow another racer) until the race ends. A race ends when every
 surviving craft has finished, or 45 seconds after the first one did. Finished craft keep
 driving a cool-down lap. Results rank finishers by time, then everyone else by distance.

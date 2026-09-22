@@ -72,14 +72,17 @@ export const PAD = Object.freeze({ radiusS: 3.5, radiusT: 2.6, respawnSec: 6 });
  * bot's lap time -- skill only buys a tidier line, since a bot is on full throttle except when a
  * corner makes it brake. `normal` is exactly the bot everyone had before the setting existed.
  *
- * Medium is therefore already using all of the craft, so hard cannot be faster on pace: `speed`
- * scales the top speed and acceleration of a bot's craft above what the same craft gives a human.
- * That is deliberate, and the only thing hard adds.
+ * Medium is therefore already using all of the craft, so hard cannot be faster on pace. What it
+ * gets instead is a better craft than the one in your hands: `speed` scales its top speed, `accel`
+ * how hard it winds up out of a corner, and `turn` both its turn rate and its grip, so it carries
+ * more through a bend and straightens earlier. That is deliberate, and the only thing hard adds
+ * beyond a tidier line. Anything but 1.00 here is a bot-only edge, so keep the list short and the
+ * numbers honest -- a human never sees these.
  */
 export const BOT_DIFFICULTY = Object.freeze({
-  easy:   { pace: 0.82, skill: 0.76, noise: 0.30, speed: 1.00 },
-  normal: { pace: 1.00, skill: 0.85, noise: 0.20, speed: 1.00 },
-  hard:   { pace: 1.00, skill: 0.90, noise: 0.15, speed: 1.05 }
+  easy:   { pace: 0.82, skill: 0.76, noise: 0.30, speed: 1.00, accel: 1.00, turn: 1.00 },
+  normal: { pace: 1.00, skill: 0.85, noise: 0.20, speed: 1.00, accel: 1.00, turn: 1.00 },
+  hard:   { pace: 1.00, skill: 0.92, noise: 0.12, speed: 1.05, accel: 1.18, turn: 1.12 }
 });
 export const DIFFICULTY_IDS = Object.freeze(Object.keys(BOT_DIFFICULTY));
 
