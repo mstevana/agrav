@@ -337,6 +337,9 @@ function resolveContacts(race, events, applyDamage) {
         const f = relT * CONTACT.friction;
         a.v.vt += f * wa; b.v.vt -= f * wb;
       }
+      // the client cannot predict this, so tell it: while the flag holds, its prediction leans on the
+      // velocity the server reports instead of driving on through a hull it cannot see
+      a.v.contactT = b.v.contactT = CONTACT.holdTicks;
       // every bump costs a little energy
       const loss = 1 - CONTACT.loss * Math.min(1, rel / 20);
       a.v.vs *= loss; b.v.vs *= loss;

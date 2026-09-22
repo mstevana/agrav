@@ -31,7 +31,11 @@ export const CONTACT = Object.freeze({
   spin: 0.012,            // yaw kick per m/s of longitudinal slip in a side swipe (rad)
   hardHit: 14,            // m/s relative: above this both take damage
   damage: 6,
-  cooldownTicks: 30       // the same pair cannot trade ram damage again for half a second
+  cooldownTicks: 30,      // the same pair cannot trade ram damage again for half a second
+  // How long a contact keeps being announced to the client after the hulls part. A contact is the
+  // one thing the local craft cannot predict -- it does not know where the others really are -- so
+  // the server flags it and the prediction leans on the authoritative velocity while it holds.
+  holdTicks: 14
 });
 
 /** a weapon hit bleeds speed: the victim's longitudinal and lateral velocity are scaled by this */
@@ -110,5 +114,5 @@ export const PHASE = Object.freeze({ LOBBY: 0, COUNTDOWN: 1, RACING: 2, FINISHED
 /** vehicle flag bits in snapshots */
 export const VF = Object.freeze({
   GROUNDED: 1, SHIELD: 2, BOOST: 4, AIRBRAKE_L: 8, AIRBRAKE_R: 16, DEAD: 32, FINISHED: 64,
-  FIRING: 128, THROTTLE: 256, SCRAPE: 512, DISCONNECTED: 1024, BOT: 2048
+  FIRING: 128, THROTTLE: 256, SCRAPE: 512, DISCONNECTED: 1024, BOT: 2048, CONTACT: 4096
 });

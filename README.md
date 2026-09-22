@@ -71,9 +71,15 @@ the server has not seen yet (reconciliation), blends any difference over ~100 ms
 everyone else a few ticks in the past between two snapshots (interpolation). That prediction
 steps the local craft alone against the track, so the pose handed to the renderer is pushed clear
 of the craft drawn around it -- only the drawn pose, because those craft are a moment in the past
-and moving the prediction to suit them puts it where the server never agrees. A clock
-estimates the server tick from ping round trips and stamps inputs just far enough ahead to
-arrive on time, resyncing from the server-measured margin when the estimate is off. The
+and moving the prediction to suit them puts it where the server never agrees. The same blindness
+is why **a collision used to teleport you**: the prediction drives on through a hull it cannot see
+while the server has you stopped dead against it, and the correction that follows -- eight to ten
+metres of it -- was too big to blend, so it snapped. The server now flags a contact in a spare
+snapshot bit; while the flag holds, the prediction leans on the velocity the server reported
+rather than driving on, and the correction is eased back over a longer blend however big it is and
+however far the impact spun the hull. What is left reads as being shoved back off what you hit.
+A clock estimates the server tick from ping round trips and stamps inputs just far enough ahead
+to arrive on time, resyncing from the server-measured margin when the estimate is off. The
 minigun is lag-compensated against a 250 ms pose history. Transport is WebSocket behind a
 two-class channel abstraction (reliable / unreliable), so an unreliable WebRTC DataChannel or
 WebTransport path can be added without touching game code.

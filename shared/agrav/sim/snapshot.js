@@ -28,6 +28,7 @@ export function encodeRaceSnapshot(race, forId) {
     if (r.finished) flags |= VF.FINISHED;
     if (r.burstT > 0) flags |= VF.FIRING;
     if (v.scraping) flags |= VF.SCRAPE;
+    if (v.contactT > 0) flags |= VF.CONTACT;
     if (r.disconnected) flags |= VF.DISCONNECTED;
     if (r.bot) flags |= VF.BOT;
     w.u8(r.id).u16(flags);

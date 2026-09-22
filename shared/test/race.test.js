@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import module from '../agrav/module.js';
 import { IN } from '../net/protocol.js';
-import { PHASE, COUNTDOWN_SEC, WEAPON, TICK_RATE } from '../agrav/constants.js';
+import { PHASE, COUNTDOWN_SEC, WEAPON, TICK_RATE, CONTACT, VF } from '../agrav/constants.js';
 import { deltaS } from '../sim/spline.js';
 
 function race(opts = { track: 'meridian', laps: 1 }, n = 2, bots = false) {
@@ -204,6 +204,29 @@ test('a pad hands out an item once and respawns later', () => {
   r.item = 'none';
   const ev2 = run(st, 1, idle);
   assert.ok(!ev2.some(e => e.t === 'pickup'), 'pad is spent');
+});
+
+test('a contact raises a flag the client can see, and holds it past the hulls parting', () => {
+  // The local craft cannot predict a collision: it draws the others in the past, so its prediction
+  // drives straight through a hull the server has it stopped against. The flag is how it finds out,
+  // and it has to outlive the contact by a round trip or the correction lands with no explanation.
+  const st = race({ track: 'meridian', laps: 3 }, 2);
+  module.start(st, 0);
+  run(st, COUNTDOWN_SEC * TICK_RATE + 120, throttle);
+  const [a, b] = st.racers;
+  assert.equal(a.v.contactT, 0, 'nobody has touched yet');
+  b.v.s = a.v.s + 1.5; b.v.t = a.v.t + 0.5; b.v.h = a.v.h;     // park it inside us
+  const ev = run(st, 1, throttle);
+  assert.ok(ev.some(e => e.t === 'bump'), 'that is a contact');
+  assert.equal(a.v.contactT, CONTACT.holdTicks, 'and both hulls are marked for the client');
+  assert.equal(b.v.contactT, CONTACT.holdTicks);
+  const flags = module.decodeSnapshot(module.encodeSnapshot(st, a.id)).racers[0].flags;
+  assert.ok(flags & VF.CONTACT, 'the flag goes out on the wire');
+  // drive them apart and let the mark age out
+  b.v.s = a.v.s + 200;
+  run(st, CONTACT.holdTicks, throttle);
+  assert.equal(a.v.contactT, 0, 'and it clears on its own');
+  assert.ok(!(module.decodeSnapshot(module.encodeSnapshot(st, a.id)).racers[0].flags & VF.CONTACT));
 });
 
 test('snapshot round trip preserves state within quantisation', () => {

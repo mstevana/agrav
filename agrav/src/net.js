@@ -29,12 +29,18 @@ import { makeVehicleState, stepVehicle } from '../../shared/agrav/sim/vehicle.js
 import { vehicleStats } from '../../shared/agrav/vehicles.js';
 import { separateFromCraft } from '../../shared/agrav/sim/race.js';
 import { ribbonFor } from '../../shared/agrav/sim/race.js';
-import { PHASE, DT, TICK_RATE } from '../../shared/agrav/constants.js';
+import { PHASE, DT, TICK_RATE, VF, CONTACT } from '../../shared/agrav/constants.js';
 
 const TOKEN_KEY = 'agrav_token';
 const INTERP_TICKS = 5;          // render others this many ticks behind the server clock
 const MAX_EXTRAP_TICKS = 6;
 const SMOOTH_TAU = 0.09;         // seconds: correction blend
+const CONTACT_TAU = 0.22;        // ...and the slower one a contact gets, so being hit reads as a shove back
+const CONTACT_PULL = 0.5;        // per tick: how hard a flagged contact drags the prediction onto the server's velocity
+const CONTACT_GRACE = 36;        // ticks after the hulls part that corrections are still treated as a collision's
+const SNAP_AT = 8, SNAP_YAW = 1.2;              // correction too far to blend: metres, radians
+const CONTACT_SNAP_AT = 22, CONTACT_SNAP_YAW = Math.PI;   // a collision never teleports you: ease all of it back,
+                                                          // and wrapAngle caps a heading error at PI, so it never snaps on the spin
 
 export class Client {
   constructor() {
@@ -66,6 +72,7 @@ export class Client {
     this.marginAt = 0;
     this.pred = null;            // predicted vehicle state for me
     this.smooth = { s: 0, t: 0, h: 0, yaw: 0 };
+    this.contact = null;         // { vs, vt, until, seen } while the server has us against another hull
     this.lastTickTime = 0;       // wall time of the last prediction step, for sub-tick render extrapolation
     this.phase = PHASE.LOBBY;
     this.raceTick = -9999;
@@ -280,13 +287,21 @@ export class Client {
     const before = { s: this.pred.s, t: this.pred.t, h: this.pred.h, yaw: this.pred.yaw };
     Object.assign(this.pred, { s: mine.s, t: mine.t, h: mine.h, W: mine.W, vs: mine.vs, vt: mine.vt, yaw: mine.yaw,
       grounded: !!(mine.flags & 1), shieldT: mine.shieldT, boostT: mine.boostT });
+    // A hull we cannot see is the one thing the prediction cannot do for itself: the others are
+    // drawn in the past, so `stepVehicle` drives straight through them while the server has us
+    // stopped dead against one, and that is what becomes a correction of several metres. When the
+    // server says we are in contact, believe it. `until` is how long to hold its velocity; `seen`
+    // keeps the corrections that follow treated as a collision's, because the first of them does
+    // not reach us until a round trip after the hulls actually touched.
+    if (mine.flags & VF.CONTACT) this.contact = { vs: mine.vs, vt: mine.vt, until: snap.tick + CONTACT.holdTicks, seen: snap.tick };
+    else if (this.contact && snap.tick > this.contact.seen + CONTACT_GRACE) this.contact = null;
     // drop inputs the server has already simulated, replay the rest
     // inputs the server has simulated are done with; ones stamped absurdly far ahead came from a clock
     // that has since been resynced and would only replay garbage
     this.pending = this.pending.filter(i => i.tick > snap.tick && i.tick <= snap.tick + 60);
     const frozen = snap.phase === PHASE.COUNTDOWN;
     if (!(mine.flags & 32)) {
-      for (const i of this.pending) stepVehicle(this.ribbon, this.pred, i, DT, frozen);
+      for (const i of this.pending) { stepVehicle(this.ribbon, this.pred, i, DT, frozen); this._holdContact(this.pred, i.tick); }
     }
     // what the eye was seeing minus what is now true: fold it into the smoothing offset
     const errS = deltaS(this.ribbon, this.pred.s, before.s) + this.smooth.s;
@@ -295,13 +310,28 @@ export class Client {
     const errYaw = wrapAngle(before.yaw - this.pred.yaw + this.smooth.yaw);
     const mag = Math.hypot(errS, errT);
     this.stats.maxErr = Math.max(this.stats.maxErr, mag);
-    if (mag > 8 || Math.abs(errYaw) > 1.2) {   // too far to blend: snap
+    // A collision is the one correction a player can read: they hit something, so being pushed back
+    // off it is the expected outcome. Snapping there is what looks like a teleport, so a flagged
+    // contact gets a much longer rope and eases the whole thing back instead.
+    const far = this.contact ? CONTACT_SNAP_AT : SNAP_AT, spun = this.contact ? CONTACT_SNAP_YAW : SNAP_YAW;
+    if (mag > far || Math.abs(errYaw) > spun) {   // too far to blend: snap
       this.smooth = { s: 0, t: 0, h: 0, yaw: 0 };
       if (!(mine.flags & 32)) this.stats.corrections++;   // an explosion is not a prediction miss
       this.stats.lastSnap = { tick: snap.tick, raceTick: snap.raceTick, phase: snap.phase, errS: +errS.toFixed(2), errT: +errT.toFixed(2), errYaw: +errYaw.toFixed(2), flags: mine.flags, pending: this.pending.length, lead: this.clock.leadTicks, srvTick: +this.clock.serverTick().toFixed(1) };
       (this.stats.snapLog ||= []).push(this.stats.lastSnap);
     }
     else this.smooth = { s: errS, t: errT, h: errH, yaw: errYaw };
+  }
+
+  /**
+   * One predicted tick inside a flagged contact. Keyed on the input's own tick rather than a
+   * counter, so a replay of the same ticks lands on the same answer.
+   */
+  _holdContact(v, tick) {
+    const c = this.contact;
+    if (!c || tick > c.until) return;
+    v.vs += (c.vs - v.vs) * CONTACT_PULL;
+    v.vt += (c.vt - v.vt) * CONTACT_PULL;
   }
 
   // ---------------------------------------------------------------- inputs --
@@ -318,7 +348,7 @@ export class Client {
     this.chan.send(bytes, { reliable: false });
     this.stats.out += bytes.length;
     const me = this.race.byId[this.me];
-    if (this.pred && me && !me.dead) stepVehicle(this.ribbon, this.pred, rec, DT, this.phase === PHASE.COUNTDOWN);
+    if (this.pred && me && !me.dead) { stepVehicle(this.ribbon, this.pred, rec, DT, this.phase === PHASE.COUNTDOWN); this._holdContact(this.pred, rec.tick); }
     this.lastTickTime = this.clock.now();
   }
 
@@ -326,7 +356,7 @@ export class Client {
 
   /** per-frame: decay the correction offset, and gather what my craft must not be drawn inside */
   frame(dt) {
-    const k = Math.exp(-dt / SMOOTH_TAU);
+    const k = Math.exp(-dt / (this.contact ? CONTACT_TAU : SMOOTH_TAU));   // a collision eases back slower
     this.smooth.s *= k; this.smooth.t *= k; this.smooth.h *= k; this.smooth.yaw *= k;
     // built once a frame: myPose() is asked for several times over, by the renderer, the HUD and
     // the engine audio, and each would otherwise rebuild this

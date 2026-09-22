@@ -17,7 +17,7 @@ import { GRAVITY, ASSIST, WALL, LANDING, WEAPON } from '../constants.js';
 export function makeVehicleState(stats) {
   return {
     s: 0, t: 0, h: 0, W: 0, yaw: 0, vs: 0, vt: 0,
-    grounded: true, scraping: false, wallHit: 0, landing: 0,
+    grounded: true, scraping: false, wallHit: 0, landing: 0, contactT: 0,
     boostT: 0, shieldT: 0,
     bits: 0, steer: 0,
     stats
@@ -32,6 +32,7 @@ export function makeVehicleState(stats) {
  * @param frozen   true during the countdown: no thrust, no steering
  */
 export function stepVehicle(ribbon, v, input, dt, frozen = false) {
+  if (v.contactT > 0) v.contactT--;
   const st = v.stats;
   const bits = frozen ? 0 : (input?.bits | 0);
   const steer = frozen ? 0 : Math.max(-1, Math.min(1, input?.steer || 0));
