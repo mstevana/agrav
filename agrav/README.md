@@ -81,9 +81,12 @@ Synth Audio, Nova Coolant. Exhausts are shader plumes (`src/render/exhaust.js`):
 behind each nozzle whose fragment shader burns a white-hot core into the team colour, breaks the
 edge with scrolling noise, thins toward the tip and thickens where the eye looks through the
 middle; throttle and boost ease its length and heat, and a Homeworld-style ribbon trail hangs in the air
-for a second behind each engine. The trail is laid from the nozzle and left in world space, tapering
-and closing to a point rather than ending in a stub, so it begins at the engine with nothing between
-the two. The fire is drawn over its first few metres and is not rigid: the vertex shader bends it
+behind each engine -- about a hundred and fifty metres of it at racing speed, two seconds' worth when
+you are slow. The trail is laid from the nozzle and left in world space, tapering and closing to a
+point rather than ending in a stub, so it begins at the engine with nothing between the two. It is
+solid for its first half and fades away to nothing over its second, keyed on how far down the ribbon
+a point sits rather than on its age: at speed the ribbon is bounded by the number of points it keeps
+rather than by how long they live, and an age fade would cut the tail off mid-fade. The fire is drawn over its first few metres and is not rigid: the vertex shader bends it
 along the path the trail has just recorded, so turning hard sweeps the flame round behind the craft
 instead of leaving a cone bolted to its back, and the two read as one plume. The sweep is capped at
 half the flame's own length so it can never fold back through itself, and with no path to follow --

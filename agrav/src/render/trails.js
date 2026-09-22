@@ -12,28 +12,38 @@
 
 import * as THREE from 'three';
 
-const LIFE = 1.0;          // seconds a point lives
-const MAX = 48;            // history points kept per trail
+// At racing speed a point is laid every frame, so MAX is what actually sets the length -- ninety-six
+// of them is about a hundred and fifty metres at full throttle -- and LIFE is what sets it when the
+// craft is slow. Both have to move together or the ribbon changes length with speed.
+const LIFE = 2.0;          // seconds a point lives
+const MAX = 96;            // history points kept per trail
 const MIN_STEP = 0.35;     // metres between samples
-const TAIL = 0.85;         // the last stretch of a point's life, over which the ribbon closes to nothing
+const TAIL = 0.92;         // the last stretch of a point's life, over which the ribbon closes to nothing
+const FADE_FROM = 0.5;     // the ribbon is solid to here, then fades out over the rest of its length
 
 const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 const VERT = `
-attribute float age; attribute float side;
-varying float vAge; varying float vSide;
+attribute float age; attribute float span; attribute float side;
+varying float vAge; varying float vSpan; varying float vSide;
 void main() {
-  vAge = age; vSide = side;
+  vAge = age; vSpan = span; vSide = side;
   // position already carries the ribbon corner: the width and the billboard are applied on the CPU
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 const FRAG = `
+#define FADE_FROM ${FADE_FROM.toFixed(2)}
 uniform vec3 color; uniform float intensity;
-varying float vAge; varying float vSide;
+varying float vAge; varying float vSpan; varying float vSide;
 void main() {
   float across = 1.0 - abs(vSide);
-  float a = pow(across, 1.4) * pow(1.0 - vAge, 1.5) * intensity;
-  vec3 col = mix(color, vec3(1.0, 0.98, 0.95), (1.0 - vAge) * 0.35 * across);
+  // Solid over the first half of its length, then away to nothing over the second. Keyed on how far
+  // down the ribbon the point is rather than how old it is: at racing speed the ribbon is bounded by
+  // the number of points it keeps, not by their age, so an age fade would leave the tail cut off at
+  // whatever alpha it had reached.
+  float fade = (1.0 - smoothstep(FADE_FROM, 1.0, vSpan)) * (1.0 - 0.25 * vAge);
+  float a = pow(across, 1.4) * fade * intensity;
+  vec3 col = mix(color, vec3(1.0, 0.98, 0.95), (1.0 - vSpan) * 0.35 * across);
   gl_FragColor = vec4(col * a * 1.8, a);
 }`;
 
@@ -43,8 +53,10 @@ export class EngineTrail {
     this.width = width;
     this.geo = new THREE.BufferGeometry();
     this.pos = new Float32Array(MAX * 2 * 3); this.age = new Float32Array(MAX * 2); this.side = new Float32Array(MAX * 2);
+    this.span = new Float32Array(MAX * 2);
     this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.geo.setAttribute('age', new THREE.BufferAttribute(this.age, 1));
+    this.geo.setAttribute('span', new THREE.BufferAttribute(this.span, 1));
     this.geo.setAttribute('side', new THREE.BufferAttribute(this.side, 1));
     const idx = []; for (let i = 0; i < MAX - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     this.geo.setIndex(idx);
@@ -81,16 +93,18 @@ export class EngineTrail {
       this._toCam.subVectors(camera.position, p);
       this._sideV.crossVectors(this._dir, this._toCam).normalize();
       const age = Math.min(1, (now - pts[i].t) / LIFE);
+      const span = 1 - i / (n - 1);            // 0 at the nozzle, 1 at the far end of what is drawn
       // a slight taper along most of the ribbon, then closed off to a point over the last of it,
       // so the trail narrows away rather than ending in a blunt stub that simply fades
-      const w = this.width * (1 - 0.35 * age) * (1 - smoothstep(TAIL, 1, age)) * (0.6 + 0.4 * pts[i].e);
+      const w = this.width * (1 - 0.35 * span) * (1 - smoothstep(TAIL, 1, span)) * (0.6 + 0.4 * pts[i].e);
       for (const [k, sgn] of [[0, -1], [1, 1]]) {
         const v = i * 2 + k;
         this.pos[v * 3] = p.x + this._sideV.x * w * sgn; this.pos[v * 3 + 1] = p.y + this._sideV.y * w * sgn; this.pos[v * 3 + 2] = p.z + this._sideV.z * w * sgn;
-        this.age[v] = age; this.side[v] = sgn;
+        this.age[v] = age; this.span[v] = span; this.side[v] = sgn;
       }
     }
-    this.geo.attributes.position.needsUpdate = true; this.geo.attributes.age.needsUpdate = true; this.geo.attributes.side.needsUpdate = true;
+    this.geo.attributes.position.needsUpdate = true; this.geo.attributes.age.needsUpdate = true;
+    this.geo.attributes.span.needsUpdate = true; this.geo.attributes.side.needsUpdate = true;
     this.geo.setDrawRange(0, (n - 1) * 6);
   }
 
