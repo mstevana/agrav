@@ -5,11 +5,16 @@
 
 import * as THREE from 'three';
 import { toWorld, frameAt } from '../../../shared/sim/spline.js';
+import { CONTACT } from '../../../shared/agrav/constants.js';
 import { poseObject } from './track.js';
 import { glowSprite } from './textures.js';
 import { shieldMaterial, boltMaterial, trailMaterial, fireballMaterial, ringMaterial, mineMaterial, boltGeometry, trailGeometry } from './fxshaders.js';
 import { makePlume } from './exhaust.js';
 
+// Two hulls pressed together bump on every tick they overlap, so the shower is throttled per pair:
+// one every SCRAPE_GAP for as long as the grind lasts, and a big burst the moment a pair meets hard.
+const SCRAPE_GAP = 0.12;
+const HARD_GAP = 0.35;
 
 export class Fx {
   constructor(scene, ribbon) {
@@ -41,6 +46,7 @@ export class Fx {
     // scene, in the lobby. A pool is sized for the overlap its effect can reach, and when it does
     // run out the oldest slot restarts rather than a blast being dropped.
     this.SPARK_MAX = 96;            // a craft dying throws about eighty
+    this.bumps = new Map();         // pair key -> when it last sparked, so a long scrape cannot thrash the pool
     this.slots = [];
     const mk = (n, make, life, step) => {
       const a = [];
@@ -60,7 +66,7 @@ export class Fx {
         (s, k) => { const v = s.size * (2 + k * 12); s.o.scale.set(v, v, 1); s.o.material.uniforms.t.value = k; }),
       flares: mk(5, () => sprite(0xffffff), 0.3,
         (s, k) => { const v = s.size * (6 + k * 14); s.o.scale.set(v, v, 1); s.o.material.opacity = 1 - k; }),
-      sparks: mk(10, () => {
+      sparks: mk(14, () => {   // a pack scrapping down a straight can have three pairs grinding at once
         const g = new THREE.BufferGeometry();
         g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.SPARK_MAX * 3), 3));
         // the points travel far from where they started, so the bounding sphere three computes once
@@ -86,7 +92,7 @@ export class Fx {
   /** the slot furthest through its life: an idle one if there is one, else the oldest still running */
   _take(list) { const s = list.reduce((a, b) => (b.t > a.t ? b : a)); s.t = 0; s.o.visible = true; return s; }
   /** retire every running effect at once (the screenshot tool wants a clean frame) */
-  clearEffects() { for (const s of this.slots) { s.t = 1; s.o.visible = false; } }
+  clearEffects() { for (const s of this.slots) { s.t = 1; s.o.visible = false; } this.bumps.clear(); }
 
   /** a shield bubble to parent under a craft; toggled with .visible. `id` lets hits ripple on the right one. */
   makeShield(id = -1) {
@@ -202,6 +208,27 @@ export class Fx {
     s.o.material.color.set(colour); s.o.material.opacity = 1;
   }
 
+  /**
+   * Hull on hull: sparks off the contact face, at the midpoint of the two craft, which is where
+   * the panels are actually touching. A side swipe at speed runs for half a second of ticks, so
+   * `force` (relative speed, m/s) picks between a steady grind of small showers and the one hot
+   * burst a fresh ram throws -- both throttled per pair. One measured swipe runs 82 bump events in
+   * 1.4 s: unthrottled that restarts all fourteen spark slots six times over and leaves nothing for
+   * the explosions; throttled it is eleven showers and never more than six slots in the air.
+   */
+  bump(a, b, force, poseOf) {
+    const key = Math.min(a, b) * 64 + Math.max(a, b);
+    const last = this.bumps.get(key);
+    const hard = force >= CONTACT.hardHit && (!last || this.time - last.hard >= HARD_GAP);
+    if (!hard && last && this.time - last.soft < SCRAPE_GAP) return;
+    const p = poseOf(a), q = poseOf(b);
+    if (!p || !q) return;
+    this.bumps.set(key, { soft: this.time, hard: hard ? this.time : (last ? last.hard : -HARD_GAP) });
+    const at = this.world(p.s, p.t, p.h + 1).lerp(this.world(q.s, q.t, q.h + 1), 0.5);   // flank height, not under the skirts
+    const f = Math.min(1, force / CONTACT.hardHit);
+    this.sparks(at, hard ? 18 : 4 + Math.round(6 * f), hard ? 0xfff0c0 : 0xffd080, (hard ? 9 : 4) + 6 * f);
+  }
+
   tracer(from, to) {
     if (!this.enabled) return;
     // a bolt stretched from muzzle to impact, fading fast
@@ -239,6 +266,7 @@ export class Fx {
         this.tracer(from, to);
         break;
       }
+      case 'bump': if (this.enabled) this.bump(e.a, e.b, e.force, poseOf); break;
       case 'pickup': { const p = poseOf(e.id); if (p) this.pickupFlash(this.world(p.s, p.t, p.h), 0x2df1ff); break; }
       case 'use': { const p = poseOf(e.id); if (p) this.pickupFlash(this.world(p.s, p.t, p.h), e.item === 'health' ? 0x5cff8a : e.item === 'speed' ? 0xffd54a : 0x2df1ff); break; }
       case 'lap': case 'finish': case 'go': break;
@@ -263,7 +291,7 @@ export class Fx {
   dispose() {
     for (const m of this.projectiles.values()) this.scene.remove(m);
     for (const list of Object.values(this.spent)) { for (const m of list) this.scene.remove(m); list.length = 0; }
-    this.projectiles.clear(); this.shields.clear(); this.uniformed.clear();
+    this.projectiles.clear(); this.shields.clear(); this.uniformed.clear(); this.bumps.clear();
     for (const s of this.slots) this.scene.remove(s.o);
     this.slots.length = 0;
   }

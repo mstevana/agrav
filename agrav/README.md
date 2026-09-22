@@ -144,6 +144,13 @@ minigun round about 1 %. Craft-to-craft contact is mass-weighted (armour is mass
 hull gives way less, side swipes scrub sliding speed and twist both hulls, nose-to-tail shoves the
 slower craft on, and every bump costs a little energy (`CONTACT` in `shared/agrav/constants.js`).
 
+Contact is also something you see: sparks off the face where the two hulls meet, at the midpoint of
+the pair. The sim reports a bump on every tick two hulls overlap -- a side swipe at racing speed
+runs over eighty of them -- so `Fx.bump` throttles per pair, a small shower every 120 ms for as long
+as the grind lasts and one hot white burst the moment a pair meets above `CONTACT.hardHit`, where
+the ram does damage. Unthrottled a single scrape restarts all fourteen spark slots six times over
+and leaves nothing for the explosions.
+
 ## Start procedure and soundtrack
 
 When the host starts, every client builds the track scene and reports in; the grid holds
