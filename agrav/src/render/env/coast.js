@@ -88,10 +88,11 @@ export function buildCoast(scene, ribbon, track) {
     tube.material.side = THREE.DoubleSide;
     tube.frustumCulled = false;
     group.add(tube);
+    // Rocks flanking each mouth, and nothing over it: a boulder on the centreline hung three metres
+    // into the portal, so you drove straight through a stone that had no business being there.
     for (const i of [a, bb]) {
       const f = ribbon.frames[i];
       for (const sd of [1, -1]) { const t = sd * (f.width / 2 + 13); portalRocks.push(placed(rock(40 + i % 3), f.pos.x + f.right.x * t, f.pos.y - 5, f.pos.z + f.right.z * t, i * 0.7, 9, 12, 9)); }
-      portalRocks.push(placed(rock(44), f.pos.x, f.pos.y + 14, f.pos.z, i, 14, 7, 11));
     }
   }
   if (portalRocks.length) group.add(merged(portalRocks, cliff));
