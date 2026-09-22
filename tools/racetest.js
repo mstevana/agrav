@@ -110,8 +110,10 @@ try {
   h.hp = 20; h.v.shieldT = 0;
   const botRacer = room.state.racers.find(r => r.bot);
   if (botRacer) botRacer.v.s = (botRacer.v.s + 200) % room.state.ribbon.length;
-  // park host directly ahead of guest, both on the centreline so neither finds a wall to die on
-  g.v.t = 0;
+  // Park the host directly ahead of the guest, both on the centreline so neither finds a barrier to
+  // die on, and both pointing straight down the track: the missile only locks inside a 0.45 rad
+  // cone off the shooter's nose, and in a corner the guest was firing at nothing.
+  g.v.t = 0; g.v.yaw = 0;
   h.v.s = g.v.s + 30; h.v.t = 0; h.v.vs = g.v.vs; h.v.yaw = 0;
   g.item = 'missile'; g.ammo = 1;
   await guest.keyboard.down('Space'); await guest.waitForTimeout(120); await guest.keyboard.up('Space');
