@@ -117,8 +117,9 @@ and holo boards.
 - **Cape Vanta** — coastal cliffs: cliff-edge sweepers, a tunnel through the headland, a
   jump across the cove, a chicane on the beach, a long sweep round the south point.
 - **Inferno Basin** — hellscape: a causeway over a lava lake, a climb up a volcano's flank to a
-  jump over a lava chasm, esses through the cinder field, a wide banked loop round a caldera.
-  Meteors fall the whole race; the road itself glows like cooling lava.
+  lip and **two seconds of air** over a lava chasm — twelve metres above the road, ninety above the
+  melt — esses through the cinder field, a wide banked loop round a caldera. Meteors fall the whole
+  race; the road itself glows like cooling lava.
 - **Mare Selene** — the Moon: a sweep along a crater rim, a long straight into a full
   **loop-the-loop**, a descent through the boulder field, a chicane past the moon base.
 - **Osa Reef** — Costa Rican jungle coast: a causeway through the trees, a dive under the sea in
@@ -193,7 +194,8 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   away; buttes, weathered slabs and spires filling the middle distance, obsidian shards nearer the
   road, fissures with the melt showing through the plain, lava falling into the chasm and over the
   lake wall, steam vents breathing beside the verge and pools of ember light along it; pylons under
-  the causeway where it flies over the melt; a pool of meteors that streak in from a dome round the
+  the causeway where it flies over the melt, and none over the chasm, where an eighty-metre column
+  would turn the leap into a viaduct; a pool of meteors that streak in from a dome round the
   camera and burst on the plain (never on the road), plus distant streaks; rising cinders, falling
   ash, red mist; two flocks of black pterodactyls; charred trees that stir in the heat; the road
   material swapped for cooling lava.

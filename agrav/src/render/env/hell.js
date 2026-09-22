@@ -17,7 +17,7 @@ import { makeRng } from '../../../../shared/sim/rng.js';
 const LAVA_LEVEL = 10;
 // world-space landmarks (the track is authored mirrored in x, so plan x = -442 is world +442)
 const LAKE = { x: 0, z: 60, r: 270 };        // the lava lake the causeway crosses
-const CHASM = { x: 442, z: 57, r: 70 };      // under the jump
+const CHASM = { x: 437, z: 40, r: 95 };      // under the jump: the lip and the first half of the flight
 const mixN = (a, b, t) => a + (b - a) * t;
 
 /** the height field: a rolling red plain, basins under the melt, volcanic rims far out (cached per track) */
@@ -224,7 +224,9 @@ export function buildHell(scene, ribbon, track) {
     if (f.isLoop) continue;
     const g0 = heightAt(f.pos.x, f.pos.z);
     const h = f.pos.y - g0;
-    if (h < 7) continue;
+    // the causeway stands 8-18 m over the melt; the chasm under the jump is eighty deep, and
+    // pylons that tall would turn the leap into a viaduct, so that span carries nothing
+    if (h < 7 || h > 26) continue;
     for (const sd of [-1, 1]) {
       const t = sd * (f.width / 2 - 2.2);
       pylonGeos.push(placed(pylonGeo(h, 1.5), f.pos.x + f.right.x * t, g0, f.pos.z + f.right.z * t, Math.atan2(f.tangent.x, f.tangent.z)));

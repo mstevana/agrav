@@ -1,9 +1,17 @@
 // ============================================================================
 // INFERNO BASIN — a red desert ringed by volcanoes. A causeway across a lava
-// lake, a long left sweeper, a climb up a volcano's flank to a lip and a jump
-// over a lava chasm, esses through the cinder field, a wide banked loop round
-// a caldera and home. Meteors, cinders and ash the whole way; the road itself
-// glows like cooling lava.
+// lake, a long left sweeper, a climb up a volcano's flank to a lip and a long
+// jump over a lava chasm, esses through the cinder field, a wide banked loop
+// round a caldera and home. Meteors, cinders and ash the whole way; the road
+// itself glows like cooling lava.
+//
+// The jump is a ski hill, not a brow. A craft leaves the ground at the slope of
+// the lip times its speed and falls at GRAVITY from there, and the landing hurts
+// by how far the road's own descent misses that. A hill at one constant angle
+// ties the two together -- height = impact^2 / 2g -- which is why a big jump on
+// a straight slope always lands hard. So the shoulder past the lip is shallow,
+// and the craft climbs away from it; the hill then steepens to meet the craft's
+// own descent where it comes down, and flattens again for the outrun.
 //
 // Plan coordinates (mirrored on load): y up; a corner that turns clockwise
 // seen from above is a right-hander and banks negative.
@@ -24,12 +32,14 @@ export default {
     { x: -280, y: 30, z: 500,  width: W, bank: 0.1 },
     { x: -400, y: 40, z: 440,  width: W - 2, bank: 0.16 },  // left, climbing the volcano's flank
     { x: -470, y: 54, z: 330,  width: W - 2, bank: 0.1 },
-    { x: -480, y: 66, z: 220,  width: W - 4 },              // straight up the flank
-    { x: -470, y: 74, z: 140,  width: W - 4 },              // the ramp
-    { x: -455, y: 78, z: 95,   width: W - 2 },              // the lip: the jump over the lava chasm
-    { x: -432, y: 70, z: 20,   width: W + 6 },              // landing, wide
-    { x: -390, y: 56, z: -60,  width: W + 2 },
-    { x: -310, y: 42, z: -130, width: W, bank: -0.12 },     // cinder-field esses: right
+    { x: -480, y: 64, z: 220,  width: W - 4 },              // straight up the flank
+    { x: -472, y: 71, z: 148,  width: W - 4 },              // the ramp
+    { x: -461, y: 78, z: 102,  width: W - 2 },              // steepening into the lip
+    { x: -453, y: 82, z: 72,   width: W },                  // the lip: the jump over the lava chasm
+    { x: -434, y: 76, z: 14,   width: W + 8 },              // the shoulder stays shallow: the craft climbs away from it
+    { x: -404, y: 60, z: -50,  width: W + 8 },              // the landing hill rolls over and plunges
+    { x: -370, y: 44, z: -95,  width: W + 6 },              // steepest where the craft comes down, so it lands square
+    { x: -310, y: 40, z: -130, width: W, bank: -0.12 },     // the outrun flattens into the cinder-field esses: right
     { x: -260, y: 36, z: -220, width: W, bank: 0.14 },      // left
     { x: -170, y: 32, z: -270, width: W, bank: -0.14 },     // right
     { x: -100, y: 30, z: -350, width: W, bank: 0.12 },      // left
@@ -47,7 +57,7 @@ export default {
     { s: 150,  lanes: [-7, 0, 7] },
     { s: 450,  lanes: [-6, 6] },
     { s: 750,  lanes: [-5, 0, 5] },
-    { s: 1050, lanes: [-6, 6] },
+    { s: 1000, lanes: [-6, 6] },     // ahead of the ramp: airborne craft take no pickups
     { s: 1350, lanes: [-7, 0, 7] },
     { s: 1650, lanes: [-6, 6] },
     { s: 1950, lanes: [-5, 0, 5] },
