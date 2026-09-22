@@ -102,9 +102,17 @@ try {
   const g = room.state.byId[guestId], h = room.state.byId[hostId];
   await host.keyboard.up('ArrowUp');
   await host.evaluate(() => { window.__agrav.ui.autopilot = true; });
-  h.hp = 5; h.v.shieldT = 0;
-  // park host directly ahead of guest on the same line
-  h.v.s = g.v.s + 30; h.v.t = g.v.t; h.v.vs = g.v.vs; h.v.yaw = 0;
+  // The assertion below is that the GUEST killed the host, so nothing else may be able to. At 5 hp
+  // a single ram (6) did it, and the bot racing alongside stole the kill often enough to fail this
+  // run about a third of the time. Twenty survives a ram and a wall hit but not the missile, which
+  // lands 26 scaled by the guest's own damage (a kestrel: 23.4), and the bot goes two hundred
+  // metres up the road so it can reach neither of them.
+  h.hp = 20; h.v.shieldT = 0;
+  const botRacer = room.state.racers.find(r => r.bot);
+  if (botRacer) botRacer.v.s = (botRacer.v.s + 200) % room.state.ribbon.length;
+  // park host directly ahead of guest, both on the centreline so neither finds a wall to die on
+  g.v.t = 0;
+  h.v.s = g.v.s + 30; h.v.t = 0; h.v.vs = g.v.vs; h.v.yaw = 0;
   g.item = 'missile'; g.ammo = 1;
   await guest.keyboard.down('Space'); await guest.waitForTimeout(120); await guest.keyboard.up('Space');
   await host.waitForFunction(() => window.__agrav.client.race.byId[window.__agrav.client.me].dead, null, { timeout: 6000 }).catch(() => fail('host was not eliminated by the missile'));
