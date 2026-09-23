@@ -121,6 +121,8 @@ try {
   step('host eliminated by a missile, now spectating');
   const status = await host.textContent('#hud-status');
   if (!/ELIMINATED/.test(status)) fail('spectator status not shown: ' + status);
+  if (!(await host.isVisible('#hud-leave'))) fail('an eliminated racer was not offered the way out');
+  step('and offered a way out of the rest of the race');
 
   // let the guest finish the lap; the bot finishes too; results appear
   await guest.waitForSelector('#screen-results:not([hidden])', { timeout: 120000 });

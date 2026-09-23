@@ -39,10 +39,21 @@ frames, so the lobby keeps painting -- and the backdrop becomes the track you ar
 
 | Keyboard | Gamepad | Touch |
 |---|---|---|
-| ← → or A D steer | left stick / d-pad | drag left/right in the steering zone (or tilt, in settings) |
+| ← → or A D steer | left stick / d-pad | tilt the phone (or drag, in settings) |
 | ↑ / W throttle · ↓ / S brake | A or RT throttle · LT brake | automatic throttle · BRK button |
 | Q / E airbrakes | LB / RB | AIR L / AIR R |
 | space fire | X or B | FIRE |
+
+A phone steers by tilt. Neutral is wherever you are holding it when the race opens rather than the
+phone lying flat on its back, so the grid takes the angle you are already at and twenty-six degrees
+off it is full lock, with a couple of degrees of slop around the middle so a held phone does not
+wander. iOS hands over the motion sensor only when a page asks from inside a gesture, so the ask
+rides on the taps that start a race; a phone with no sensor, or an owner who says no, falls back to
+dragging in the steering zone with nothing to set.
+
+Being destroyed makes you a spectator, and the rest of a race is a long time to watch when you are
+not in it, so an eliminated racer gets a **Leave race** button under the status. A racer who has
+merely finished does not: the result is still coming and leaving would throw it away.
 
 Airbrakes tighten a turn and bleed speed; you need them for the hairpins. Hands off the
 stick and the craft settles back along the track, but it never steers a bend for you.

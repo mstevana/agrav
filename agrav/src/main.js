@@ -359,6 +359,8 @@ $('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') send
 function sendChat() { const t = $('chat-input').value.trim(); if (!t) return; client.chat(t); $('chat-input').value = ''; }
 $('btn-results-ready').addEventListener('click', () => { ui.ready = true; ui.results = null; client.setReady(true); showLobby(client.room); });
 $('btn-results-leave').addEventListener('click', () => { client.leaveRoom(); leaveToMenu(); });
+// destroyed and watching the rest of the race go by: the same Leave, without the wait
+$('hud-leave').addEventListener('click', () => { audio.play('ui'); client.leaveRoom(); leaveToMenu(); });
 
 // The lobby is the one moment a player is sitting still, so it is where the fullscreen prompt goes.
 // F11 belongs to the browser and cannot be bound from a page -- the hint is all we can do there --
@@ -413,6 +415,9 @@ function lockLandscape() {
   try { screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch { /* unsupported */ }
 }
 for (const id of ['btn-solo', 'btn-start', 'btn-ready', 'btn-results-ready']) $(id).addEventListener('click', fullscreenForRace);
+// iOS only hands over the motion sensor from inside a gesture, so ask on the same taps
+for (const id of ['btn-solo', 'btn-start', 'btn-ready', 'btn-results-ready']) $(id).addEventListener('click', () => input.requestTilt());
+$('set-touch').addEventListener('change', () => input.requestTilt());
 
 // Safari has ignored user-scalable=no since iOS 10, so a pinch still zooms the page and -- with the
 // meta tag refusing to scale back -- leaves it stuck. These are the events that pinch arrives on.
@@ -503,6 +508,8 @@ async function reconnect() {
 function enterRace(room) {
   ui.screen = 'race'; ui.results = null; ui.spectateId = -1; ui.lastPhase = -1; ui.lastCount = 99; ui.elapsedAtFinish = null;
   show(null); hud.show(true);
+  hud.offerLeave(false);
+  input.recentreTilt();   // however the phone is being held on the grid is straight ahead
   buildScene(room.opts.track, client.ribbon);
   for (const c of scene.crafts.values()) removeCraft(c);
   scene.crafts.clear();
@@ -772,6 +779,7 @@ function renderRace(dt) {
   // camera: chase my craft, or spectate
   let target = myPose, targetId = client.me;
   const meDead = me && me.dead;   // finished racers keep driving their cool-down lap
+  hud.offerLeave(!!meDead);   // the results screen hides the HUD whole, so nothing more is needed
   if (meDead || !myPose) {
     const alive = race.racers.filter(r => !r.dead && r.id !== client.me).sort((a, b) => a.rank - b.rank);
     let pick = alive.find(r => r.id === ui.spectateId) || alive[0];

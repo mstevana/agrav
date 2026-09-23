@@ -11,7 +11,7 @@ const DEFAULTS = {
   quality: 'auto',          // auto | high | low
   sound: true,
   music: true,
-  touchSteer: 'drag',       // drag | tilt | buttons
+  touchSteer: 'tilt',       // drag | tilt -- tilt is the phone default, drag is the fallback
   autoThrottle: true,       // touch: hold nothing to go
   reducedMotion: false,
   largeHud: false,
@@ -31,6 +31,7 @@ export function applyDocumentSettings() {
   const r = document.documentElement;
   r.classList.toggle('reduced-motion', !!settings.reducedMotion);
   r.classList.toggle('large-hud', !!settings.largeHud);
+  r.classList.toggle('tilt-steer', settings.touchSteer === 'tilt');
 }
 
 const MAX_LEVEL = 4;

@@ -26,7 +26,7 @@ export class Hud {
       damage: $('hud-damage'), arc: $('hud-damage-arc'),
       item: $('hud-item'), itemGlyph: $('hud-item-glyph'), itemLabel: $('hud-item-label'), itemAmmo: $('hud-item-ammo'),
       countdown: $('hud-countdown'), feed: $('hud-feed'), banner: $('hud-banner'), net: $('hud-net'), status: $('hud-status'),
-      lock: $('hud-lock'),
+      lock: $('hud-lock'), leave: $('hud-leave'),
       time: $('hud-time'), minimap: $('hud-minimap'), places: $('hud-places')
     };
     this.feed = [];
@@ -206,6 +206,11 @@ export class Hud {
     this.feed = this.feed.filter(f => now - f.t < 5000);
     this.el.feed.innerHTML = this.feed.map(f => `<div class="${f.cls}">${esc(f.text)}</div>`).join('');
   }
+  /**
+   * Offer a destroyed racer the way out. Only while eliminated: a racer who has finished still has a
+   * result coming and leaving would throw it away, and the cool-down lap is over in seconds anyway.
+   */
+  offerLeave(on) { this.el.leave.hidden = !on; }
   /** the headline before the em dash, the rest under it. Both are set as text: names come from players. */
   status(text) {
     const el = this.el.status;

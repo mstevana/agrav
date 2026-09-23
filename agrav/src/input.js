@@ -4,9 +4,9 @@
 // Keyboard: ←/→ or A/D steer, ↑/W throttle, ↓/S brake, Q/E airbrakes (also
 // shift+steer), space / ctrl / X fire. Gamepad: left stick / d-pad steer,
 // A (0) or RT throttle, LT brake, LB/RB airbrakes, X/B fire.
-// Touch: a steering zone on the left (drag left/right from where you touch,
-// or tilt the phone), fire and airbrake buttons on the right. Throttle is
-// automatic on touch unless the player turns it off.
+// Touch: tilt the phone to steer (the default), or drag left/right in the
+// steering zone on the left; fire and airbrake buttons on the right. Throttle
+// is automatic on touch unless the player turns it off.
 //
 // A key is a switch, so keyboard steering would otherwise slam from 0 to full
 // lock in one tick. It is ramped here, in the input, rather than in the sim:
@@ -23,6 +23,8 @@ import { DT } from '../../shared/agrav/constants.js';
 const STEER_ON = 1 / 0.12;    // full lock in 0.12 s
 const STEER_OFF = 1 / 0.07;   // and back to centre a little faster, so it stops feeling soggy
 const STEER_STEP = 127;       // the wire quantises steer to an i8 at this scale
+const TILT_LOCK = 26;         // degrees off neutral for full lock: a wrist, not a shoulder
+const TILT_DEAD = 2.5;        // and a little slop around neutral, or a held phone wanders
 
 export class Input {
   constructor(dom) {
@@ -31,6 +33,8 @@ export class Input {
     this.touchSteer = 0;
     this.touchBits = 0;
     this.tilt = 0;
+    this.tiltZero = null;    // the angle the phone was held at when steering began: that is straight ahead
+    this.tiltLive = false;   // a reading has actually arrived, so tilt can be trusted over the drag zone
     this.touched = false;
     this.steerPointer = null;
     this.enabled = true;
@@ -46,13 +50,44 @@ export class Input {
     window.addEventListener('blur', () => this.keys.clear());
 
     this._bindTouch(dom);
-    window.addEventListener('deviceorientation', (e) => {
-      // landscape: beta is left/right tilt; sign depends on which way the phone is held
-      const landscapeLeft = (screen.orientation?.angle ?? window.orientation ?? 90) === 90;
-      const raw = e.beta == null ? 0 : e.beta;
-      this.tilt = Math.max(-1, Math.min(1, (landscapeLeft ? raw : -raw) / 28));
-    });
+    // Tilt steering means a player may never put a finger on the steering zone, and touch input --
+    // auto throttle included -- is gated on having been touched. The taps that get you into a race
+    // are enough to arm it.
+    window.addEventListener('touchstart', () => { this.touched = true; }, { passive: true, once: true });
+    window.addEventListener('deviceorientation', (e) => this._orient(e));
+    // a phone turned end for end in landscape reads the other way up, so neutral is taken again
+    window.addEventListener('orientationchange', () => { this.tiltZero = null; });
+    screen.orientation?.addEventListener?.('change', () => { this.tiltZero = null; });
   }
+
+  /**
+   * Held in landscape, beta is the axis you roll to steer. Which way round depends on which end of
+   * the phone is up. Neutral is wherever the phone was the first time we heard from it rather than
+   * beta zero, which is the phone lying flat on its back -- nobody drives holding it there.
+   */
+  _orient(e) {
+    if (e.beta == null) return;
+    this.tiltLive = true;
+    const raw = (screen.orientation?.angle ?? window.orientation ?? 90) === 90 ? e.beta : -e.beta;
+    if (this.tiltZero == null) this.tiltZero = raw;
+    let off = raw - this.tiltZero;
+    if (off > 180) off -= 360; else if (off < -180) off += 360;   // beta wraps at ±180
+    const mag = (Math.abs(off) - TILT_DEAD) / (TILT_LOCK - TILT_DEAD);
+    this.tilt = Math.sign(off) * Math.max(0, Math.min(1, mag));
+  }
+
+  /**
+   * iOS 13 and later deliver nothing until the page asks, and it only asks from inside a user
+   * gesture -- so this hangs off the buttons that start a race. Everywhere else the events simply
+   * arrive and there is nothing to request. A refusal is not an error: the drag zone still steers.
+   */
+  requestTilt() {
+    const req = window.DeviceOrientationEvent?.requestPermission;
+    if (typeof req === 'function') req.call(window.DeviceOrientationEvent).catch(() => {});
+  }
+
+  /** take the phone's current angle as straight ahead -- called as a race starts */
+  recentreTilt() { this.tiltZero = null; }
 
   _any() { if (this.onAny) { const f = this.onAny; this.onAny = null; f(); } }
 
@@ -139,7 +174,8 @@ export class Input {
 
     if (this.touched) {
       bits |= this.touchBits;
-      const ts = settings.touchSteer === 'tilt' ? this.tilt : this.touchSteer;
+      // a phone with no motion sensor, or one whose owner refused it, falls back to the drag zone
+      const ts = settings.touchSteer === 'tilt' && this.tiltLive ? this.tilt : this.touchSteer;
       if (ts) steer = ts;
       if (settings.autoThrottle && !(bits & IN.BRAKE)) bits |= IN.THROTTLE;
     }

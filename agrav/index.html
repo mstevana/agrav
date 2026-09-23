@@ -161,6 +161,10 @@ label.opt { display: flex; align-items: center; justify-content: space-between; 
   text-shadow: 0 0 24px rgba(255, 213, 74, 0.55), 0 2px 10px rgba(0, 0, 0, 0.7); }
 #hud-status span { font-size: 0.95em; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg); opacity: 0.85; }
 #hud-status[hidden] { display: none; }
+/* Being destroyed makes you a spectator until the flag falls, which can be most of a race. The way
+   out sits under the status so it reads as part of it, and is the one thing in the HUD you can tap. */
+#hud-leave { position: absolute; left: 50%; top: 47%; transform: translateX(-50%); pointer-events: auto; z-index: 5; }
+#hud-leave[hidden] { display: none; }
 @keyframes statuspulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.74; } }
 /* A missile has your name on it. Loud, above the centre so it does not sit over the road, and
    paired with a red edge wash; the bearing goes on the hull ring beside the arc a hit leaves. */
@@ -191,6 +195,7 @@ html.touch #hud-places { display: none; }
 #touch { position: fixed; inset: 0; z-index: 3; display: none; pointer-events: none; }
 html.touch #touch { display: block; }
 #touch-steer { position: absolute; left: 0; bottom: 0; width: 48%; height: 70%; pointer-events: auto; }
+html.tilt-steer #touch-steer::after { content: "TILT  OR  DRAG"; }
 #touch-steer::after { content: "◀  STEER  ▶"; position: absolute; left: 50%; bottom: calc(70px + var(--sa-b)); transform: translateX(-50%); color: rgba(255,255,255,0.18); letter-spacing: 0.3em; font-size: 12px; font-weight: 800; }
 .tbtn { position: absolute; pointer-events: auto; width: 68px; height: 68px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); font-weight: 900; letter-spacing: 0.1em; font-size: 12px; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; }
 .tbtn.down { background: rgba(45,241,255,0.35); border-color: var(--accent); color: #fff; }
@@ -260,7 +265,7 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
       <label class="opt">Graphics <select id="set-quality"><option value="auto">Auto</option><option value="high">High</option><option value="low">Low</option></select></label>
       <label class="opt">Sound <button id="set-sound" class="btn small">On</button></label>
       <label class="opt">Music <button id="set-music" class="btn small">On</button></label>
-      <label class="opt">Touch steering <select id="set-touch"><option value="drag">Drag</option><option value="tilt">Tilt</option></select></label>
+      <label class="opt">Touch steering <select id="set-touch"><option value="tilt">Tilt</option><option value="drag">Drag</option></select></label>
       <label class="opt">Auto throttle (touch) <button id="set-autothrottle" class="btn small">On</button></label>
       <label class="opt">Large HUD <button id="set-largehud" class="btn small">Off</button></label>
       <label class="opt">Reduce motion <button id="set-motion" class="btn small">Off</button></label>
@@ -332,6 +337,7 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; p
   <div id="hud-countdown" hidden>3</div>
   <div id="hud-banner" hidden></div>
   <div id="hud-status" hidden></div>
+  <button id="hud-leave" class="btn small danger" hidden>Leave race</button>
   <div id="hud-lock" hidden><b>MISSILE LOCK</b></div>
   <div id="hud-places"></div>
   <div id="hud-damage"></div>
