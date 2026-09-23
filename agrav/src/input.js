@@ -35,6 +35,7 @@ export class Input {
     this.tilt = 0;
     this.tiltZero = null;    // the angle the phone was held at when steering began: that is straight ahead
     this.tiltLive = false;   // a reading has actually arrived, so tilt can be trusted over the drag zone
+    this.tiltPermission = '';   // what iOS said when asked, for tiltTrouble() to explain the silence
     this.touched = false;
     this.steerPointer = null;
     this.enabled = true;
@@ -83,7 +84,26 @@ export class Input {
    */
   requestTilt() {
     const req = window.DeviceOrientationEvent?.requestPermission;
-    if (typeof req === 'function') req.call(window.DeviceOrientationEvent).catch(() => {});
+    if (typeof req !== 'function') { this.tiltPermission = 'not-asked'; return; }   // everywhere but iOS
+    this.tiltPermission = 'asking';
+    const said = (r) => { this.tiltPermission = String(r); };
+    try { req.call(window.DeviceOrientationEvent).then(said, (e) => said(e?.name || 'refused')); }
+    catch (e) { said(e?.name || 'refused'); }
+  }
+
+  /**
+   * Why tilt is not steering, in the handful of words a phone can show -- '' while it works or is
+   * not wanted. Every way this fails is silent otherwise: no sensor, a refused prompt, a page served
+   * over plain http (iOS hands the sensor to secure pages only). The player is left wondering why
+   * the craft will not turn, which is the worst of the three.
+   */
+  tiltTrouble() {
+    if (settings.touchSteer !== 'tilt' || this.tiltLive) return '';
+    if (!window.DeviceOrientationEvent) return 'This phone reports no tilt';
+    if (!window.isSecureContext) return 'Tilt needs an https page';
+    if (this.tiltPermission === 'denied') return 'Tilt permission was refused';
+    if (this.tiltPermission && !['granted', 'asking', 'not-asked'].includes(this.tiltPermission)) return `Tilt was refused (${this.tiltPermission})`;
+    return 'No tilt readings arrived';
   }
 
   /** take the phone's current angle as straight ahead -- called as a race starts */

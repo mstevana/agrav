@@ -49,7 +49,14 @@ phone lying flat on its back, so the grid takes the angle you are already at and
 off it is full lock, with a couple of degrees of slop around the middle so a held phone does not
 wander. iOS hands over the motion sensor only when a page asks from inside a gesture, so the ask
 rides on the taps that start a race; a phone with no sensor, or an owner who says no, falls back to
-dragging in the steering zone with nothing to set.
+dragging in the steering zone with nothing to set. Every one of those failures is otherwise silent,
+so a touch device that has settled on drag says why once the race is under way -- no sensor, a
+refused prompt, or a page served over plain http, which iOS will not give the sensor to at all.
+
+Settings are stored merged rather than as a diff -- `setSetting` writes the whole object -- so the
+defaults of the day a player first typed their name are frozen into their phone, and changing a
+default reaches nobody who has played before. `settings.version` and `migrate()` are how a changed
+default is actually delivered; tilt steering is the first thing to need it.
 
 Being destroyed makes you a spectator, and the rest of a race is a long time to watch when you are
 not in it, so an eliminated racer gets a **Leave race** button under the status. A racer who has

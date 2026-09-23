@@ -510,6 +510,14 @@ function enterRace(room) {
   show(null); hud.show(true);
   hud.offerLeave(false);
   input.recentreTilt();   // however the phone is being held on the grid is straight ahead
+  // Tilt fails silently in every one of its failure modes, and a player who cannot turn deserves to
+  // be told why rather than left fighting the car. Once the race is under way, say it and say what
+  // still works -- the drag zone is always there underneath.
+  setTimeout(() => {
+    if (ui.screen !== 'race' || !document.documentElement.classList.contains('touch')) return;
+    const why = input.tiltTrouble();
+    if (why) toast(`${why} — drag the left of the screen to steer`, 4200);
+  }, 2500);
   buildScene(room.opts.track, client.ribbon);
   for (const c of scene.crafts.values()) removeCraft(c);
   scene.crafts.clear();

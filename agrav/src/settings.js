@@ -5,6 +5,7 @@
 const KEY = 'agrav_settings_v1';
 
 const DEFAULTS = {
+  version: 2,               // bumped when a changed default has to reach phones that already played
   name: '',
   vehicle: 'corsair',
   botDifficulty: 'normal',  // easy | normal | hard -- shown as Easy / Medium / Hard
@@ -18,8 +19,26 @@ const DEFAULTS = {
   server: ''                // '' = same origin
 };
 
+/**
+ * Stored settings win over the defaults, which is what makes a changed default invisible to anyone
+ * who has played before: setSetting writes the whole merged object, so the first time a player typed
+ * their name the defaults of that day were frozen into their phone. A default worth changing
+ * therefore needs a migration, and this is the list of them.
+ */
+function migrate(s, from) {
+  // 2: tilt became the default way to steer a phone. Nobody can have chosen the old tilt mode on
+  // purpose -- it never asked iOS for the motion sensor, so on an iPhone it did nothing at all --
+  // and drag is one tap away in Settings for anyone who prefers it.
+  if (from < 2) s.touchSteer = 'tilt';
+  return s;
+}
 function load() {
-  try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch { return { ...DEFAULTS }; }
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY)) || {};
+    const s = { ...DEFAULTS, ...stored };
+    s.version = DEFAULTS.version;
+    return Object.keys(stored).length ? migrate(s, stored.version || 1) : s;
+  } catch { return { ...DEFAULTS }; }
 }
 export const settings = load();
 export function setSetting(k, v) {
