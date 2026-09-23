@@ -195,7 +195,10 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
 - **Terrain** (`src/render/terrain.js`): one displaced grid per track. Each vertex knows its
   nearest ribbon frame, the theme shapes the landscape from that (ridged canyon walls and a
   river channel, cliffs falling through a beach into the sea), and a corridor rule caps the
-  ground just under the road so it never pokes through while bridges stay bridges. The material
+  ground just under the road so it never pokes through while bridges stay bridges. That rule holds
+  through tunnels too: a height field cannot have a hole, so the cap is what cuts the bore, and the
+  swept rock tube roofs the cutting over. Exempt the tunnel frames from it and the hillside closes
+  across the road instead. The material
   blends two sets by slope and samples them triplanar so cliff faces do not smear.
 - **Displaced geometry** (`src/render/props.js`): rocks, mesas, cliff slabs, sea stacks and
   arches are primitives pushed by 3D noise; towers come tiered, round or stepped with ledges and

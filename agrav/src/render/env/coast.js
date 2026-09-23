@@ -21,8 +21,11 @@ function terrainFor(ribbon, env) {
   const isTunnel = (f) => f.width < 19.5;
 
   const terrainMat = triplanarBlended(cliffSet(env.cliff), sandSet(0xd8c8a0), { tile: 20, normalScale: 1.0, wetBand: [SEA_LEVEL + 0.3, SEA_LEVEL + 3.5] });
+  // The headland caps like everywhere else. Letting the tunnel frames out of the corridor rule used
+  // to close the hillside over the road: the ground went from 6 m under the deck to 16 m over it in
+  // the six metres between s=690 and s=702, which drew a rock face clean across the bore.
   const terrain = buildTerrain(ribbon, {
-    cacheKey: 'coast', cells: 200, pad: 420, orient: landward, noCap: isTunnel, corridor: { drop: 4, margin: 6, fade: 40 },
+    cacheKey: 'coast', cells: 200, pad: 420, orient: landward, corridor: { drop: 4, margin: 6, fade: 40 },
     profile(info) {
       const edge = Math.max(0, info.d - info.w / 2);
       const L = smoothstep(-0.35, 0.35, info.sideSmooth);
@@ -31,6 +34,7 @@ function terrainFor(ribbon, env) {
       const beach = info.tySmooth - 3 + (2.6 - (info.tySmooth - 3)) * smoothstep(0, 30, edge);
       const seaY = beach + (-14 - ridge * 6 - beach) * smoothstep(30, 95, edge);
       let land = seaY + (landY - seaY) * L;
+      // the hill still piles up over the tunnel; the corridor rule then cuts the bore back out of it
       if (isTunnel(info.f)) land = Math.max(land, info.ty + 13 + ridge * 8 + smoothstep(0, 40, edge) * 12);
       return corridor(info, land);
     },
