@@ -166,10 +166,25 @@ async function prewarmRun(trackId, gen) {
     for (let i = 0; i < items.length; i++) {
       renderer.compile(items[i], camera, scene.three);
       if (performance.now() - t0 < 12) continue;
-      prewarmProgress(0.5 + 0.5 * (i + 1) / items.length, 'Compiling shaders');
+      prewarmProgress(0.5 + 0.35 * (i + 1) / items.length, 'Compiling shaders');
       await nextFrame();
       if (!live()) return;
       t0 = performance.now();
+    }
+    // The grid's own hulls are not in the backdrop, so their materials would compile, and their five
+    // 1024² maps upload and build mipmaps, on the race's first frame. Do both here for one of each
+    // craft in the room, against the real scene -- stand-in lights and all. The race's craft share
+    // these materials and maps, and the plumes and sprites share their programs.
+    const vehicles = new Set((client.room?.players || []).map(p => p.profile?.vehicle).filter(Boolean));
+    let v = 0;
+    for (const id of vehicles) {
+      prewarmProgress(0.85 + 0.15 * v++ / vehicles.size, 'Fuelling the grid');
+      const c = buildCraft(id);
+      renderer.compile(c.group, camera, scene.three);
+      for (const t of c.trails) renderer.compile(t.trail.mesh, camera, scene.three);
+      c.group.traverse(o => { for (const m of [].concat(o.material || [])) for (const x of Object.values(m)) if (x?.isTexture) renderer.initTexture(x); });
+      await nextFrame();
+      if (!live()) return;
     }
     prewarmProgress(1, `${name} ready`);
     await nextFrame();
@@ -197,6 +212,24 @@ function disposeScene() {
   scene.fx?.dispose();
   scene.three.traverse(o => { if (o.geometry && !o.isInstancedMesh) o.geometry.dispose?.(); });
   scene = { three: null, trackId: null, env: null, track: null, crafts: new Map(), fx: null, ribbon: null };
+}
+// Every material is compiled against the number of lights in the scene, and each craft carries a
+// point light. The lobby compiles the whole track ahead of the race, but it used to do it with no
+// craft in the scene, so the grid's lights arriving invalidated nearly all of that work: the race
+// opened by compiling ~50 shaders over again, seconds of frozen page on a phone. Stand-in lights --
+// dark, parked far below the world -- hold the count at one per racer from the lobby on, and each
+// craft that appears retires one, so the race meets exactly the programs the lobby built. It also
+// keeps the count still when a craft leaves mid-race, which would otherwise recompile everything.
+const standIns = [];
+function holdLightCount(racers) {
+  if (!scene.three) return;
+  while (standIns.length < racers) { const l = new THREE.PointLight(0x000000, 0, 1, 2); l.position.set(0, -5000, 0); standIns.push(l); }
+  const want = Math.max(0, racers - scene.crafts.size);
+  for (let i = 0; i < standIns.length; i++) {
+    const l = standIns[i];
+    if (l.parent !== scene.three) scene.three.add(l);
+    l.visible = i < want;
+  }
 }
 function removeCraft(c) { scene.three.remove(c.group); for (const t of c.trails) scene.three.remove(t.trail.mesh); disposeTrails(c); }
 function craftFor(id, vehicleId) {
@@ -231,7 +264,7 @@ function showCraft(id) {
   cap.style.color = '#' + v.colour.toString(16).padStart(6, '0');
   const team = document.createElement('span'); team.textContent = v.team; cap.appendChild(team);
 }
-let ui = { screen: 'menu', ready: false, solo: false, soloFilled: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
+let ui = { warm: null, screen: 'menu', ready: false, solo: false, soloFilled: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
 let menuOrbit = 0;
 const SOLO_BOTS = 7;   // opponents on a solo grid
 
@@ -521,6 +554,23 @@ async function reconnect() {
 }
 
 // ------------------------------------------------------------------- race ----
+/**
+ * Tell the room this client is ready to race -- once it really is. Building the scene is the quick
+ * part; the first frames drawn with the craft in them compile the race's shaders, and on a phone
+ * that is seconds of frozen page. Reported straight after the build, the countdown was armed at the
+ * start of that freeze and had mostly run out by the end of it. Reported after two frames with this
+ * craft on the grid, the freeze happens under GET READY and the whole count is there to see. If the
+ * craft never turns up (a late join into a race already armed), three seconds is long enough.
+ */
+function warmUp() {
+  const w = ui.warm;
+  if (!w) return;
+  if (scene.crafts.has(client.me)) w.frames--;
+  if (w.frames > 0 && performance.now() - w.since < 3000) return;
+  ui.warm = null;
+  client.loaded();
+}
+
 function enterRace(room) {
   ui.screen = 'race'; ui.results = null; ui.spectateId = -1; ui.lastPhase = -1; ui.lastCount = 99; ui.elapsedAtFinish = null;
   show(null); hud.show(true);
@@ -538,7 +588,8 @@ function enterRace(room) {
   buildScene(room.opts.track, client.ribbon);
   for (const c of scene.crafts.values()) removeCraft(c);
   scene.crafts.clear();
-  client.loaded();   // the grid waits for this before it counts down
+  // The grid waits for this before it counts down, so it is not sent yet: see warmUp() in the loop.
+  ui.warm = { frames: 2, since: performance.now() };
   hud.status('');
   audio.setMusicMode('race');
 }
@@ -636,6 +687,7 @@ function frame(now) {
     if (acc > DT * 4) acc = 0;   // a very long stall: drop the backlog instead of spiralling
     client.frame(dt);
     renderRace(dt);
+    warmUp();
   } else {
     if (!scene.three) buildScene('meridian', ribbonFor('meridian'));
     if (scene.three) {
@@ -647,6 +699,7 @@ function frame(now) {
       camera.lookAt(w.x, w.y, w.z);
       followSun(camera); scene.env?.update(dt, camera);
       scene.fx?.update(dt);
+      holdLightCount(ui.screen === 'lobby' ? client.room?.players.length || 0 : 0);
       bloom.render(scene.three, camera);
     }
     if (ui.screen === 'lobby') preview.render(dt);
@@ -869,6 +922,7 @@ function renderRace(dt) {
   });
   hud.drawMap(race.racers, client.me, (r) => { const p = r.id === client.me ? myPose : others.racers.find(x => x.id === r.id); const w = p ? toWorld(ribbon, p.s, p.t, 0) : toWorld(ribbon, r.v.s, r.v.t, 0); return w; });
 
+  holdLightCount(race.racers.length);
   bloom.render(scene.three, camera);
 }
 
@@ -876,4 +930,4 @@ function renderRace(dt) {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 requestAnimationFrame(frame);
 // expose for tools/racetest.js
-window.__agrav = { client, input, hud, preview, scene: () => scene, ui, settings, renderer, camera, THREE };
+window.__agrav = { client, input, hud, preview, scene: () => scene, solo: () => soloHost, ui, settings, renderer, camera, THREE };

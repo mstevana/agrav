@@ -67,7 +67,14 @@ export class LocalStorageStore extends Store {
  * @returns {{channel: LoopbackChannel, lobby: Lobby, session: Session, stop: () => void}}
  */
 export function createSoloHost(opts = {}) {
-  const lobby = new Lobby({ store: new LocalStorageStore(), ...opts });
+  // A real server gives up on a backlog after a few ticks: it is the one that stalled, and every
+  // client's clock is measured against it. In the page it is the other way round. Whatever freezes
+  // the client -- the race's first frames compiling their shaders, seconds on a phone -- freezes this
+  // host too, while the client's clock goes on counting wall time. Dropping the backlog then leaves
+  // the host seconds behind the clock the client reads the countdown from: it ran out early, the
+  // clock was dragged back, and it counted again. So the host catches up freezes of up to ten seconds
+  // in full; past that the player has been away, and the race is better resumed than replayed.
+  const lobby = new Lobby({ store: new LocalStorageStore(), maxCatchup: 600, ...opts });
   const [client, server] = LoopbackChannel.pair();
   const session = new Session(server, lobby);
   let stopped = false;

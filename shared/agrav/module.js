@@ -24,6 +24,7 @@ export default {
       state.bots[id] = botFor(state.opts.botDifficulty, id);
     }
     addRacer(state, id, profile, isBot);
+    return profile;   // the room keeps this, so a bot's seat says which craft it will race
   },
   removePlayer(state, id) { removeRacer(state, id); delete state.bots[id]; },
   setProfile(state, id, m) {

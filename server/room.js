@@ -59,7 +59,7 @@ export class Room {
     this.players.set(id, p);
     if (asHost || this.hostId < 0) this.hostId = id;
     this.lobby.attach(session, this, id);
-    this.game.addPlayer(this.state, id, p.profile, false);
+    p.profile = this.game.addPlayer(this.state, id, p.profile, false) || p.profile;
     session.sendJson(MSG.ROOM, this.roomState(id));
     this.broadcastRoomState();
     this._loadCareer(p);
@@ -92,7 +92,9 @@ export class Room {
     if (id < 0) return false;
     const p = this._newPlayer(id, `BOT ${id + 1}`, true);
     this.players.set(id, p);
-    this.game.addPlayer(this.state, id, p.profile, true);
+    // a game may fill the profile in (a bot's craft): keep what it chose, so the room state -- and
+    // every client's lobby and shader prewarm -- knows what will line up on the grid
+    p.profile = this.game.addPlayer(this.state, id, p.profile, true) || p.profile;
     return true;
   }
 
@@ -324,7 +326,7 @@ export class Room {
   _reseat() {
     this.state = this.game.createMatch(this.opts, this.seed);
     for (const p of this.players.values()) {
-      this.game.addPlayer(this.state, p.id, p.profile, p.bot);
+      p.profile = this.game.addPlayer(this.state, p.id, p.profile, p.bot) || p.profile;
       if (p.career) p.profile = this.game.setCareer?.(this.state, p.id, p.career) || p.profile;
     }
   }
@@ -352,6 +354,10 @@ export class Room {
     const p = this.players.get(session.playerId);
     if (!p || this.phase !== 'running') return;
     p.loaded = true;
+    // Arming reads the tick, so bring it up to now first. A server's tick always is; a host in the page
+    // froze with the client that is reporting in, and would arm against the tick it froze at -- then
+    // catch up straight through the countdown it had just started.
+    if (this.timer) this._runDue();
     this._maybeArm();
   }
   _maybeArm() {
@@ -375,18 +381,24 @@ export class Room {
     this.nextTickAt = performance.now() + this.tickMs;
     const pump = () => {
       if (this.destroyed || this.phase !== 'running') { this.timer = null; return; }
-      const now = performance.now();
-      let n = 0;
-      while (now >= this.nextTickAt && n < MAX_CATCHUP) {
-        this._doTick();
-        this.nextTickAt += this.tickMs;
-        n++;
-      }
-      if (n === MAX_CATCHUP && now >= this.nextTickAt) this.nextTickAt = now + this.tickMs; // give up catching up
+      this._runDue();
       if (this.phase !== 'running') { this.timer = null; return; }
       this.timer = setTimeout(pump, Math.max(0, this.nextTickAt - performance.now()));
     };
     this.timer = setTimeout(pump, this.tickMs);
+  }
+
+  /** step every tick that is due by now (the timer loop's body), giving up past the catch-up cap */
+  _runDue() {
+    const now = performance.now();
+    const cap = this.lobby.opts?.maxCatchup ?? MAX_CATCHUP;
+    let n = 0;
+    while (now >= this.nextTickAt && n < cap) {
+      this._doTick();
+      this.nextTickAt += this.tickMs;
+      n++;
+    }
+    if (n === cap && now >= this.nextTickAt) this.nextTickAt = now + this.tickMs; // give up catching up
   }
 
   /** advance exactly one tick (also used by tests, which drive the loop by hand) */

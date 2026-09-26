@@ -182,7 +182,24 @@ and leaves nothing for the explosions.
 
 When the host starts, every client builds the track scene and reports in; the grid holds
 ("GET READY") until everyone is in, or for eight seconds at most, then counts 3, 2, 1, 0 with a beep
-per number and a GO. Six synthesized techno tracks (`src/music.js`) rotate race by race, sequenced
+per number and a GO. A client reports in only once it has drawn the race with its own craft on the
+grid, not when the scene is merely built: the first frames are where a phone compiles and uploads,
+and a countdown armed before them ran out while the page was frozen.
+
+Most of that freeze is prepared in the lobby instead. Every shader is compiled against the number of
+lights in the scene and each craft carries one, so the lobby's backdrop keeps a dark stand-in light
+per racer, retired one for one as the craft arrive; before that, the grid's lights invalidated the
+lobby's whole compile and the race opened by compiling 49 shaders over again (3 now). The lobby also
+builds, compiles and uploads one of each craft in the room -- a bot's seat now says which craft it
+will race, so that includes the bots, whose livery atlases were otherwise being painted on the
+race's first frame.
+
+Solo play runs the room in the page, so whatever freezes the client freezes the host too, while the
+client's clock goes on counting wall time. The in-page host therefore catches up a freeze of up to
+ten seconds in full rather than dropping it (a real server gives up after a few ticks, and there the
+clock is right to follow it), and brings its tick up to date before arming: armed against the tick
+it froze at, it caught up straight through the countdown it had just started. Before either, a
+three-second freeze showed GET READY, 0, 1, 2, 1, 0, GO. Six synthesized techno tracks (`src/music.js`) rotate race by race, sequenced
 at sixteenth-note resolution from pattern data and played through Web Audio oscillators and
 noise, each with an intro, a build, a lead section and a breakdown: Canyon Carver (150), Meridian
 Overdrive (160), Vanta Tide (145), Anti-Grav League Anthem (172), Umbrella Protocol (140) and
