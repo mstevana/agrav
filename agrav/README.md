@@ -36,6 +36,15 @@ would be; the results screen still has the order.
 Choosing a track prepares it there and then, behind a progress bar: terrain and texture sets, the
 scene itself, and every shader it will need. That last part is the long one and it is sliced across
 frames, so the lobby keeps painting -- and the backdrop becomes the track you are about to race.
+Above the craft cards the one you have picked turns on a pad in its team colour, engines ticking
+over; drag sideways to turn it by hand. It draws in a canvas of its own with its own renderer,
+because the lobby panels blur whatever of the main canvas shows through them. A second context is
+not free, so it is built for what a phone can spare (`src/render/preview.js`): it draws with its own
+half-size copies of each hull's five 1024² maps, and it gives the whole context back on leaving the
+lobby, so nothing of it is held through a race. The hulls' geometry and some materials are still
+shared with the race, and three hangs a dispose listener on each one a renderer touches -- enough to
+keep every released renderer alive -- so the preview notes the listeners its renderer adds and takes
+them off again when it lets go.
 
 | Keyboard | Gamepad | Touch |
 |---|---|---|
@@ -318,7 +327,7 @@ flame tips and tapering away behind a corsair:
 index.html          screens + CSS          src/net.js        prediction, reconciliation, interpolation
 src/main.js         wiring, camera, loop   src/input.js      keyboard / gamepad / touch
 src/hud.js          race HUD, minimap      src/audio.js      synthesized engines, weapons, music
-src/render/         track ribbon, craft meshes, effects, procedural textures, six environments
+src/render/         track ribbon, craft meshes, the lobby's craft preview, effects, procedural textures, six environments
 ../shared/agrav/    the simulation the server runs (module.js, sim/, tracks/, vehicles.js, bot.js)
 ```
 

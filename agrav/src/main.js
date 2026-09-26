@@ -22,6 +22,7 @@ import { flashMinigun, minigunMuzzle } from './render/minigun.js';
 import { buildEnvironment, prewarmEnvironment } from './render/env/index.js';
 import { skyEnvironment, markShadows } from './render/env/common.js';
 import { Fx } from './render/fx.js';
+import { CraftPreview } from './render/preview.js';
 import { makeBot, botInput } from '../../shared/agrav/bot.js';
 
 const ATTITUDE_RATE = 11;   // 1/s: how fast the hull's roll and pitch chase what the controls ask for
@@ -217,6 +218,19 @@ audio.onTrack = (title) => { if (ui.screen === 'race') hud.say(`♪ ${title}`, '
 window.addEventListener('keydown', (e) => { if (e.code === 'KeyN' && ui.screen === 'race') audio.nextTrack(); });
 const input = new Input(renderer.domElement);
 const hud = new Hud();
+const preview = new CraftPreview($('craft-stage'), { lite: LITE, reducedMotion: () => settings.reducedMotion });
+/** turn the preview to a craft and caption it; the cards and the caption always name the same one */
+function showCraft(id) {
+  const v = VEHICLES.find(x => x.id === id);
+  if (!v) return;
+  preview.show(id);
+  const cap = $('craft-stage-name');
+  if (cap.dataset.id === id) return;
+  cap.dataset.id = id;
+  cap.textContent = v.name;
+  cap.style.color = '#' + v.colour.toString(16).padStart(6, '0');
+  const team = document.createElement('span'); team.textContent = v.team; cap.appendChild(team);
+}
 let ui = { screen: 'menu', ready: false, solo: false, soloFilled: false, vehicle: settings.vehicle, results: null, spectateId: -1, lastPhase: -1, lastCount: 99, elapsedAtFinish: null };
 let menuOrbit = 0;
 const SOLO_BOTS = 7;   // opponents on a solo grid
@@ -427,6 +441,7 @@ for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
 
 function leaveToMenu() {
   ui.screen = 'menu'; ui.ready = false; ui.results = null;
+  preview.release();
   if (ui.solo) { client.close(); closeSoloHost(); }
   show('screen-menu'); hud.show(false);
   audio.stopAllEngines(); audio.setMusicMode('menu');
@@ -460,10 +475,11 @@ function renderLobby(room) {
   $('tracks').innerHTML = TRACK_IDS.map(id => `<div class="card${room.opts.track === id ? ' sel' : ''}" data-track="${id}"><div class="name">${TRACKS[id].name}</div><div class="team">${TRACKS[id].theme}</div></div>`).join('');
   for (const c of $('tracks').querySelectorAll('[data-track]')) c.addEventListener('click', () => client.setOpts({ track: c.dataset.track }));
   const myVehicle = me?.profile?.vehicle || ui.vehicle;
+  showCraft(myVehicle);
   $('vehicles').innerHTML = VEHICLES.map(v => `<div class="card${myVehicle === v.id ? ' sel' : ''}" data-vehicle="${v.id}">
     <div class="name"><span class="swatch" style="background:#${v.colour.toString(16).padStart(6, '0')}"></span>${v.name}</div><div class="team">${v.team}</div><div class="desc">${v.desc}</div>
     <div class="bars">${['topSpeed', 'accel', 'turnRate', 'damage', 'armor'].map(k => `<span>${{ topSpeed: 'SPD', accel: 'ACC', turnRate: 'TRN', damage: 'DMG', armor: 'ARM' }[k]}</span><i><b style="width:${Math.round((v[k] - 0.7) / 0.7 * 100)}%"></b></i>`).join('')}</div></div>`).join('');
-  for (const c of $('vehicles').querySelectorAll('[data-vehicle]')) c.addEventListener('click', () => { ui.vehicle = c.dataset.vehicle; setSetting('vehicle', ui.vehicle); client.setProfile({ vehicle: ui.vehicle, name: $('name').value.trim() }); audio.play('ui'); });
+  for (const c of $('vehicles').querySelectorAll('[data-vehicle]')) c.addEventListener('click', () => { ui.vehicle = c.dataset.vehicle; setSetting('vehicle', ui.vehicle); showCraft(ui.vehicle); client.setProfile({ vehicle: ui.vehicle, name: $('name').value.trim() }); audio.play('ui'); });
   $('players').innerHTML = room.players.map(p => `<div class="prow${p.ready ? ' ready' : ''}${p.connected ? '' : ' off'}"><span>${esc(p.name)}${p.id === room.hostId ? ' <span class="muted">HOST</span>' : ''}${p.id === room.you ? ' <span class="muted">YOU</span>' : ''}</span><span class="muted">${esc(VEHICLES.find(v => v.id === p.profile?.vehicle)?.name || '—')}</span><span class="st">${p.bot ? 'BOT' : p.connected ? (p.ready ? 'READY' : 'waiting') : 'offline'}${isHost && p.id !== room.you ? ` <button class="btn small" data-kick="${p.id}">✕</button>` : ''}</span></div>`).join('');
   for (const b of $('players').querySelectorAll('[data-kick]')) b.addEventListener('click', () => client.kick(+b.dataset.kick));
   ui.ready = !!me?.ready;
@@ -508,6 +524,7 @@ async function reconnect() {
 function enterRace(room) {
   ui.screen = 'race'; ui.results = null; ui.spectateId = -1; ui.lastPhase = -1; ui.lastCount = 99; ui.elapsedAtFinish = null;
   show(null); hud.show(true);
+  preview.release();      // none of the lobby's second context is held through the race
   hud.offerLeave(false);
   input.recentreTilt();   // however the phone is being held on the grid is straight ahead
   // Tilt fails silently in every one of its failure modes, and a player who cannot turn deserves to
@@ -632,6 +649,7 @@ function frame(now) {
       scene.fx?.update(dt);
       bloom.render(scene.three, camera);
     }
+    if (ui.screen === 'lobby') preview.render(dt);
   }
 }
 
@@ -858,4 +876,4 @@ function renderRace(dt) {
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').catch(() => {});
 requestAnimationFrame(frame);
 // expose for tools/racetest.js
-window.__agrav = { client, input, hud, scene: () => scene, ui, settings, renderer, camera, THREE };
+window.__agrav = { client, input, hud, preview, scene: () => scene, ui, settings, renderer, camera, THREE };
