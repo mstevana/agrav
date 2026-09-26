@@ -133,17 +133,21 @@ export function particleField(n, { seed = 1, box = [120, 60, 120], colour = 0xff
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: colour, size, transparent: true, opacity, sizeAttenuation: true, depthWrite: false, ...(map ? { map, blending: THREE.AdditiveBlending } : {}) }));
   pts.frustumCulled = false;
   let t = 0;
+  // Each particle keeps its place in the world, and the box it lives in wraps round the viewer: one
+  // that falls out behind comes back in ahead. The field used to be carried along with the camera
+  // instead, so cinders, rain and dust all rode with the car at whatever speed it went, and the only
+  // motion through them was their own drift. Whatever is passed as the camera is the box's centre,
+  // so a fixed anchor (the reef's bubble columns) keeps a field in one place.
+  const wrap = (v, m) => v - Math.floor(v / m) * m;
   pts.tick = (dt, camera) => {
     t += dt;
+    const c = camera.position, x0 = c.x - box[0] / 2, y0 = fixedY ?? (c.y - box[1] / 2), z0 = c.z - box[2] / 2;
     const a = geo.attributes.position.array;
     for (let i = 0; i < n; i++) {
-      a[i * 3] += drift[0] * dt + Math.sin(t * 0.7 + i) * 0.4 * dt; a[i * 3 + 1] -= fall * dt; a[i * 3 + 2] += drift[2] * dt;
-      if (a[i * 3 + 1] < 0) a[i * 3 + 1] += box[1]; if (a[i * 3 + 1] > box[1]) a[i * 3 + 1] -= box[1];
-      if (a[i * 3] > box[0] / 2) a[i * 3] -= box[0]; if (a[i * 3] < -box[0] / 2) a[i * 3] += box[0];
-      if (a[i * 3 + 2] > box[2] / 2) a[i * 3 + 2] -= box[2]; if (a[i * 3 + 2] < -box[2] / 2) a[i * 3 + 2] += box[2];
+      const x = a[i * 3] + drift[0] * dt + Math.sin(t * 0.7 + i) * 0.4 * dt, y = a[i * 3 + 1] - fall * dt, z = a[i * 3 + 2] + drift[2] * dt;
+      a[i * 3] = x0 + wrap(x - x0, box[0]); a[i * 3 + 1] = y0 + wrap(y - y0, box[1]); a[i * 3 + 2] = z0 + wrap(z - z0, box[2]);
     }
     geo.attributes.position.needsUpdate = true;
-    pts.position.set(camera.position.x, fixedY ?? (camera.position.y - box[1] / 2), camera.position.z);
   };
   return pts;
 }

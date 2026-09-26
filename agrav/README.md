@@ -246,6 +246,11 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   swept rock tube roofs the cutting over. Exempt the tunnel frames from it and the hillside closes
   across the road instead. The material
   blends two sets by slope and samples them triplanar so cliff faces do not smear.
+- **Particles** (`particleField` in `src/render/env/common.js`): cinders, ash, rain, dust, silt and
+  pollen each hold their place in the world, in a box that wraps round the camera -- one that falls
+  out behind comes back in ahead -- so at racing speed you drive through them. They used to be
+  carried along with the camera, riding with the car at any speed; driving a camera through Inferno's
+  cinders at 70 m/s for a second, it now passes 386 of them, where before it passed none.
 - **Displaced geometry** (`src/render/props.js`): rocks, mesas, cliff slabs, sea stacks and
   arches are primitives pushed by 3D noise; towers come tiered, round or stepped with ledges and
   rooftop clutter; tunnels are cross-sections swept along the ribbon and roughened.
