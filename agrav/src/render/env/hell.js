@@ -2,7 +2,7 @@
 // by erupting volcanoes; a lava lake under the causeway and a lava chasm under
 // the jump, both glowing through the melt's crust; meteors streaking down and
 // bursting on the plain; cinders rising, ash falling, mist in the hollows;
-// black pterodactyls wheeling overhead; and a road that reads as cooling lava.
+// pterosaurs wheeling overhead (pterosaur.js); and a road that reads as cooling lava.
 import * as THREE from 'three';
 import { setupSky, placeAlong, instancedVariants, rockTint, merged, placed, particleField, fogCards, billboards, glowPools, swayMaterial } from './common.js';
 import { glowSprite } from '../textures.js';
@@ -13,6 +13,7 @@ import { fbm2, ridged2, smoothstep } from '../../../../shared/gfx/noise.js';
 import { makePlume } from '../exhaust.js';
 import { fireballMaterial, ringMaterial, trailMaterial, trailGeometry } from '../fxshaders.js';
 import { makeRng } from '../../../../shared/sim/rng.js';
+import { pteroFlock } from './pterosaur.js';
 
 const LAVA_LEVEL = 10;
 // world-space landmarks (the track is authored mirrored in x, so plan x = -442 is world +442)
@@ -42,45 +43,6 @@ function terrainFor(ribbon, env) {
 }
 
 export function prewarmHell(ribbon, track) { const env = track.env; terrainFor(ribbon, env); strataSet(env.strata); sandSet(env.sand); cliffSet(0x2a1a16); lavaSet(0x140806, env.lava); lavaSet(0x1a0c08, env.lava, 32); metalPlateSet(0x3a2a26); }
-
-/** black pterodactyls: a fork of common.js's flock with a long beak, a head crest, elbowed wings and a slow flap; each roams its own wandering circle */
-function pteroFlock(n, centre, radius, height, { seed = 1, colour = 0x0a0608, size = 9 } = {}) {
-  const rng = makeRng(seed);
-  const birds = [];
-  for (let i = 0; i < n; i++) birds.push({ a: rng() * 6.28, r: radius * (0.6 + rng() * 0.6), h: height + (rng() - 0.5) * 30, f: rng() * 6.28, s: size * (0.75 + rng() * 0.5), w: 0.07 + rng() * 0.07, dir: rng() < 0.5 ? 1 : -1 });
-  const TRIS = 8;
-  const pos = new Float32Array(n * TRIS * 9);
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colour, side: THREE.DoubleSide }));
-  mesh.frustumCulled = false;
-  let t = 0;
-  const P = (o, k, a, b, c) => { pos[o + k * 9] = a[0]; pos[o + k * 9 + 1] = a[1]; pos[o + k * 9 + 2] = a[2]; pos[o + k * 9 + 3] = b[0]; pos[o + k * 9 + 4] = b[1]; pos[o + k * 9 + 5] = b[2]; pos[o + k * 9 + 6] = c[0]; pos[o + k * 9 + 7] = c[1]; pos[o + k * 9 + 8] = c[2]; };
-  mesh.tick = (dt) => {
-    t += dt;
-    for (let i = 0; i < n; i++) {
-      const b = birds[i], a = b.a + t * b.w * b.dir;
-      const r = b.r + Math.sin(t * 0.13 + b.f) * 40;
-      const cx = centre.x + Math.cos(a) * r, cz = centre.z + Math.sin(a) * r, cy = b.h + Math.sin(t * 0.31 + b.f) * 9;
-      const dx = -Math.sin(a) * b.dir, dz = Math.cos(a) * b.dir;   // heading
-      const wx = dz, wz = -dx;                                       // wing axis
-      const flap = Math.sin(t * 2.2 + b.f) * 0.55, s = b.s;
-      const pt = (fd, fw, fu) => [cx + dx * s * fd + wx * s * fw, cy + s * fu, cz + dz * s * fd + wz * s * fw];
-      const o = i * TRIS * 9;
-      const nose = pt(1.5, 0, 0), tail = pt(-1.3, 0, -0.05), beak = pt(2.7, 0, 0.05), crestA = pt(0.8, 0, 0.1), crestB = pt(0.1, 0, 0.75);
-      P(o, 0, nose, tail, pt(0, 0.25, 0)); P(o, 1, nose, pt(0, -0.25, 0), tail);
-      P(o, 2, beak, pt(1.4, 0.12, 0), pt(1.4, -0.12, 0.02));
-      P(o, 3, crestA, crestB, pt(0.6, 0, 0));
-      for (const sd of [1, -1]) {
-        const elbow = pt(0.3, sd * 1.25, flap * 0.35), tip = pt(-0.5, sd * 2.7, flap * 1.25);
-        P(o, sd > 0 ? 4 : 6, pt(0.4, 0, 0), elbow, pt(-0.9, sd * 0.8, flap * 0.15));
-        P(o, sd > 0 ? 5 : 7, elbow, tip, pt(-0.7, sd * 1.6, flap * 0.6));
-      }
-    }
-    geo.attributes.position.needsUpdate = true;
-  };
-  mesh.tick(0);
-  return mesh;
-}
 
 export function buildHell(scene, ribbon, track) {
   const env = track.env;

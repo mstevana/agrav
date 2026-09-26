@@ -264,7 +264,7 @@ track is chosen (the lobby prewarms it), so the server ships nothing but the rib
   the causeway where it flies over the melt, and none over the chasm, where an eighty-metre column
   would turn the leap into a viaduct; a pool of meteors that streak in from a dome round the
   camera and burst on the plain (never on the road), plus distant streaks; rising cinders, falling
-  ash, red mist; two flocks of black pterodactyls; charred trees that stir in the heat; the road
+  ash, red mist; two flocks of pterosaurs (`src/render/env/pterosaur.js`) -- solid, not the flat cut-outs they were: a lofted body, a skull with a dagger beak and swept crest, trailing legs, and cambered membranes scalloped between an arm bone and one long finger, hinged at shoulder and wrist so the tip lags the stroke; they glide, beat in bursts and bank into their circles, the melt glowing through the thin trailing edges; charred trees that stir in the heat; the road
   material swapped for cooling lava.
 - **Mare Selene** (`src/render/env/moon.js`): a cratered mare (voronoi bowls with raised rims)
   under a sky with the Milky Way, the Earth and a station crossing overhead. The light is the
