@@ -126,9 +126,11 @@ hatch in the craft's accent opens on the spine, a six-barrel gun rises through i
 the shot will actually hit — the same cone test the sim scores with, so it points at nothing when
 the nose is not lined up — spins up, fires from its muzzle, and sinks back when the ammo runs out.
 It is hidden while it is stowed, so a craft that is not shooting costs nothing to draw. A **mine**
-leaves the rack with a flash and a ring opening on the road where it lands, and strobes hard for the
-half second it takes to arm before settling to the slow red pulse of a live one: you drop it behind
-you at two hundred klicks, and the drop itself has to be the feedback. The same sponsors advertise
+leaves the rack with a flash and a ring opening on the road where it lands, and strobes hard for its
+first half second before settling to a slow red pulse: you drop it behind you at two hundred klicks,
+and the drop itself has to be the feedback. It is live from the moment it lands. It used to arm after
+0.6 s, and nose to tail at racing speed the car behind covers forty metres in that time -- the one
+driver a mine is dropped for drove straight over it. Only the dropper is spared, for two seconds. The same sponsors advertise
 along every track: a banner under each light gantry, roadside billboards on posts beyond the
 barriers in the canyon and on the coast, and sponsor spots in rotation on the city's wall screens
 and holo boards.
@@ -221,7 +223,7 @@ or a mine ahead as well as on a missile already locked on.
 | Rockets ×3 | fast and straight; hold fire for the burst |
 | Missile | locks the nearest craft ahead and homes; the target is warned; a shield absorbs it |
 | Minigun | two seconds of hitscan, lag-compensated |
-| Mines ×3 | dropped behind you; arm after half a second; live 30 s |
+| Mines ×3 | dropped behind you; live the moment they land (you are spared for 2 s); last 30 s |
 | Repair | +40 health |
 | Shield | 5 s of invulnerability |
 | Turbo | 3 s at +35 % top speed |

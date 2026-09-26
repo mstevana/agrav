@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { toWorld, frameAt } from '../../../shared/sim/spline.js';
-import { CONTACT } from '../../../shared/agrav/constants.js';
+import { CONTACT, WEAPON } from '../../../shared/agrav/constants.js';
 import { poseObject } from './track.js';
 import { glowSprite } from './textures.js';
 import { shieldMaterial, boltMaterial, trailMaterial, fireballMaterial, ringMaterial, mineMaterial, boltGeometry, trailGeometry } from './fxshaders.js';
@@ -152,13 +152,16 @@ export class Fx {
       if (p.kind === 'mine') {
         m.rotation.y += 0.05;
         m.userData.shell.material.uniforms.armed.value = p.armed ? 1 : 0;
-        // Unarmed used to mean a dim 0.15, which is invisible at racing speed -- and the unarmed
-        // half second is exactly the moment the driver who dropped it is looking. It strobes hard
-        // while it arms instead, then settles to the slow pulse an armed mine has always had.
-        const sp = m.userData.sprite, v = p.armed ? 1.6 : 2.4;
-        sp.material.opacity = p.armed ? 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8)) : Math.abs(Math.sin(this.time * 26));
+        // A mine is live the moment it lands, but the half second after the drop is exactly when the
+        // driver who dropped it is looking, so it strobes hard for that long -- timed by its age, which
+        // the snapshot carries as life left -- then settles to the slow pulse of a live one.
+        const age = WEAPON.mines.life - (p.life ?? WEAPON.mines.life);
+        const dropping = age < 0.6;
+        const sp = m.userData.sprite, v = dropping ? 2.4 : 1.6;
+        sp.material.opacity = dropping ? Math.abs(Math.sin(this.time * 26)) : 0.5 + 0.5 * Math.abs(Math.sin(this.time * 8));
         sp.scale.set(v, v, 1);
-        if (fresh && !p.armed) this.mineDrop(m.position);
+        // the flash and ring are for a mine seen landing, not one that comes into view later on
+        if (fresh && age < 1) this.mineDrop(m.position);
       }
     }
     // A spent rocket is parked, not destroyed: disposing its materials would release their compiled

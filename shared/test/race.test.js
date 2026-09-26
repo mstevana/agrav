@@ -143,17 +143,16 @@ test('zero health eliminates; a dead racer stops and ranks below the living', ()
   const victim = st.racers[1];
   victim.hp = 1;
   victim.v.t = 0;
-  // drop a mine right on the victim from the other racer and wait for it to arm
+  // drop a mine right on the victim from the other racer
   const shooter = st.racers[0];
   shooter.item = 'mines'; shooter.ammo = 1;
   const ev = [];
   shooter.v.s = victim.v.s + WEAPON.mines.dropBehind; shooter.v.t = victim.v.t;
   run(st, 1, (r) => r === shooter ? { bits: IN.THROTTLE | IN.FIRE, steer: 0 } : idle(), ev);
   assert.ok(ev.some(e => e.t === 'fire' && e.item === 'mine'));
-  const mine = st.projectiles.find(p => p.kind === 'mine');
-  assert.ok(mine);
-  // park the victim on the mine until it arms
-  run(st, Math.ceil(WEAPON.mines.arm * TICK_RATE) + 2, (r) => { if (r === victim) { r.v.s = mine.s; r.v.vs = 0; r.v.t = mine.t; } return idle(); }, ev);
+  // it lands on the victim, live at once, and goes off there and then
+  run(st, 2, idle, ev);
+  assert.ok(ev.some(e => e.t === 'boom'), 'the mine went off');
   assert.ok(ev.some(e => e.t === 'dead' && e.id === victim.id), 'victim died: ' + JSON.stringify(ev.filter(e => e.t !== 'bump').slice(-6)));
   assert.equal(victim.dead, true);
   assert.equal(shooter.kills, 1);
@@ -163,6 +162,28 @@ test('zero health eliminates; a dead racer stops and ranks below the living', ()
   assert.equal(res.order[0].id, shooter.id);
   assert.equal(res.order[1].eliminated, true);
   assert.equal(res.order[1].by, shooter.id);
+});
+
+test('a mine dropped in front of a close follower hits it, not the one who dropped it', () => {
+  // Nose to tail at racing speed: the follower reaches the drop point a few hundredths of a second
+  // after it lands, so a mine that only becomes live after a delay is driven straight over.
+  for (const gap of [8, 15, 25]) {
+    const st = race({ track: 'meridian', laps: 3 }, 2);
+    module.start(st, 0);
+    run(st, COUNTDOWN_SEC * TICK_RATE + 90, throttle);   // up to speed down the opening straight
+    const [lead, tail] = st.racers, L = st.ribbon.length;
+    lead.v.t = 0; lead.v.vt = 0; lead.v.yaw = 0;
+    Object.assign(tail.v, { s: (lead.v.s - gap + L) % L, t: 0, vt: 0, yaw: 0, vs: lead.v.vs });
+    for (const r of st.racers) { r.hp = r.maxHp; r.v.shieldT = 0; }
+    lead.item = 'mines'; lead.ammo = 1;
+    const ev = [];
+    run(st, 1, (r) => r === lead ? { bits: IN.THROTTLE | IN.FIRE, steer: 0 } : throttle(), ev);
+    assert.ok(ev.some(e => e.t === 'fire' && e.item === 'mine'), `gap ${gap}: the mine was dropped`);
+    run(st, TICK_RATE, throttle, ev);
+    const hits = ev.filter(e => e.t === 'hit' && e.source === 'mine');
+    assert.ok(hits.some(e => e.id === tail.id), `gap ${gap} m at ${lead.v.vs.toFixed(0)} m/s: the follower drove over it untouched`);
+    assert.ok(!hits.some(e => e.id === lead.id), `gap ${gap}: the dropper was hit by its own mine`);
+  }
 });
 
 test('a shield absorbs a rocket; a missile tracks a racer ahead', () => {

@@ -60,7 +60,10 @@ export const WEAPON = Object.freeze({
   rocket:  { speed: 95, life: 3.0, damage: 16, hitDs: 5, hitDt: 2.8, refire: 0.22 },
   missile: { speed: 55, life: 7.0, damage: 26, hitDs: 5, hitDt: 3.0, turnRate: 2.6, lockRange: 260, lockAngle: 0.45, acquireAhead: true },
   minigun: { burst: 2.0, interval: 0.1, damage: 2.5, range: 150, cone: 0.09, spread: 2.2 },
-  mines:   { life: 30, arm: 0.6, radius: 3.4, damage: 20, ownerImmune: 2.0, dropGap: 0.28, dropBehind: 4 },
+  // Live the moment it lands. It used to arm after 0.6 s, and nose to tail at racing speed the car
+  // behind covers forty metres in that time: the one driver a mine is dropped for drove straight over
+  // it. The dropper is spared by ownerImmune, which is what the arming delay had really been for.
+  mines:   { life: 30, arm: 0, radius: 3.4, damage: 20, ownerImmune: 2.0, dropGap: 0.28, dropBehind: 4 },
   health:  { amount: 40 },
   shield:  { duration: 5.0 },
   speed:   { duration: 3.0, mult: 1.35 }
