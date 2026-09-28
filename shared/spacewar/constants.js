@@ -55,7 +55,7 @@ export const PHASE = Object.freeze({ INTRO: 0, PLAY: 1, OUTRO: 2, OVER: 3 });
 export const DEFAULT_OPTIONS = Object.freeze({
   roundsToWin: 5,
   planet: true,
-  fill: true,              // every empty seat becomes a bot at the start
+  fill: false,             // seats 3 and 4 become bots at the start (seat 2 always does)
   botDifficulty: 'normal',
 });
 

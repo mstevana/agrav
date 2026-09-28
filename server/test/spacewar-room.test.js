@@ -16,9 +16,27 @@ async function hostRoom(L, opts) {
   return { host, room };
 }
 
-test('spacewar: host starts alone, empty seats fill with bots, snapshots and results flow', async () => {
+test('spacewar: a lone pilot gets one bot; seats 3 and 4 stay empty', async () => {
   const L = lobby();
-  const { host, room } = await hostRoom(L, { roundsToWin: 1 });
+  const { host, room } = await hostRoom(L, {});
+  assert.equal(room.fillBots, 2, 'the lobby is told two seats will fly');
+  host.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  const started = await host.waitFor((m) => m.type === MSG.ROOM && m.phase === 'running');
+  assert.equal(started.players.length, 2);
+  assert.deepEqual(started.players.map((p) => p.bot), [false, true]);
+  const r = L.rooms.get(room.code);
+  r._doTick(); r._doTick();
+  await settle();
+  const d = spacewar.decodeSnapshot(host.last(MSG.SNAPSHOT).payload);
+  assert.deepEqual(d.ships.map(Boolean), [true, true, false, false]);
+  L.close();
+});
+
+test('spacewar: with filling on, every seat gets a bot; snapshots and results flow', async () => {
+  const L = lobby();
+  const { host, room } = await hostRoom(L, { roundsToWin: 1, fill: true });
   assert.equal(room.game, 'spacewar');
   assert.equal(room.maxPlayers, 4);
   assert.equal(room.state.seats.length, 4);
@@ -54,7 +72,7 @@ test('spacewar: host starts alone, empty seats fill with bots, snapshots and res
   L.close();
 });
 
-test('spacewar: with filling off, only the seats taken fly', async () => {
+test('spacewar: two pilots with filling off fly alone, with no bots', async () => {
   const L = lobby();
   const { host, room } = await hostRoom(L, { fill: false });
   const guest = new TestClient(L);

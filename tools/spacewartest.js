@@ -1,6 +1,6 @@
 // ============================================================================
 // Browser end-to-end: two headless Chromium clients join one Spacewar room,
-// fill the other seats with bots, and fly a one-round match to the results.
+// turn on filling so bots take seats 3 and 4, and fly a one-round match to the results.
 // Asserts the whole flow — connection, lobby, launch, snapshots flowing,
 // prediction following the server, torpedoes, and the standings.
 //
@@ -52,7 +52,8 @@ try {
   await host.waitForFunction(() => document.querySelectorAll('#slots .who.human').length === 2, null, { timeout: 5000 });
   step('guest joined');
   await host.selectOption('#opt-rounds', '1');
-  await guest.waitForFunction(() => document.getElementById('opt-rounds').value === '1', null, { timeout: 3000 });
+  await host.check('#opt-fill');   // two pilots are enough on their own: have bots take seats 3 and 4
+  await guest.waitForFunction(() => document.getElementById('opt-rounds').value === '1' && document.getElementById('opt-fill').checked, null, { timeout: 3000 });
   await host.click('#ready'); await guest.click('#ready');
   await host.waitForFunction(() => document.querySelectorAll('#slots .who.ready').length === 2, null, { timeout: 3000 });
   await host.click('#start');

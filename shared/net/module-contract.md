@@ -43,7 +43,8 @@ A module may implement these; the server checks for them and games that do not
 want them are unaffected.
 
 ```js
-fillBots(state, opts) -> bool          // true: at the flag, every empty seat becomes a bot
+fillBots(state, opts) -> bool | number // true: at the flag, every empty seat becomes a bot;
+                                       // a number n: bots join only until n seats are taken
 setCareer(state, id, career) -> profile // seat this player from their durable record (server-trusted)
 
 career: {

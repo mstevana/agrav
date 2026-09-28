@@ -199,16 +199,13 @@ test('spacewar: the snapshot carries everything prediction needs', () => {
   assert.ok(Math.hypot(pred.x - auth.x, pred.y - auth.y) < 0.5, 'prediction agrees with the server');
 });
 
-test('spacewar: options are validated, and a lone pilot always gets company', () => {
+test('spacewar: options are validated, and at least two ships always fly', () => {
   assert.deepEqual(validateOpts({ roundsToWin: 99, planet: 0, fill: false, botDifficulty: 'insane' }),
     { roundsToWin: 15, planet: false, fill: false, botDifficulty: 'normal' });
-  assert.deepEqual(validateOpts({}), { roundsToWin: 5, planet: true, fill: true, botDifficulty: 'normal' });
-  const s = sw.createMatch({ fill: false }, 1);
-  sw.addPlayer(s, 0, {}, false);
-  assert.equal(sw.fillBots(s, { fill: false }), true, 'one ship alone gets bots');
-  sw.addPlayer(s, 1, {}, true);
-  assert.equal(sw.fillBots(s, { fill: false }), false, 'two ships fly as they are');
-  assert.equal(sw.fillBots(s, { fill: true }), true);
+  assert.deepEqual(validateOpts({}), { roundsToWin: 5, planet: true, fill: false, botDifficulty: 'normal' });
+  const s = sw.createMatch({}, 1);
+  assert.equal(sw.fillBots(s, { fill: false }), 2, 'at least two ships fly');
+  assert.equal(sw.fillBots(s, { fill: true }), true, 'filling takes every seat');
 });
 
 for (const difficulty of ['easy', 'normal', 'hard']) {

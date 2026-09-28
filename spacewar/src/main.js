@@ -246,7 +246,7 @@ function onRoom(room) {
   if (![...ui.optRounds.options].some((o) => o.value === ui.optRounds.value)) ui.optRounds.add(new Option(ui.optRounds.value));
   ui.optBots.value = opts.botDifficulty || 'normal';
   ui.optPlanet.checked = opts.planet !== false;
-  ui.optFill.checked = opts.fill !== false;
+  ui.optFill.checked = opts.fill === true;
   ui.optPublic.checked = room.public !== false;
   for (const el of ui.hostopts.querySelectorAll('select,input')) el.disabled = !isHost;
   ui.addbot.classList.toggle('hidden', !isHost);
@@ -259,11 +259,11 @@ function onRoom(room) {
 
   const humans = room.players.filter((p) => !p.bot).length;
   const hostName = room.players.find((p) => p.id === room.hostId)?.name || 'the host';
-  const fill = opts.fill !== false;
+  const fill = opts.fill === true;
   const ships = room.players.length;
   if (room.phase === 'running') ui.lobbymsg.textContent = 'Match in progress…';
-  else if (app.solo) ui.lobbymsg.textContent = fill ? 'Every empty seat gets a bot. Press Launch.' : `${ships} ship${ships === 1 ? '' : 's'}. Add bots, or turn on filling — a lone ship always gets company.`;
-  else if (isHost) ui.lobbymsg.textContent = `${humans} pilot${humans === 1 ? '' : 's'} here. ${fill ? 'Empty seats will be filled with bots.' : 'Only the seats taken will fly.'} Launch when everyone is ready.`;
+  else if (app.solo) ui.lobbymsg.textContent = fill ? 'Four ships: you and three bots. Press Launch.' : `${Math.max(2, ships)} ships. Add bots for seats 3 and 4, or press Launch.`;
+  else if (isHost) ui.lobbymsg.textContent = `${humans} pilot${humans === 1 ? '' : 's'} here. ${fill ? 'Every empty seat gets a bot.' : ships < 2 ? 'A bot takes seat 2; seats 3 and 4 stay empty.' : 'Only the seats taken will fly.'} Launch when everyone is ready.`;
   else ui.lobbymsg.textContent = `Ready up. Waiting for ${hostName} to launch.`;
 
   if (room.phase === 'running') { if (!app.playing) startGame(); }
@@ -272,7 +272,8 @@ function onRoom(room) {
 
 function renderSlots(room) {
   const byId = new Map(room.players.map((p) => [p.id, p]));
-  const fill = room.opts?.fill !== false;
+  const fill = room.opts?.fill === true;
+  const taken = room.players.length;
   ui.slots.innerHTML = '';
   SHIPS.forEach((sh, id) => {
     const p = byId.get(id);
@@ -282,7 +283,8 @@ function renderSlots(room) {
     let who, cls;
     if (p && !p.bot) { who = escapeHtml(p.name); cls = 'human' + (p.ready ? ' ready' : ''); }
     else if (p) { who = escapeHtml(p.name); cls = 'bot'; }
-    else { who = fill ? 'empty → bot' : 'empty'; cls = 'empty'; }
+    else if (fill || (id === 1 && taken < 2)) { who = 'empty → bot'; cls = 'empty'; }
+    else { who = id < 2 ? 'empty' : 'empty (optional)'; cls = 'empty'; }
     const kick = (room.hostId === room.you && p && p.id !== room.hostId && room.phase !== 'running')
       ? `<button class="tag" data-kick="${p.id}">${p.bot ? 'remove' : 'kick'}</button>` : '';
     div.innerHTML = `<span class="role">${sh.name}</span><span class="who ${cls}">${who}</span>${kick}`;

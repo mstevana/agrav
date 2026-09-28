@@ -193,3 +193,20 @@ test('platform: the version bump is visible, and the hot path is still binary', 
   assert.equal(err.code, 'version', 'a client built against the previous protocol is told plainly');
   L.close();
 });
+
+test('platform: a game can ask for a number of seats, and only that many are filled', async () => {
+  registerGame('seattest', { ...careerGame, id: 'seattest', career: undefined, setCareer: undefined, fillBots() { return 3; } });
+  const L = new Lobby({ manualTick: true, store: new MemoryStore() });
+  const host = new TestClient(L);
+  await host.hello('Ann');
+  host.send(MSG.CREATE_ROOM, { game: 'seattest', opts: {}, public: true });
+  const room = await host.waitFor(m => m.type === MSG.ROOM);
+  assert.equal(room.fillBots, 3, 'the lobby is told how many seats a fill takes');
+  host.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  const started = await host.waitFor(m => m.type === MSG.ROOM && m.phase === 'running');
+  assert.equal(started.players.length, 3);
+  assert.equal(started.players.filter(p => p.bot).length, 2);
+  L.close();
+});

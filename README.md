@@ -100,7 +100,8 @@ for free.
 Two more things a game can ask for, and neither costs the others anything:
 
 - **`fillBots`** — at the flag, every seat nobody took becomes an ordinary room player
-  driven by the game's own bot, so one person can start a full grid.
+  driven by the game's own bot, so one person can start a full grid. A game can instead ask
+  for a number of seats (Spacewar asks for two), and bots join only until that many are taken.
 - **`career`** — a JSON record the server keeps per player in `server/store.js`, addressed
   by a long-lived key the client makes once and presents on `HELLO`. Every rule about it is
   one of the game module's own pure functions; the server only moves records between the

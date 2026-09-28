@@ -100,12 +100,15 @@ export class Room {
 
   /**
    * A game that wants a full grid says so, and every seat nobody took becomes a
-   * bot at the moment the host starts. They are ordinary room players from then
-   * on: visible, kickable and named in the results.
+   * bot at the moment the host starts. A game may instead name how many seats it
+   * wants flying, and only that many are filled. They are ordinary room players
+   * from then on: visible, kickable and named in the results.
    */
   _fillBots() {
-    if (!this.game.fillBots?.(this.state, this.opts)) return;
-    while (this._addBot());
+    const want = this.game.fillBots?.(this.state, this.opts);
+    if (!want) return;
+    const seats = typeof want === 'number' ? want : Infinity;
+    while (this.players.size < seats && this._addBot());
   }
 
   /**
@@ -484,7 +487,7 @@ export class Room {
       code: this.code, game: this.game.id, phase: this.phase, hostId: this.hostId, you: forId,
       opts: this.opts, public: this.isPublic, tick: this.tick, tickRate: this.game.tickRate,
       snapshotRate: this.game.snapshotRate, seed: this.seed,
-      fillBots: !!this.game.fillBots?.(this.state, this.opts),
+      fillBots: fillSeats(this.game.fillBots?.(this.state, this.opts)),
       maxPlayers: this.game.maxPlayers,
       players: [...this.players.values()].map(p => ({
         id: p.id, name: p.name, bot: p.bot, ready: p.ready, connected: !!(p.session || p.bot), profile: p.profile
@@ -520,3 +523,6 @@ export class Room {
     this.players.clear();
   }
 }
+
+/** what the lobby is told a fill will do: true (every seat), a seat count, or false */
+function fillSeats(want) { return typeof want === 'number' ? want : !!want; }

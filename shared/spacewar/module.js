@@ -32,6 +32,7 @@ export function validateOpts(opts = {}) {
   };
 }
 
+const MIN_SHIPS = 2;
 const inSeat = (id) => Number.isInteger(id) && id >= 0 && id < MAX_SHIPS;
 
 const module = {
@@ -68,8 +69,8 @@ const module = {
   },
   setProfile(state, id) { return inSeat(id) ? { ship: SHIPS[id].name, color: SHIPS[id].color } : undefined; },
 
-  /** a lone pilot always gets company: a one-ship round is over before it starts */
-  fillBots(state, opts) { return !!opts?.fill || shipsIn(state).length < 2; },
+  /** at least two ships always fly: a lone pilot gets one bot; seats 3 and 4 are filled only on request */
+  fillBots(state, opts) { return opts?.fill ? true : MIN_SHIPS; },
 
   publicState(state) {
     return {
