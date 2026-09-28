@@ -34,13 +34,21 @@ test('spacewar: a lone pilot gets one bot; seats 3 and 4 stay empty', async () =
   L.close();
 });
 
-test('spacewar: with filling on, every seat gets a bot; snapshots and results flow', async () => {
+test('spacewar: the host puts bots in chosen seats, takes one out, and the match flows', async () => {
   const L = lobby();
-  const { host, room } = await hostRoom(L, { roundsToWin: 1, fill: true });
+  const { host, room } = await hostRoom(L, { roundsToWin: 1 });
   assert.equal(room.game, 'spacewar');
   assert.equal(room.maxPlayers, 4);
   assert.equal(room.state.seats.length, 4);
-  assert.equal(room.fillBots, true);
+  for (const id of [3, 1, 2]) host.send(MSG.ADD_BOT, { id });
+  await settle();
+  assert.deepEqual(host.last(MSG.ROOM).players.map((p) => p.id).sort(), [0, 1, 2, 3], 'each bot went where it was put');
+  host.send(MSG.ADD_BOT, { id: 2 });
+  assert.equal((await host.next(MSG.ERROR)).message, 'that seat is taken');
+  host.send(MSG.KICK, { id: 2 });
+  host.send(MSG.ADD_BOT, { id: 2 });
+  await settle();
+  assert.equal(host.last(MSG.ROOM).players.length, 4, 'a seat emptied can be filled again');
 
   host.send(MSG.READY, { ready: true });
   await settle();
@@ -72,9 +80,9 @@ test('spacewar: with filling on, every seat gets a bot; snapshots and results fl
   L.close();
 });
 
-test('spacewar: two pilots with filling off fly alone, with no bots', async () => {
+test('spacewar: two pilots fly alone, with no bots added', async () => {
   const L = lobby();
-  const { host, room } = await hostRoom(L, { fill: false });
+  const { host, room } = await hostRoom(L, {});
   const guest = new TestClient(L);
   await guest.hello('Bob');
   guest.send(MSG.JOIN_ROOM, { code: room.code });
@@ -95,7 +103,7 @@ test('spacewar: two pilots with filling off fly alone, with no bots', async () =
 
 test('spacewar: a pilot who drops mid-match is flown by a bot', async () => {
   const L = lobby();
-  const { host, room } = await hostRoom(L, { fill: false });
+  const { host, room } = await hostRoom(L, {});
   const guest = new TestClient(L);
   await guest.hello('Bob');
   guest.send(MSG.JOIN_ROOM, { code: room.code });

@@ -1,6 +1,6 @@
 // ============================================================================
 // Browser end-to-end: two headless Chromium clients join one Spacewar room,
-// turn on filling so bots take seats 3 and 4, and fly a one-round match to the results.
+// click bots into seats 3 and 4, and fly a one-round match to the results.
 // Asserts the whole flow — connection, lobby, launch, snapshots flowing,
 // prediction following the server, torpedoes, and the standings.
 //
@@ -52,10 +52,17 @@ try {
   await host.waitForFunction(() => document.querySelectorAll('#slots .who.human').length === 2, null, { timeout: 5000 });
   step('guest joined');
   await host.selectOption('#opt-rounds', '1');
-  await host.check('#opt-fill');   // two pilots are enough on their own: have bots take seats 3 and 4
-  await guest.waitForFunction(() => document.getElementById('opt-rounds').value === '1' && document.getElementById('opt-fill').checked, null, { timeout: 3000 });
-  await host.click('#ready'); await guest.click('#ready');
-  await host.waitForFunction(() => document.querySelectorAll('#slots .who.ready').length === 2, null, { timeout: 3000 });
+  await guest.waitForFunction(() => document.getElementById('opt-rounds').value === '1', null, { timeout: 3000 });
+  // the host clicks the two empty seats to put bots in them
+  await host.click('#slots .slot.open >> nth=0');
+  await host.waitForFunction(() => document.querySelectorAll('#slots .who.bot').length === 1, null, { timeout: 3000 });
+  await host.click('#slots .slot.open >> nth=0');
+  await host.waitForFunction(() => document.querySelectorAll('#slots .who.bot').length === 2, null, { timeout: 3000 });
+  step('host clicked bots into seats 3 and 4');
+  if (!(await host.isDisabled('#start'))) fail('Launch is enabled while the guest is not ready');
+  await guest.click('#ready');
+  await host.waitForFunction(() => !document.getElementById('start').disabled, null, { timeout: 3000 });
+  step('Launch enabled once the guest is ready; the host never pressed Ready');
   await host.click('#start');
   await host.waitForFunction(() => window.__spacewar.app.playing, null, { timeout: 5000 });
   await guest.waitForFunction(() => window.__spacewar.app.playing, null, { timeout: 5000 });

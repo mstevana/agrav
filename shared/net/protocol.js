@@ -28,7 +28,7 @@ export const MSG = Object.freeze({
   SET_OPTS: 10,    // c->s (host) {opts}
   START: 11,       // c->s (host) {}
   CHAT: 12,        // both {text} / {from, text}
-  ADD_BOT: 13,     // c->s (host) {}
+  ADD_BOT: 13,     // c->s (host) {id?}   the seat to fill; the first free one when omitted
   KICK: 14,        // c->s (host) {id}
   EVENTS: 15,      // s->c {tick, events:[...]}   game events, reliable
   RESULTS: 16,     // s->c {results}

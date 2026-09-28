@@ -17,8 +17,8 @@ const ui = {
   menu: $('menu'), lobby: $('lobby'), over: $('over'), status: $('status'), banner: $('banner'),
   name: $('name'), code: $('code'), rooms: $('rooms'), slots: $('slots'), roomtitle: $('roomtitle'), shareline: $('shareline'),
   sharelink: $('sharelink'), hostopts: $('hostopts'), lobbymsg: $('lobbymsg'),
-  ready: $('ready'), addbot: $('addbot'), start: $('start'),
-  optRounds: $('opt-rounds'), optBots: $('opt-bots'), optPlanet: $('opt-planet'), optFill: $('opt-fill'), optPublic: $('opt-public'),
+  ready: $('ready'), start: $('start'),
+  optRounds: $('opt-rounds'), optBots: $('opt-bots'), optPlanet: $('opt-planet'), optPublic: $('opt-public'),
   overtitle: $('overtitle'), standings: $('standings'),
   solo: $('solo'), online: $('online'), offlinenote: $('offlinenote'), mute: $('mute'), quit: $('quit'),
 };
@@ -154,6 +154,7 @@ async function playSolo() {
     if (net.connected) net.close();
     const host = await openSoloHost();
     app.solo = true;
+    app.seedBot = true;
     await net.connectLocal(host.channel, ui.name.value.trim() || 'Pilot');
     connectedName = null;
     setStatus('solo');
@@ -197,14 +198,13 @@ function readOpts() {
     roundsToWin: Number(ui.optRounds.value),
     botDifficulty: ui.optBots.value,
     planet: ui.optPlanet.checked,
-    fill: ui.optFill.checked,
   };
 }
 
 // ---------------- lobby ----------------
 ui.ready.onclick = () => { app.imReady = !app.imReady; net.setReady(app.imReady); };
-ui.addbot.onclick = () => net.addBot();
-ui.start.onclick = () => net.start();
+// the host launching is the host being ready: nobody waits on a Ready press from them
+ui.start.onclick = () => { net.setReady(true); net.start(); };
 function leave() {
   net.leaveRoom();
   app.room = null;
@@ -224,7 +224,7 @@ ui.quit.onclick = () => {
   setTimeout(() => { if (performance.now() >= quitArmed) { ui.quit.classList.remove('armed'); ui.quit.textContent = '✕'; } }, 3100);
 };
 $('rematch').onclick = () => show(net.room ? 'lobby' : 'menu');
-for (const el of [ui.optRounds, ui.optBots, ui.optPlanet, ui.optFill]) el.onchange = () => net.setOpts(readOpts());
+for (const el of [ui.optRounds, ui.optBots, ui.optPlanet]) el.onchange = () => net.setOpts(readOpts());
 ui.optPublic.onchange = () => net.setOpts({}, ui.optPublic.checked);
 
 function onRoom(room) {
@@ -240,57 +240,65 @@ function onRoom(room) {
   ui.roomtitle.textContent = app.solo ? 'Solo match' : `Room ${room.code}`;
   ui.shareline.classList.toggle('hidden', app.solo);
   if (!app.solo) ui.sharelink.href = `${location.origin}${location.pathname}?room=${room.code}`;
-  if (app.solo && room.phase !== 'running' && me && !me.ready) { app.imReady = true; net.setReady(true); }
+  // a solo room opens with one bot already in seat 2, so Launch works straight away
+  if (app.solo && app.seedBot && room.phase === 'lobby') { app.seedBot = false; if (room.players.length < 2) net.addBot(1); }
   const opts = room.opts || {};
   ui.optRounds.value = String(opts.roundsToWin ?? 5);
   if (![...ui.optRounds.options].some((o) => o.value === ui.optRounds.value)) ui.optRounds.add(new Option(ui.optRounds.value));
   ui.optBots.value = opts.botDifficulty || 'normal';
   ui.optPlanet.checked = opts.planet !== false;
-  ui.optFill.checked = opts.fill === true;
   ui.optPublic.checked = room.public !== false;
   for (const el of ui.hostopts.querySelectorAll('select,input')) el.disabled = !isHost;
-  ui.addbot.classList.toggle('hidden', !isHost);
   ui.start.classList.toggle('hidden', !isHost);
   ui.ready.textContent = app.imReady ? 'Not ready' : 'Ready';
-  ui.ready.classList.toggle('hidden', app.solo);
+  ui.ready.classList.toggle('hidden', isHost);
   ui.optPublic.parentElement.classList.toggle('hidden', app.solo);
 
   renderSlots(room);
 
-  const humans = room.players.filter((p) => !p.bot).length;
   const hostName = room.players.find((p) => p.id === room.hostId)?.name || 'the host';
-  const fill = opts.fill === true;
   const ships = room.players.length;
+  const waiting = room.players.filter((p) => !p.bot && p.id !== room.hostId && !p.ready).map((p) => p.name);
+  ui.start.disabled = ships < 2 || waiting.length > 0;
   if (room.phase === 'running') ui.lobbymsg.textContent = 'Match in progress…';
-  else if (app.solo) ui.lobbymsg.textContent = fill ? 'Four ships: you and three bots. Press Launch.' : `${Math.max(2, ships)} ships. Add bots for seats 3 and 4, or press Launch.`;
-  else if (isHost) ui.lobbymsg.textContent = `${humans} pilot${humans === 1 ? '' : 's'} here. ${fill ? 'Every empty seat gets a bot.' : ships < 2 ? 'A bot takes seat 2; seats 3 and 4 stay empty.' : 'Only the seats taken will fly.'} Launch when everyone is ready.`;
-  else ui.lobbymsg.textContent = `Ready up. Waiting for ${hostName} to launch.`;
+  else if (isHost && ships < 2) ui.lobbymsg.textContent = 'Click an empty seat to add a bot. At least two ships are needed to launch.';
+  else if (isHost && waiting.length) ui.lobbymsg.textContent = `Waiting for ${waiting.join(', ')} to get ready.`;
+  else if (isHost) ui.lobbymsg.textContent = `${ships} ships. Click a seat to add or remove a bot, then Launch.`;
+  else ui.lobbymsg.textContent = app.imReady ? `Waiting for ${hostName} to launch.` : `Press Ready, then ${hostName} can launch.`;
 
   if (room.phase === 'running') { if (!app.playing) startGame(); }
   else if (!app.playing && app.screen !== 'over') show('lobby');
 }
 
+/**
+ * Four seats. The host clicks an empty seat to put a bot in it and clicks a bot to take it
+ * out again; a human's seat shows who is in it (the host may kick them).
+ */
 function renderSlots(room) {
   const byId = new Map(room.players.map((p) => [p.id, p]));
-  const fill = room.opts?.fill === true;
-  const taken = room.players.length;
+  const isHost = room.hostId === room.you;
+  const editable = isHost && room.phase !== 'running';
   ui.slots.innerHTML = '';
   SHIPS.forEach((sh, id) => {
     const p = byId.get(id);
-    const div = document.createElement('div');
-    div.className = `slot${id === room.you ? ' me' : ''}`;
-    div.style.setProperty('--c', sh.color);
-    let who, cls;
-    if (p && !p.bot) { who = escapeHtml(p.name); cls = 'human' + (p.ready ? ' ready' : ''); }
-    else if (p) { who = escapeHtml(p.name); cls = 'bot'; }
-    else if (fill || (id === 1 && taken < 2)) { who = 'empty → bot'; cls = 'empty'; }
-    else { who = id < 2 ? 'empty' : 'empty (optional)'; cls = 'empty'; }
-    const kick = (room.hostId === room.you && p && p.id !== room.hostId && room.phase !== 'running')
-      ? `<button class="tag" data-kick="${p.id}">${p.bot ? 'remove' : 'kick'}</button>` : '';
-    div.innerHTML = `<span class="role">${sh.name}</span><span class="who ${cls}">${who}</span>${kick}`;
-    ui.slots.appendChild(div);
+    const human = p && !p.bot;
+    const el = document.createElement(editable && !human ? 'button' : 'div');
+    el.className = `slot${id === room.you ? ' me' : ''}${editable && !human ? ' toggle' : ''}${p ? '' : ' open'}`;
+    el.style.setProperty('--c', sh.color);
+    let who, cls, hint = '';
+    if (human) { who = escapeHtml(p.name) + (p.id === room.hostId ? ' <span class="host">host</span>' : ''); cls = 'human' + (p.ready || p.id === room.hostId ? ' ready' : ''); }
+    else if (p) { who = 'Bot'; cls = 'bot'; hint = editable ? 'click to remove' : ''; }
+    else { who = 'Empty'; cls = 'empty'; hint = editable ? 'click to add a bot' : ''; }
+    const kick = editable && human && p.id !== room.hostId ? `<span class="tag" role="button" tabindex="0" data-kick="${p.id}">kick</span>` : '';
+    el.innerHTML = `<span class="role">${sh.name}</span><span class="who ${cls}">${who}</span>${hint ? `<span class="hint">${hint}</span>` : ''}${kick}`;
+    if (editable && !human) {
+      el.type = 'button';
+      el.setAttribute('aria-label', p ? `Remove the bot from ${sh.name}` : `Add a bot as ${sh.name}`);
+      el.onclick = () => (p ? net.kick(id) : net.addBot(id));
+    }
+    ui.slots.appendChild(el);
   });
-  for (const btn of ui.slots.querySelectorAll('[data-kick]')) btn.onclick = () => net.kick(Number(btn.dataset.kick));
+  for (const k of ui.slots.querySelectorAll('[data-kick]')) k.onclick = () => net.kick(Number(k.dataset.kick));
 }
 
 // ---------------- match ----------------

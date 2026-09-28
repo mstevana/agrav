@@ -200,12 +200,11 @@ test('spacewar: the snapshot carries everything prediction needs', () => {
 });
 
 test('spacewar: options are validated, and at least two ships always fly', () => {
-  assert.deepEqual(validateOpts({ roundsToWin: 99, planet: 0, fill: false, botDifficulty: 'insane' }),
-    { roundsToWin: 15, planet: false, fill: false, botDifficulty: 'normal' });
-  assert.deepEqual(validateOpts({}), { roundsToWin: 5, planet: true, fill: false, botDifficulty: 'normal' });
+  assert.deepEqual(validateOpts({ roundsToWin: 99, planet: 0, botDifficulty: 'insane' }),
+    { roundsToWin: 15, planet: false, botDifficulty: 'normal' });
+  assert.deepEqual(validateOpts({}), { roundsToWin: 5, planet: true, botDifficulty: 'normal' });
   const s = sw.createMatch({}, 1);
-  assert.equal(sw.fillBots(s, { fill: false }), 2, 'at least two ships fly');
-  assert.equal(sw.fillBots(s, { fill: true }), true, 'filling takes every seat');
+  assert.equal(sw.fillBots(s, {}), 2, 'at least two ships fly, whatever the lobby sends');
 });
 
 for (const difficulty of ['easy', 'normal', 'hard']) {

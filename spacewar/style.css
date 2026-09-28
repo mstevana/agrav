@@ -151,3 +151,17 @@ kbd {
   #rooms { max-height: 80px; }
 }
 #quit.armed { width: auto; padding: 0 14px; border-radius: 19px; font-size: 13px; background: rgba(255,79,163,0.35); border-color: #ff4fa3; }
+
+/* seats the host can toggle between empty and bot */
+.slot { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: default; }
+button.slot { font-weight: inherit; letter-spacing: normal; }
+.slot.toggle { cursor: pointer; }
+.slot.toggle:hover { background: rgba(255,255,255,0.08); border-color: var(--c); }
+.slot.toggle:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.slot.open { border-style: dashed; }
+.slot .hint { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.slot .host { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-left: 4px; }
+.slot .tag { cursor: pointer; border: 1px solid var(--line); background: rgba(255,255,255,0.06); }
+#start:disabled { box-shadow: none; filter: grayscale(0.7); }
+
+.sub a { color: var(--accent); }

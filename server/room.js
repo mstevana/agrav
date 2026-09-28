@@ -79,16 +79,20 @@ export class Room {
     };
   }
 
-  addBot(session) {
+  /** @param {number} [seat] the seat to put it in; the first free one when omitted */
+  addBot(session, seat) {
     if (!this._isHost(session)) return session.error('host', 'host only');
     if (this.phase === 'running') return;
-    if (!this._addBot()) return session.error('full', 'room is full');
+    this._leaveResults();
+    if (!this._addBot(seat)) return session.error('full', seat === undefined ? 'room is full' : 'that seat is taken');
     this.broadcastRoomState();
   }
 
-  /** seat one bot; returns false when the room is full */
-  _addBot() {
-    const id = this._freeId();
+  /** seat one bot, in `seat` if given; returns false when the room (or that seat) is full */
+  _addBot(seat) {
+    let id;
+    if (seat === undefined || seat === null) id = this._freeId();
+    else id = Number.isInteger(seat) && seat >= 0 && seat < this.game.maxPlayers && !this.players.has(seat) ? seat : -1;
     if (id < 0) return false;
     const p = this._newPlayer(id, `BOT ${id + 1}`, true);
     this.players.set(id, p);

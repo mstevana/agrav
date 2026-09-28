@@ -117,7 +117,7 @@ export class Client {
   setReady(ready) { this._send(MSG.READY, { ready }); }
   setOpts(opts, isPublic) { this._send(MSG.SET_OPTS, { opts, public: isPublic }); }
   start() { this._send(MSG.START, {}); }
-  addBot() { this._send(MSG.ADD_BOT, {}); }
+  addBot(id) { this._send(MSG.ADD_BOT, id === undefined ? {} : { id }); }
   kick(id) { this._send(MSG.KICK, { id }); }
 
   // -------------------------------------------------------------- messages --

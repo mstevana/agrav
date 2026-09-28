@@ -27,7 +27,6 @@ export function validateOpts(opts = {}) {
   return {
     roundsToWin: rounds,
     planet: opts.planet === undefined ? DEFAULT_OPTIONS.planet : !!opts.planet,
-    fill: opts.fill === undefined ? DEFAULT_OPTIONS.fill : !!opts.fill,
     botDifficulty: DIFFICULTIES[opts.botDifficulty] ? opts.botDifficulty : DEFAULT_OPTIONS.botDifficulty,
   };
 }
@@ -69,8 +68,8 @@ const module = {
   },
   setProfile(state, id) { return inSeat(id) ? { ship: SHIPS[id].name, color: SHIPS[id].color } : undefined; },
 
-  /** at least two ships always fly: a lone pilot gets one bot; seats 3 and 4 are filled only on request */
-  fillBots(state, opts) { return opts?.fill ? true : MIN_SHIPS; },
+  /** at least two ships fly. The lobby won't launch with fewer; this covers a client that tries anyway */
+  fillBots() { return MIN_SHIPS; },
 
   publicState(state) {
     return {
