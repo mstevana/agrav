@@ -119,3 +119,37 @@ test('spacewar: a pilot who drops mid-match is flown by a bot', async () => {
   assert.equal(r.state.control[0], 'human');
   L.close();
 });
+
+test('spacewar: a pilot picks their seat; the host moves with the host role', async () => {
+  const L = lobby();
+  const { host, room } = await hostRoom(L, {});
+  const guest = new TestClient(L);
+  await guest.hello('Bob');
+  guest.send(MSG.JOIN_ROOM, { code: room.code });
+  await guest.waitFor((m) => m.type === MSG.ROOM);
+  guest.send(MSG.SEAT, { id: 3 });
+  await settle();
+  let r = host.last(MSG.ROOM);
+  assert.deepEqual(r.players.map((p) => [p.name, p.id]).sort(), [['Ann', 0], ['Bob', 3]]);
+  assert.equal(guest.last(MSG.ROOM).you, 3, 'the guest is told its new seat');
+  host.send(MSG.SEAT, { id: 3 });
+  assert.equal((await host.next(MSG.ERROR)).message, 'that seat is taken');
+  host.send(MSG.SEAT, { id: 2 });
+  await settle();
+  r = host.last(MSG.ROOM);
+  assert.equal(r.you, 2);
+  assert.equal(r.hostId, 2, 'the host role follows the host');
+  // the moved pilots fly the ships of their new seats
+  guest.send(MSG.READY, { ready: true });
+  host.send(MSG.READY, { ready: true });
+  await settle();
+  host.send(MSG.START, {});
+  await host.waitFor((m) => m.type === MSG.ROOM && m.phase === 'running');
+  const live = L.rooms.get(room.code);
+  live._doTick(); live._doTick();
+  await settle();
+  const d = spacewar.decodeSnapshot(guest.last(MSG.SNAPSHOT).payload);
+  assert.deepEqual(d.ships.map(Boolean), [false, false, true, true]);
+  assert.deepEqual([live.state.control[2], live.state.control[3]], ['human', 'human']);
+  L.close();
+});

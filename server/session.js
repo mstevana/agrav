@@ -78,6 +78,7 @@ export class Session {
       case MSG.LOADED: return this.room?.loaded(this);
       case MSG.ADD_BOT: return this.room?.addBot(this, m.id);
       case MSG.KICK: return this.room?.kick(this, m.id | 0);
+      case MSG.SEAT: return this.room?.takeSeat(this, m.id);
       case MSG.CHAT: return this.room?.chat(this, String(m.text || '').slice(0, 200));
       case MSG.CAREER_ACTION: return this.onCareerAction(m);
       default: return this.error('type', `unknown control message ${type}`);

@@ -36,6 +36,7 @@ export const MSG = Object.freeze({
   LOADED: 18,      // c->s {}   the client has built the race scene; the grid holds until everyone has (or a timeout)
   CAREER: 19,      // s->c {game, career} | {game, error}   the caller's persistent record for a game
   CAREER_ACTION: 20, // c->s {game, action, ...}            read it ('get') or spend in the shop
+  SEAT: 21,        // c->s {id}   move to that empty seat (lobby only)
   // hot path (binary). Control types stay below HOT so a new control message
   // never has to renumber the binary ones.
   PING: 32,        // c->s  u32 clientTimeMs

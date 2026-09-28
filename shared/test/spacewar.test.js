@@ -16,8 +16,24 @@ function match(n = 2, opts = {}) {
   assert.equal(s.phase, 'play');
   return s;
 }
+const shipsOf = (s) => s.ships.filter(Boolean);
 /** park ship `id` somewhere, still */
 function park(s, id, x, y, a = 0) { Object.assign(s.ships[id], { x, y, a, vx: 0, vy: 0 }); }
+
+test('spacewar: with no planet, ships start at rest facing random ways; with one, in orbit', () => {
+  const headings = new Set();
+  for (let seed = 1; seed <= 6; seed++) {
+    const s = createState({ planet: false }, seed);
+    for (let id = 0; id < 2; id++) s.ships[id] = createShip(id);
+    startRound(s);
+    for (const sh of shipsOf(s)) { assert.equal(sh.vx, 0); assert.equal(sh.vy, 0); headings.add(sh.a.toFixed(3)); }
+  }
+  assert.ok(headings.size >= 10, `headings vary (${headings.size} distinct of 12)`);
+  const o = createState({ planet: true }, 1);
+  o.ships[0] = createShip(0);
+  startRound(o);
+  assert.ok(Math.hypot(o.ships[0].vx, o.ships[0].vy) > 50, 'orbiting');
+});
 
 test('spacewar: a ship leaving one edge comes back in at the opposite one', () => {
   const ship = { ...createShip(0), alive: true, x: FIELD_W - 2, y: 2, vx: 300, vy: -300 };

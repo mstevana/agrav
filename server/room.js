@@ -170,6 +170,31 @@ export class Room {
     }
   }
 
+  /**
+   * Move to another empty seat before the match starts. A seat is the player's id, so the
+   * record is re-keyed, the session re-attached, and the game told the old seat is free and
+   * the new one taken.
+   */
+  takeSeat(session, seat) {
+    const p = this.players.get(session.playerId);
+    if (!p || this.phase === 'running') return;
+    if (seat === p.id) return;
+    if (!Number.isInteger(seat) || seat < 0 || seat >= this.game.maxPlayers || this.players.has(seat)) {
+      return session.error('seat', 'that seat is taken');
+    }
+    this._leaveResults();
+    const wasHost = this.hostId === p.id;
+    this.players.delete(p.id);
+    this.game.removePlayer(this.state, p.id);
+    p.id = seat;
+    this.players.set(seat, p);
+    if (wasHost) this.hostId = seat;
+    this.lobby.attach(session, this, seat);
+    p.profile = this.game.addPlayer(this.state, seat, p.profile, false) || p.profile;
+    if (p.career) p.profile = this.game.setCareer?.(this.state, seat, p.career) || p.profile;
+    this.broadcastRoomState();
+  }
+
   kick(session, id) {
     if (!this._isHost(session)) return session.error('host', 'host only');
     const p = this.players.get(id);

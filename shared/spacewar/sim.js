@@ -151,7 +151,7 @@ export function startRound(state) {
       s.a = Math.atan2(s.vy, s.vx);
     } else {
       s.vx = 0; s.vy = 0;
-      s.a = wrapAngle(th + Math.PI);  // facing the middle
+      s.a = wrapAngle(rand(state) * 2 * Math.PI);  // nothing to orbit: each ship starts facing a random way
     }
     s.alive = true; s.thrust = false;
     s.fuel = FUEL_MAX; s.torps = TORPS_MAX; s.cool = 0;

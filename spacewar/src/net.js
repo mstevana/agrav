@@ -119,6 +119,7 @@ export class Client {
   start() { this._send(MSG.START, {}); }
   addBot(id) { this._send(MSG.ADD_BOT, id === undefined ? {} : { id }); }
   kick(id) { this._send(MSG.KICK, { id }); }
+  takeSeat(id) { this._send(MSG.SEAT, { id }); }
 
   // -------------------------------------------------------------- messages --
 

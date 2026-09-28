@@ -20,8 +20,10 @@ The host picks the options and launches:
 - **Bots**: easy, normal or hard.
 - **Planet & gravity**: a planet at the centre whose pull falls off with the square of the
   distance. Touching it is fatal. Torpedoes ignore its gravity and fly straight, but the
-  planet swallows any that hit it. With it on, ships start each round in orbit.
-The host clicks an empty seat to put a bot in it, and clicks a bot to remove it. **Launch**
+  planet swallows any that hit it. With it on, ships start each round in orbit; with it off, they start at rest,
+  each facing a random direction.
+Each seat is one hull. Any player clicks an empty seat to fly that ship. The host adds a bot
+to an empty seat with its **+ Bot** button, and clicks a bot to remove it. **Launch**
 stays disabled until at least two ships are seated and every other pilot has pressed Ready.
 A solo match opens with a bot already in seat 2.
 

@@ -53,12 +53,15 @@ try {
   step('guest joined');
   await host.selectOption('#opt-rounds', '1');
   await guest.waitForFunction(() => document.getElementById('opt-rounds').value === '1', null, { timeout: 3000 });
-  // the host clicks the two empty seats to put bots in them
-  await host.click('#slots .slot.open >> nth=0');
+  // the guest moves to the Manta, then the host puts bots in the two seats left
+  await guest.click('#slots .slot.open >> nth=-1');
+  await host.waitForFunction(() => window.__spacewar.net.room?.players.some((p) => p.id === 3 && !p.bot), null, { timeout: 3000 });
+  step('guest picked the Manta');
+  await host.click('#slots [data-bot] >> nth=0');
   await host.waitForFunction(() => document.querySelectorAll('#slots .who.bot').length === 1, null, { timeout: 3000 });
-  await host.click('#slots .slot.open >> nth=0');
+  await host.click('#slots [data-bot] >> nth=0');
   await host.waitForFunction(() => document.querySelectorAll('#slots .who.bot').length === 2, null, { timeout: 3000 });
-  step('host clicked bots into seats 3 and 4');
+  step('host added bots to the Wedge and the Hornet');
   if (!(await host.isDisabled('#start'))) fail('Launch is enabled while the guest is not ready');
   await guest.click('#ready');
   await host.waitForFunction(() => !document.getElementById('start').disabled, null, { timeout: 3000 });
@@ -75,15 +78,15 @@ try {
   if (SHOTS) await host.screenshot({ path: `${SHOTS}/e2e-host.png` });
 
   // the guest turns, burns and fires; its own ship must move under prediction at once
-  const before = (await view(guest)).ships[1];
+  const before = (await view(guest)).ships[3];
   await guest.keyboard.down('ArrowUp'); await guest.keyboard.down('Space'); await guest.keyboard.down('ArrowRight');
   await guest.waitForTimeout(700);
   const after = await view(guest);
   await guest.keyboard.up('ArrowUp'); await guest.keyboard.up('ArrowRight');
-  if (after.ships[1].alive && Math.hypot(after.ships[1].x - before.x, after.ships[1].y - before.y) < 5) fail('guest ship did not move');
+  if (after.ships[3].alive && Math.hypot(after.ships[3].x - before.x, after.ships[3].y - before.y) < 5) fail('guest ship did not move');
   step('guest ship flies');
   // and the host sees the guest's torpedoes, drawn from snapshots
-  await host.waitForFunction(() => window.__spacewar.net.latest?.torps.some((t) => t.owner === 1) || !window.__spacewar.net.latest?.ships[1]?.alive, null, { timeout: 4000 })
+  await host.waitForFunction(() => window.__spacewar.net.latest?.torps.some((t) => t.owner === 3) || !window.__spacewar.net.latest?.ships[3]?.alive, null, { timeout: 4000 })
     .catch(() => fail('host never saw a guest torpedo'));
   step('host sees the guest torpedoes');
   // the two clients agree on where the host's ship is, to within the interpolation delay

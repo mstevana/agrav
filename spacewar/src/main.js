@@ -261,9 +261,9 @@ function onRoom(room) {
   const waiting = room.players.filter((p) => !p.bot && p.id !== room.hostId && !p.ready).map((p) => p.name);
   ui.start.disabled = ships < 2 || waiting.length > 0;
   if (room.phase === 'running') ui.lobbymsg.textContent = 'Match in progress…';
-  else if (isHost && ships < 2) ui.lobbymsg.textContent = 'Click an empty seat to add a bot. At least two ships are needed to launch.';
+  else if (isHost && ships < 2) ui.lobbymsg.textContent = 'Add a bot with + Bot on an empty seat. At least two ships are needed to launch.';
   else if (isHost && waiting.length) ui.lobbymsg.textContent = `Waiting for ${waiting.join(', ')} to get ready.`;
-  else if (isHost) ui.lobbymsg.textContent = `${ships} ships. Click a seat to add or remove a bot, then Launch.`;
+  else if (isHost) ui.lobbymsg.textContent = `${ships} ships. Click an empty seat to switch ships, + Bot to add a bot, a bot to remove it. Then Launch.`;
   else ui.lobbymsg.textContent = app.imReady ? `Waiting for ${hostName} to launch.` : `Press Ready, then ${hostName} can launch.`;
 
   if (room.phase === 'running') { if (!app.playing) startGame(); }
@@ -271,34 +271,43 @@ function onRoom(room) {
 }
 
 /**
- * Four seats. The host clicks an empty seat to put a bot in it and clicks a bot to take it
- * out again; a human's seat shows who is in it (the host may kick them).
+ * Four seats, one per hull. Anyone clicks an empty seat to move into it. The host also gets
+ * a "+ Bot" button on each empty seat, and clicks a bot to take it out again. A human's seat
+ * shows who is in it (the host may kick them).
  */
 function renderSlots(room) {
   const byId = new Map(room.players.map((p) => [p.id, p]));
   const isHost = room.hostId === room.you;
-  const editable = isHost && room.phase !== 'running';
+  const lobby = room.phase !== 'running';
   ui.slots.innerHTML = '';
   SHIPS.forEach((sh, id) => {
     const p = byId.get(id);
     const human = p && !p.bot;
-    const el = document.createElement(editable && !human ? 'button' : 'div');
-    el.className = `slot${id === room.you ? ' me' : ''}${editable && !human ? ' toggle' : ''}${p ? '' : ' open'}`;
+    const el = document.createElement('div');
+    const sit = lobby && !p;                      // anyone may move into an empty seat
+    const remove = lobby && isHost && p && p.bot; // the host takes a bot out
+    el.className = `slot${id === room.you ? ' me' : ''}${sit || remove ? ' toggle' : ''}${p ? '' : ' open'}`;
     el.style.setProperty('--c', sh.color);
     let who, cls, hint = '';
     if (human) { who = escapeHtml(p.name) + (p.id === room.hostId ? ' <span class="host">host</span>' : ''); cls = 'human' + (p.ready || p.id === room.hostId ? ' ready' : ''); }
-    else if (p) { who = 'Bot'; cls = 'bot'; hint = editable ? 'click to remove' : ''; }
-    else { who = 'Empty'; cls = 'empty'; hint = editable ? 'click to add a bot' : ''; }
-    const kick = editable && human && p.id !== room.hostId ? `<span class="tag" role="button" tabindex="0" data-kick="${p.id}">kick</span>` : '';
-    el.innerHTML = `<span class="role">${sh.name}</span><span class="who ${cls}">${who}</span>${hint ? `<span class="hint">${hint}</span>` : ''}${kick}`;
-    if (editable && !human) {
-      el.type = 'button';
-      el.setAttribute('aria-label', p ? `Remove the bot from ${sh.name}` : `Add a bot as ${sh.name}`);
-      el.onclick = () => (p ? net.kick(id) : net.addBot(id));
+    else if (p) { who = 'Bot'; cls = 'bot'; hint = remove ? 'click to remove' : ''; }
+    else { who = 'Empty'; cls = 'empty'; hint = sit ? 'click to fly this ship' : ''; }
+    let action = '';
+    if (lobby && isHost && human && p.id !== room.hostId) action = `<button type="button" class="tag" data-kick="${p.id}">kick</button>`;
+    if (sit && isHost) action = `<button type="button" class="tag bot-add" data-bot="${id}" aria-label="Add a bot as ${sh.name}">+ Bot</button>`;
+    el.innerHTML = `<span class="role">${sh.name}</span><span class="who ${cls}">${who}</span>${hint ? `<span class="hint">${hint}</span>` : ''}${action}`;
+    if (sit || remove) {
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', sit ? `Fly the ${sh.name}` : `Remove the bot from ${sh.name}`);
+      const act = () => (sit ? net.takeSeat(id) : net.kick(id));
+      el.onclick = act;
+      el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } };
     }
     ui.slots.appendChild(el);
   });
-  for (const k of ui.slots.querySelectorAll('[data-kick]')) k.onclick = () => net.kick(Number(k.dataset.kick));
+  for (const b of ui.slots.querySelectorAll('[data-kick]')) b.onclick = (e) => { e.stopPropagation(); net.kick(Number(b.dataset.kick)); };
+  for (const b of ui.slots.querySelectorAll('[data-bot]')) b.onclick = (e) => { e.stopPropagation(); net.addBot(Number(b.dataset.bot)); };
 }
 
 // ---------------- match ----------------

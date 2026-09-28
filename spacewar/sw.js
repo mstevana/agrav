@@ -2,7 +2,7 @@
 // Network first (updates land immediately), cache fallback when offline. Every path is
 // relative so the app also works from a project subpath (GitHub Pages) — and the solo
 // engine is cached too, so an installed copy plays offline against bots with no server.
-const CACHE = 'spacewar-v2';
+const CACHE = 'spacewar-v3';
 const SHELL = [
   './', './index.html', './style.css', './manifest.webmanifest', './icons/icon.svg',
   './src/main.js', './src/net.js', './src/input.js', './src/render.js', './src/audio.js',
