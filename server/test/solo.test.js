@@ -21,7 +21,7 @@ test('the engine the browser loads has no node: imports', () => {
     'server/config.js', 'server/log.js', 'server/games.js', 'server/store.js',
     'shared/net/protocol.js', 'shared/net/bytes.js', 'shared/net/channel.js', 'shared/net/clock.js',
     'shared/sim/ring-buffer.js',
-    'shared/volley/module.js', 'shared/agrav/module.js', 'shared/rally/module.js',
+    'shared/volley/module.js', 'shared/agrav/module.js', 'shared/rally/module.js', 'shared/spacewar/module.js',
   ];
   for (const rel of browserLoaded) {
     const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');

@@ -2,7 +2,7 @@
   "name": "agrav-games",
   "version": "0.1.0",
   "private": true,
-  "description": "Multiplayer browser games platform: authoritative Node server, shared simulation, three.js PWA clients. AGRAV, Volley and Scrap Rally.",
+  "description": "Multiplayer browser games platform: authoritative Node server, shared simulation, three.js PWA clients. AGRAV, Volley, Scrap Rally and Spacewar.",
   "type": "module",
   "workspaces": ["server"],
   "scripts": {
@@ -15,7 +15,9 @@
     "lint-circuits": "node tools/rallylint.js",
     "rallysim": "node tools/rallysim.js",
     "rallynet": "node tools/rallynet.js",
-    "rallytest": "node tools/rallytest.js"
+    "rallytest": "node tools/rallytest.js",
+    "spacewarsim": "node tools/spacewarsim.js",
+    "spacewartest": "node tools/spacewartest.js"
   },
   "engines": { "node": ">=22" },
   "license": "MIT"

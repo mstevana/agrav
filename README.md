@@ -2,10 +2,10 @@
 
 A platform for small multiplayer browser games: one authoritative Node.js server that
 hosts many rooms of many games at once, a `shared/` simulation and protocol layer that the
-server and the browser import **unchanged**, and one three.js PWA client per game. No build
+server and the browser import **unchanged**, and one PWA client per game (three.js, or a 2D canvas for Spacewar). No build
 step anywhere: ES modules are served as they are written.
 
-Three games ship today:
+Four games ship today:
 
 - **[AGRAV](agrav/README.md)** — a 12-player anti-gravity combat racer in the spirit of the
   original Wipeout.
@@ -13,6 +13,8 @@ Three games ship today:
   to six players, bots filling any empty seat.
 - **[Scrap Rally](rally/README.md)** — top-down car combat for six, won by the flag or by
   being the last car running, with a career that remembers your money and your damage.
+- **[Spacewar!](spacewar/README.md)** — the 1962 classic for up to four ships on a wrapping
+  arena around a gravity well, won round by round by the last ship flying.
 
 ```
 server/     Node 22 · rooms, sessions, lobby, static files, /api, /ws · one dependency (ws)
@@ -21,6 +23,7 @@ shared/     net protocol + transport, sim primitives, gfx helpers, and shared/<g
 agrav/      the AGRAV client (PWA)
 volley/     the Volley client (PWA)
 rally/      the Scrap Rally client (PWA)
+spacewar/   the Spacewar client (PWA, 2D canvas)
 tools/      lint, balance, network soak, browser end-to-end, icon rendering
 deploy/     systemd unit, nginx site, Ubuntu install script
 data/       durable player records, when a game keeps any (git-ignored)
@@ -38,7 +41,7 @@ four-letter code or from the public list on the menu; the host can add bots.
 
 ## Playing without a server
 
-All three games also run **solo against bots with no server at all**, so the whole repo can
+All four games also run **solo against bots with no server at all**, so the whole repo can
 be published as static files — GitHub Pages, any CDN, even `file://`. The menu's first
 button (*Play solo vs bots* / *Race solo vs bots*) is all it takes.
 
@@ -106,7 +109,7 @@ Two more things a game can ask for, and neither costs the others anything:
 ## Tools
 
 ```sh
-npm test                       # node --test: shared sim + server (all three games)
+npm test                       # node --test: shared sim + server (every game)
 
 # AGRAV
 node tools/tracklint.js        # every track: width, radius, overlap, banking, pads, jumps
@@ -125,6 +128,10 @@ node tools/rallysim.js         # headless bots; --sweep how races end, --career 
 node tools/rallynet.js --players 6         # synthetic clients over a lossy socket
 node tools/rallytest.js        # two headless browsers through a race and into the garage
 node tools/rallyshots.js       # screenshots of every circuit
+
+# Spacewar
+node tools/spacewarsim.js 5 4 normal 1     # headless bot matches: matches, ships, bots, planet
+node tools/spacewartest.js     # two headless browsers online through a match to the results
 
 node tools/icons.js            # re-render the PWA icons
 ```

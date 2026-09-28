@@ -1,0 +1,15 @@
+{
+  "name": "Spacewar",
+  "short_name": "Spacewar",
+  "description": "The 1962 classic rebuilt: up to four ships dogfight around a gravity well, online or solo against bots.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#02030a",
+  "theme_color": "#04060f",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

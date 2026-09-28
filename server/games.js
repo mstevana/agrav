@@ -9,7 +9,8 @@ const loaders = {
   volley: () => import('../shared/volley/module.js'),
   volley1: () => import('../shared/volley/module1.js'),
   volley3: () => import('../shared/volley/module3.js'),
-  rally: () => import('../shared/rally/module.js')
+  rally: () => import('../shared/rally/module.js'),
+  spacewar: () => import('../shared/spacewar/module.js')
 };
 
 const cache = new Map();

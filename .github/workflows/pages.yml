@@ -47,7 +47,7 @@ jobs:
           # everything the browser loads: the launcher, both clients, the shared sim and
           # net layer, and the engine the page hosts for solo play
           cp index.html _site/
-          cp -r agrav volley rally shared server _site/
+          cp -r agrav volley rally spacewar shared server _site/
           rm -rf _site/server/test
           # Pages runs Jekyll by default, which would skip files starting with _ or .
           touch _site/.nojekyll
