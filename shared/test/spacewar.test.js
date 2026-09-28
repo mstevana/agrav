@@ -32,7 +32,7 @@ test('spacewar: turning, thrust and fuel', () => {
   assert.ok(ship.a > 0, 'steer +1 turns clockwise on screen');
   const ship2 = { ...createShip(0), alive: true, x: 100, y: 100, a: 0 };
   for (let i = 0; i < 60; i++) stepShip(ship2, { bits: BIT.THRUST, steer: 0 }, false);
-  assert.ok(ship2.vx > 200 && Math.abs(ship2.vy) < 1e-9, 'thrust pushes along the nose');
+  assert.ok(ship2.vx > 120 && Math.abs(ship2.vy) < 1e-9, 'thrust pushes along the nose');
   assert.equal(ship2.fuel, FUEL_MAX - 60);
   ship2.fuel = 0;
   const v = ship2.vx;
@@ -91,7 +91,7 @@ test('spacewar: a torpedo kills, credits the shooter, and cannot hit its owner a
   park(s, 1, 500, 300, 0);
   const events = [];
   step(s, [{ bits: BIT.FIRE, steer: 0 }], events);
-  for (let i = 0; i < 30 && s.ships[1].alive; i++) step(s, [], events);
+  for (let i = 0; i < 60 && s.ships[1].alive; i++) step(s, [], events);
   assert.equal(s.ships[0].alive, true, 'the shooter survives its own launch');
   assert.equal(s.ships[1].alive, false);
   assert.equal(s.ships[0].kills, 1);
@@ -104,10 +104,10 @@ test('spacewar: a fast torpedo cannot tunnel through a ship', () => {
   const s = match(2);
   park(s, 0, 100, 300, 0);
   park(s, 1, 500, 300, 0);
-  s.ships[0].vx = 560;  // the torpedo inherits this: ~18 px a tick, about a ship's radius
+  s.ships[0].vx = 900;  // the torpedo inherits this: ~20 px a tick, about a ship's radius
   step(s, [{ bits: BIT.FIRE, steer: 0 }]);
   s.ships[0].vx = 0;
-  for (let i = 0; i < 40 && s.ships[1].alive; i++) step(s);
+  for (let i = 0; i < 80 && s.ships[1].alive; i++) step(s);
   assert.equal(s.ships[1].alive, false);
 });
 
@@ -126,7 +126,7 @@ test('spacewar: torpedoes that meet cancel out', () => {
   park(s, 0, 300, 300, 0); park(s, 1, 700, 300, Math.PI);
   step(s, [{ bits: BIT.FIRE, steer: 0 }, { bits: BIT.FIRE, steer: 0 }]);
   assert.equal(s.torps.length, 2);
-  for (let i = 0; i < 30; i++) step(s);
+  for (let i = 0; i < 60; i++) step(s);
   assert.equal(s.torps.length, 0);
   assert.ok(s.ships[0].alive && s.ships[1].alive, 'nobody was hit');
 });

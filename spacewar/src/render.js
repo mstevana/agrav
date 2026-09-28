@@ -13,7 +13,7 @@
 // ============================================================================
 
 import {
-  FIELD_W, FIELD_H, CX, CY, SHIPS, PLANET_R, SHIP_R, FUEL_MAX, HYPER_COOLDOWN, HYPER_TICKS,
+  FIELD_W, FIELD_H, CX, CY, SHIPS, PLANET_R, SHIP_R, FUEL_MAX, HYPER_COOLDOWN, HYPER_TICKS, TORP_LIFE,
 } from '../../shared/spacewar/constants.js';
 import { makeRng } from '../../shared/sim/rng.js';
 
@@ -541,7 +541,7 @@ export class Renderer {
         g.lineWidth = 1 + (i / tr.length) * 2;
         g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); g.stroke();
       }
-      const fade = t.age > 80 ? Math.max(0.2, 1 - (t.age - 80) / 16) : 1;
+      const fade = t.age > TORP_LIFE - 16 ? Math.max(0.2, 1 - (t.age - TORP_LIFE + 16) / 16) : 1;
       this._images(t.x, t.y, 12, (x, y) => {
         g.globalAlpha = fade;
         g.drawImage(this.sprites.dots[t.owner] || this.sprites.white, x - 11, y - 11, 22, 22);

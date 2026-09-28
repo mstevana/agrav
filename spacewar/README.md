@@ -31,13 +31,13 @@ A player who drops mid-match is flown by a bot until they reconnect.
 
 - The arena wraps: a ship or torpedo leaving one edge comes back in at the opposite one.
 - **Turn**, **thrust** and **fire**. Space has no drag. Thrust burns fuel, and each ship
-  gets 14 seconds of burn and 24 torpedoes per round, shown on its HUD card.
+  gets 20 seconds of burn and 24 torpedoes per round, shown on its HUD card.
 - Torpedoes leave at a fixed speed on top of the ship's own velocity, fly in a straight
-  line, wrap, and burn out after 1.6 s. A torpedo kills the ship it hits, including the one
+  line, wrap, and burn out after 2.5 s. A torpedo kills the ship it hits, including the one
   that fired it once it is clear of the launcher. Two torpedoes that meet destroy each other.
 - **Hyperspace** jumps you to a random spot clear of the planet and the other ships. You are
   gone and untouchable for 0.6 s and come back with the velocity you left with, then it
-  recharges for 4 s (the ring on your HUD card).
+  recharges for 5 s (the ring on your HUD card).
 - Two ships that touch both explode.
 - A round ends a moment after only one ship is left, so a torpedo already in flight can
   still change the result. The survivor takes the round. If nobody survives, the round is a

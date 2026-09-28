@@ -15,9 +15,9 @@ export const DIFFICULTIES = {
   // aim: radians of aiming error, re-rolled now and then · cone: fire when this well lined up
   // gap: ticks between shots · hyper: chance to jump away from a torpedo it has seen coming
   // look: ticks ahead it watches torpedoes · cruise: speed it is happy to fly at
-  easy: { aim: 0.3, cone: 0.18, gap: 56, hyper: 0.1, look: 12, cruise: 110, planetLook: 50 },
-  normal: { aim: 0.12, cone: 0.1, gap: 30, hyper: 0.3, look: 28, cruise: 150, planetLook: 80 },
-  hard: { aim: 0.025, cone: 0.06, gap: 15, hyper: 0.65, look: 46, cruise: 190, planetLook: 110 },
+  easy: { aim: 0.3, cone: 0.18, gap: 80, hyper: 0.1, look: 20, cruise: 70, planetLook: 70 },
+  normal: { aim: 0.12, cone: 0.1, gap: 45, hyper: 0.3, look: 45, cruise: 95, planetLook: 110 },
+  hard: { aim: 0.025, cone: 0.06, gap: 24, hyper: 0.65, look: 70, cruise: 120, planetLook: 150 },
 };
 
 export function createBotMemory(id, seed, difficulty = 'normal') {
@@ -103,7 +103,7 @@ export function think(state, id, mem) {
   if (planet) {
     const hit = planetImpact(ship, cfg.planetLook);
     if (hit > 0) {
-      if (hit < 14 && hyperReady) return { bits: BIT.HYPER, steer: 0 };
+      if (hit < 20 && hyperReady) return { bits: BIT.HYPER, steer: 0 };
       const d = torusDelta(CX, CY, ship.x, ship.y);           // planet -> ship
       const r = Math.hypot(d.dx, d.dy) || 1;
       const ox = d.dx / r, oy = d.dy / r;
@@ -121,7 +121,7 @@ export function think(state, id, mem) {
   if (threat) {
     const key = threat.torp.id;
     if (mem.seen[key] === undefined) mem.seen[key] = rnd(mem) < cfg.hyper;
-    if (mem.seen[key] && hyperReady && threat.t < 0.35) return { bits: BIT.HYPER, steer: 0 };
+    if (mem.seen[key] && hyperReady && threat.t < 0.5) return { bits: BIT.HYPER, steer: 0 };
     // burn sideways to the torpedo's line
     const t = threat.torp;
     const side = Math.sign((t.vx - ship.vx) * Math.sin(ship.a) - (t.vy - ship.vy) * Math.cos(ship.a)) || 1;
