@@ -71,8 +71,10 @@ ui.mute.onclick = () => {
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => audio.resume(), { passive: true });
 
 // ---------------- name & connection ----------------
-ui.name.value = localStorage.getItem('spacewar.name') || `Pilot${Math.floor(Math.random() * 900 + 100)}`;
-ui.name.addEventListener('change', () => localStorage.setItem('spacewar.name', ui.name.value));
+let savedName = null;
+try { savedName = localStorage.getItem('spacewar.name'); } catch { /* storage blocked */ }
+ui.name.value = savedName || `Pilot${Math.floor(Math.random() * 900 + 100)}`;
+ui.name.addEventListener('change', () => { try { localStorage.setItem('spacewar.name', ui.name.value); } catch { /* ignore */ } });
 
 net.onState = (s) => { if (s === 'disconnected') onDisconnected(); };
 net.onError = (m) => flash(m.message || 'error', 1800);
@@ -212,7 +214,15 @@ function leave() {
   history.replaceState(null, '', location.pathname);
 }
 $('leave').onclick = leave;
-ui.quit.onclick = () => { if (confirm('Leave the match?')) leave(); };
+// two taps to leave: the first arms the button for a few seconds (no confirm(), which embedded pages may not get)
+let quitArmed = 0;
+ui.quit.onclick = () => {
+  if (performance.now() < quitArmed) { quitArmed = 0; ui.quit.classList.remove('armed'); ui.quit.textContent = '✕'; leave(); return; }
+  quitArmed = performance.now() + 3000;
+  ui.quit.classList.add('armed'); ui.quit.textContent = 'Leave?';
+  flash('Tap again to leave the match', 2500);
+  setTimeout(() => { if (performance.now() >= quitArmed) { ui.quit.classList.remove('armed'); ui.quit.textContent = '✕'; } }, 3100);
+};
 $('rematch').onclick = () => show(net.room ? 'lobby' : 'menu');
 for (const el of [ui.optRounds, ui.optBots, ui.optPlanet, ui.optFill]) el.onchange = () => net.setOpts(readOpts());
 ui.optPublic.onchange = () => net.setOpts({}, ui.optPublic.checked);

@@ -150,3 +150,4 @@ kbd {
   .keys { margin-top: 8px; }
   #rooms { max-height: 80px; }
 }
+#quit.armed { width: auto; padding: 0 14px; border-radius: 19px; font-size: 13px; background: rgba(255,79,163,0.35); border-color: #ff4fa3; }
